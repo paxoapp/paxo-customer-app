@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { MapPin, CalendarCheck, User } from "lucide-react";
 
 const SUPABASE_URL = "https://cjjksssylejwxwbalury.supabase.co";
 const ANON_KEY =
@@ -42,6 +43,20 @@ function depositPreview(headcount, hrsToEvent) {
 
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+
+function VenueCardSkeleton() {
+  return (
+    <div className="border border-stone-200 rounded-lg overflow-hidden bg-white animate-pulse">
+      <div className="w-full h-40 bg-stone-200" />
+      <div className="p-4">
+        <div className="h-4 bg-stone-200 rounded w-2/3 mb-2" />
+        <div className="h-3 bg-stone-200 rounded w-1/3 mb-3" />
+        <div className="h-3 bg-stone-200 rounded w-full mb-1" />
+        <div className="h-3 bg-stone-200 rounded w-5/6" />
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [screen, setScreen] = useState("auth");
@@ -805,7 +820,14 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
+    <div className="min-h-screen bg-stone-50 text-stone-900 pb-20 sm:pb-0">
+      <style>{`
+        @keyframes screenFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .screen-fade { animation: screenFadeIn 0.2s ease-out; }
+      `}</style>
       <header className="bg-slate-900 text-white">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-baseline gap-2 cursor-pointer" onClick={() => session && setScreen("browse")}>
@@ -814,18 +836,26 @@ export default function App() {
           </div>
           {session && (
             <nav className="flex items-center gap-4 text-sm relative">
-              <button
-                className={`hover:text-amber-400 ${screen === "browse" ? "text-amber-400" : "text-slate-300"}`}
-                onClick={() => setScreen("browse")}
-              >
-                Venues
-              </button>
-              <button
-                className={`hover:text-amber-400 ${screen === "myBookings" ? "text-amber-400" : "text-slate-300"}`}
-                onClick={() => setScreen("myBookings")}
-              >
-                My requests
-              </button>
+              <div className="hidden sm:flex items-center gap-4">
+                <button
+                  className={`hover:text-amber-400 ${screen === "browse" ? "text-amber-400" : "text-slate-300"}`}
+                  onClick={() => setScreen("browse")}
+                >
+                  Venues
+                </button>
+                <button
+                  className={`hover:text-amber-400 ${screen === "myBookings" ? "text-amber-400" : "text-slate-300"}`}
+                  onClick={() => setScreen("myBookings")}
+                >
+                  My bookings
+                </button>
+                <button
+                  className={`hover:text-amber-400 ${screen === "profile" ? "text-amber-400" : "text-slate-300"}`}
+                  onClick={() => setScreen("profile")}
+                >
+                  Profile
+                </button>
+              </div>
               <button
                 className="w-8 h-8 rounded-full bg-amber-500 text-slate-900 font-semibold flex items-center justify-center text-xs"
                 onClick={() => setMenuOpen((v) => !v)}
@@ -857,7 +887,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-5 py-8">
+      <main key={screen} className="max-w-4xl mx-auto px-5 py-8 screen-fade">
         {screen === "browse" && (
           <div>
             <h1 className="font-serif text-3xl mb-1">Find a venue</h1>
@@ -926,40 +956,46 @@ export default function App() {
               ))}
             </div>
 
-            {venuesLoading && <p className="text-stone-400 text-sm">Loading venues…</p>}
-            <div className="grid sm:grid-cols-2 gap-5">
-              {venues
-                .filter((v) => !selectedCity || v.city === selectedCity)
-                .map((v) => (
-                  <div
-                    key={v.id}
-                    className="border border-stone-200 rounded-lg overflow-hidden bg-white cursor-pointer hover:border-stone-400 transition"
-                    onClick={() => openVenue(v)}
-                  >
-                    <img
-                      src={v.venue_images?.[0]?.image_url || v.cover_image_url}
-                      alt={v.name}
-                      className="w-full h-40 object-cover"
-                    />
-                    <div className="p-4">
-                      <h3 className="font-serif text-lg">{v.name}</h3>
-                      <p className="text-xs text-stone-500 mb-2">
-                        {v.area ? `${v.area}, ` : ""}
-                        {v.city}
-                      </p>
-                      <p className="text-sm text-stone-600 line-clamp-2">{v.description}</p>
-                      {v.serves_alcohol && (
-                        <span className="inline-block mt-2 text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
-                          Serves alcohol
-                        </span>
-                      )}
+            {venuesLoading ? (
+              <div className="grid sm:grid-cols-2 gap-5">
+                <VenueCardSkeleton />
+                <VenueCardSkeleton />
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-5">
+                {venues
+                  .filter((v) => !selectedCity || v.city === selectedCity)
+                  .map((v) => (
+                    <div
+                      key={v.id}
+                      className="border border-stone-200 rounded-lg overflow-hidden bg-white cursor-pointer hover:border-stone-400 transition"
+                      onClick={() => openVenue(v)}
+                    >
+                      <img
+                        src={v.venue_images?.[0]?.image_url || v.cover_image_url}
+                        alt={v.name}
+                        className="w-full h-40 object-cover"
+                      />
+                      <div className="p-4">
+                        <h3 className="font-serif text-lg">{v.name}</h3>
+                        <p className="text-xs text-stone-500 mb-2">
+                          {v.area ? `${v.area}, ` : ""}
+                          {v.city}
+                        </p>
+                        <p className="text-sm text-stone-600 line-clamp-2">{v.description}</p>
+                        {v.serves_alcohol && (
+                          <span className="inline-block mt-2 text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                            Serves alcohol
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              {!venuesLoading && venues.filter((v) => !selectedCity || v.city === selectedCity).length === 0 && (
-                <p className="text-stone-400 text-sm col-span-2">No venues in {selectedCity} yet.</p>
-              )}
-            </div>
+                  ))}
+                {venues.filter((v) => !selectedCity || v.city === selectedCity).length === 0 && (
+                  <p className="text-stone-400 text-sm col-span-2">No venues in {selectedCity} yet.</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1333,6 +1369,34 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {session && (
+        <nav
+          className="sm:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-stone-200 flex items-stretch"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          {[
+            { key: "browse", label: "Venues", Icon: MapPin },
+            { key: "myBookings", label: "Bookings", Icon: CalendarCheck },
+            { key: "profile", label: "Profile", Icon: User },
+          ].map(({ key, label, Icon }) => {
+            const active = screen === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-xs ${
+                  active ? "text-amber-600" : "text-stone-400"
+                }`}
+                onClick={() => setScreen(key)}
+              >
+                <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }
