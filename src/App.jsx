@@ -59,7 +59,7 @@ function VenueCardSkeleton() {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState("auth");
+  const [screen, setScreen] = useState("browse");
   const [session, setSession] = useState(null); // { token, userId, email }
   const [authMode, setAuthMode] = useState("login");
   const [authEmail, setAuthEmail] = useState("");
@@ -88,10 +88,11 @@ export default function App() {
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [bookingTypes, setBookingTypes] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
+  const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [selectedCity, setSelectedCity] = useState(null);
-  const [locating, setLocating] = useState(false);
+  const [priceSort, setPriceSort] = useState(""); // '' | 'asc' | 'desc'
   const CITIES = ["Delhi", "Gurugram", "Noida", "Dehradun", "Punjab"];
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -189,20 +190,6 @@ export default function App() {
     return () => clearInterval(id);
   }, [venues.length]);
 
-  function useNearMe() {
-    setLocating(true);
-    setSelectedCity(null);
-    if (!navigator.geolocation) {
-      setLocating(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      () => setLocating(false),
-      () => setLocating(false),
-      { timeout: 5000 }
-    );
-  }
-
   async function saveProfile(e) {
     e.preventDefault();
     setProfileError("");
@@ -276,7 +263,7 @@ export default function App() {
       try {
         const user = await sb("/auth/v1/user", { token });
         setSession({ token, userId: user.id, email: user.email });
-        setScreen("browse");
+        afterAuthSuccess();
         window.history.replaceState(null, "", window.location.pathname);
       } catch (e) {
         setAuthError(e.message);
@@ -348,7 +335,7 @@ export default function App() {
         body: { password: resetNewPassword },
       });
       setSession({ token: verifyData.access_token, userId: verifyData.user.id, email: verifyData.user.email });
-      setScreen("browse");
+      afterAuthSuccess();
     } catch (e) {
       setResetError(e.message);
     } finally {
@@ -375,7 +362,7 @@ export default function App() {
         body: { password: newPassword },
       });
       setSession({ token: recoveryToken, userId: user.id, email: user.email });
-      setScreen("browse");
+      afterAuthSuccess();
     } catch (e) {
       setNewPasswordError(e.message);
     } finally {
@@ -397,7 +384,7 @@ export default function App() {
         if (signupData.access_token) {
           // Email confirmation is off for this project — we already have a usable session.
           setSession({ token: signupData.access_token, userId: signupData.user.id, email: signupData.user.email });
-          setScreen("browse");
+          afterAuthSuccess();
           return;
         }
         // Email confirmation is required before this account can log in.
@@ -410,7 +397,7 @@ export default function App() {
         body: { email: authEmail, password: authPassword },
       });
       setSession({ token: data.access_token, userId: data.user.id, email: data.user.email });
-      setScreen("browse");
+      afterAuthSuccess();
     } catch (e) {
       if (/email not confirmed/i.test(e.message)) {
         setAuthError("This email hasn't been confirmed yet. Check your inbox for the confirmation link, or resend it below.");
@@ -436,6 +423,25 @@ export default function App() {
   function openVenue(v) {
     setSelectedVenue(v);
     setScreen("venue");
+  }
+
+  function afterAuthSuccess() {
+    if (pendingPackage) {
+      setSelectedVenue(pendingPackage.venue);
+      startRequest(pendingPackage.pkg);
+      setPendingPackage(null);
+    } else {
+      setScreen("browse");
+    }
+  }
+
+  function selectPackage(pkg) {
+    if (session) {
+      startRequest(pkg);
+    } else {
+      setPendingPackage({ venue: selectedVenue, pkg });
+      setScreen("auth");
+    }
   }
 
   function startRequest(pkg) {
@@ -534,6 +540,17 @@ export default function App() {
     no_show: "bg-rose-100 text-rose-800",
   };
 
+  const cheapestPrice = (v) =>
+    v.venue_packages?.length ? Math.min(...v.venue_packages.map((p) => p.price_per_head)) : Infinity;
+
+  const visibleVenues = venues
+    .filter((v) => !selectedCity || v.city === selectedCity)
+    .sort((a, b) => {
+      if (!priceSort) return 0;
+      const diff = cheapestPrice(a) - cheapestPrice(b);
+      return priceSort === "desc" ? -diff : diff;
+    });
+
   if (screen === "auth") {
     const chipsRow1 = ["Book your venue instantly", "Easy to use", "Unlimited packages", "Select your menu"];
     const chipsRow2 = ["Easy payment methods", "Use anytime, anywhere", "Live booking status", "Rate your experience"];
@@ -547,6 +564,16 @@ export default function App() {
           .marquee-right { animation: marquee-right 26s linear infinite; }
         `}</style>
         <div className="max-w-sm mx-auto w-full">
+          <button
+            type="button"
+            className="text-sm text-stone-400 mb-6"
+            onClick={() => {
+              setPendingPackage(null);
+              setScreen("browse");
+            }}
+          >
+            ← Back to browsing
+          </button>
           <h1 className="uppercase font-black leading-[0.95] tracking-tight mb-5">
             <span className="block text-5xl">
               <span className="text-white">Book</span>{" "}
@@ -830,11 +857,11 @@ export default function App() {
       `}</style>
       <header className="bg-slate-900 text-white">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-baseline gap-2 cursor-pointer" onClick={() => session && setScreen("browse")}>
+          <div className="flex items-baseline gap-2 cursor-pointer" onClick={() => setScreen("browse")}>
             <span className="font-serif text-2xl tracking-tight">Paxo</span>
             <span className="text-xs text-slate-400 hidden sm:inline">venue bookings</span>
           </div>
-          {session && (
+          {session ? (
             <nav className="flex items-center gap-4 text-sm relative">
               <div className="hidden sm:flex items-center gap-4">
                 <button
@@ -883,6 +910,13 @@ export default function App() {
                 </div>
               )}
             </nav>
+          ) : (
+            <button
+              className="bg-amber-500 text-slate-900 text-sm font-semibold px-4 py-1.5 rounded-full"
+              onClick={() => setScreen("auth")}
+            >
+              Sign in
+            </button>
           )}
         </div>
       </header>
@@ -939,9 +973,9 @@ export default function App() {
                 className={`text-sm px-3 py-1.5 rounded-full border ${
                   selectedCity === null ? "bg-slate-900 text-white border-slate-900" : "border-stone-300 text-stone-600"
                 }`}
-                onClick={useNearMe}
+                onClick={() => setSelectedCity(null)}
               >
-                {locating ? "Locating…" : "Near me"}
+                All cities
               </button>
               {CITIES.map((c) => (
                 <button
@@ -954,6 +988,15 @@ export default function App() {
                   {c}
                 </button>
               ))}
+              <select
+                className="text-sm px-3 py-1.5 rounded-full border border-stone-300 text-stone-600 bg-white sm:ml-auto"
+                value={priceSort}
+                onChange={(e) => setPriceSort(e.target.value)}
+              >
+                <option value="">Sort by price</option>
+                <option value="asc">Price: Low to High</option>
+                <option value="desc">Price: High to Low</option>
+              </select>
             </div>
 
             {venuesLoading ? (
@@ -963,35 +1006,48 @@ export default function App() {
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 gap-5">
-                {venues
-                  .filter((v) => !selectedCity || v.city === selectedCity)
-                  .map((v) => (
-                    <div
-                      key={v.id}
-                      className="border border-stone-200 rounded-lg overflow-hidden bg-white cursor-pointer hover:border-stone-400 transition"
-                      onClick={() => openVenue(v)}
-                    >
-                      <img
-                        src={v.venue_images?.[0]?.image_url || v.cover_image_url}
-                        alt={v.name}
-                        className="w-full h-40 object-cover"
-                      />
-                      <div className="p-4">
+                {visibleVenues.map((v) => (
+                  <div
+                    key={v.id}
+                    className="border border-stone-200 rounded-lg overflow-hidden bg-white cursor-pointer hover:border-stone-400 transition"
+                    onClick={() => openVenue(v)}
+                  >
+                    <img
+                      src={v.venue_images?.[0]?.image_url || v.cover_image_url}
+                      alt={v.name}
+                      className="w-full h-40 object-cover"
+                    />
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="font-serif text-lg">{v.name}</h3>
-                        <p className="text-xs text-stone-500 mb-2">
-                          {v.area ? `${v.area}, ` : ""}
-                          {v.city}
-                        </p>
-                        <p className="text-sm text-stone-600 line-clamp-2">{v.description}</p>
+                        {v.is_verified && (
+                          <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                            ✓ Verified
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-stone-500 mb-2">
+                        {v.area ? `${v.area}, ` : ""}
+                        {v.city}
+                        {v.venue_type ? ` · ${v.venue_type}` : ""}
+                      </p>
+                      <p className="text-sm text-stone-600 line-clamp-2">{v.description}</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
                         {v.serves_alcohol && (
-                          <span className="inline-block mt-2 text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                          <span className="inline-block text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
                             Serves alcohol
+                          </span>
+                        )}
+                        {v.guest_capacity && (
+                          <span className="inline-block text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                            Up to {v.guest_capacity} guests
                           </span>
                         )}
                       </div>
                     </div>
-                  ))}
-                {venues.filter((v) => !selectedCity || v.city === selectedCity).length === 0 && (
+                  </div>
+                ))}
+                {visibleVenues.length === 0 && (
                   <p className="text-stone-400 text-sm col-span-2">No venues in {selectedCity} yet.</p>
                 )}
               </div>
@@ -1009,29 +1065,52 @@ export default function App() {
               alt={selectedVenue.name}
               className="w-full h-56 object-cover rounded-lg mb-4"
             />
-            <h1 className="font-serif text-3xl mb-1">{selectedVenue.name}</h1>
-            <p className="text-sm text-stone-500 mb-4">
-              {selectedVenue.address || `${selectedVenue.area}, ${selectedVenue.city}`}
-            </p>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h1 className="font-serif text-3xl">{selectedVenue.name}</h1>
+              {selectedVenue.is_verified && (
+                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                  ✓ Verified
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500 mb-4">
+              <span>
+                {selectedVenue.address || `${selectedVenue.area}, ${selectedVenue.city}`}
+                {selectedVenue.venue_type ? ` · ${selectedVenue.venue_type}` : ""}
+              </span>
+              {selectedVenue.guest_capacity && (
+                <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                  Up to {selectedVenue.guest_capacity} guests
+                </span>
+              )}
+            </div>
             <p className="text-stone-700 mb-6">{selectedVenue.description}</p>
             <h2 className="text-lg font-medium mb-3">Packages</h2>
             <div className="flex flex-col gap-3">
               {selectedVenue.venue_packages?.map((p) => (
-                <div key={p.id} className="border border-stone-200 rounded-lg p-4 flex items-center justify-between bg-white">
+                <div key={p.id} className="border border-stone-200 rounded-lg p-4 flex items-start justify-between gap-4 bg-white">
                   <div>
                     <p className="font-medium">{p.name}</p>
                     <p className="text-sm text-stone-500">{p.description}</p>
                     <p className="text-xs text-stone-400 mt-1">
                       {p.min_headcount}–{p.max_headcount || "∞"} guests
+                      {p.duration_hours ? ` · ${p.duration_hours} hrs` : ""}
                     </p>
+                    {p.inclusions?.length > 0 && (
+                      <ul className="list-disc pl-4 mt-2 text-xs text-stone-500 flex flex-col gap-0.5">
+                        {p.inclusions.map((inc, i) => (
+                          <li key={i}>{inc}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="font-medium">{inr(p.price_per_head)} / head</p>
                     <button
                       className="mt-2 bg-amber-500 text-slate-900 text-sm font-medium px-3 py-1.5 rounded"
-                      onClick={() => startRequest(p)}
+                      onClick={() => selectPackage(p)}
                     >
-                      Request booking
+                      Select Package
                     </button>
                   </div>
                 </div>
