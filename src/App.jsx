@@ -34,15 +34,53 @@ function hoursUntil(dateStr, timeStr) {
 
 function depositPreview(headcount, hrsToEvent) {
   if (hrsToEvent !== null && hrsToEvent < 72) {
-    return { tier: "Full payment", pct: 1, reason: "Under 72 hours to event" };
+    return {
+      tier: "Full payment",
+      pct: 1,
+      bookingCategory: "Express Booking",
+      reason:
+        "Your event is less than 72 hours away, so this is booked as an Express Booking — full payment is required upfront because the venue has very little lead time to prepare.",
+    };
   }
-  if (headcount <= 100) return { tier: "20% deposit", pct: 0.2, reason: "Up to 100 guests" };
-  if (headcount <= 300) return { tier: "50% deposit", pct: 0.5, reason: "101–300 guests" };
-  return { tier: "Full payment", pct: 1, reason: "300+ guests" };
+  if (headcount <= 100) {
+    return {
+      tier: "20% deposit",
+      pct: 0.2,
+      bookingCategory: "Advance Booking",
+      reason:
+        "This is an Advance Booking for up to 100 guests, so only a 20% deposit is needed now to secure the venue — the remaining balance is paid directly to the venue at the event.",
+    };
+  }
+  if (headcount <= 300) {
+    return {
+      tier: "50% deposit",
+      pct: 0.5,
+      bookingCategory: "Advance Booking",
+      reason:
+        "This is an Advance Booking for 101–300 guests, so a 50% deposit is needed now to secure the venue — the remaining balance is paid directly to the venue at the event.",
+    };
+  }
+  return {
+    tier: "Full payment",
+    pct: 1,
+    bookingCategory: "Advance Booking",
+    reason:
+      "This is an Advance Booking for 300+ guests, so full payment is required upfront given the size of the event.",
+  };
 }
 
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+
+const QUOTA_LABELS = {
+  starter_veg: "Veg Starters",
+  starter_non_veg: "Non-Veg Starters",
+  main_veg: "Veg Main Course",
+  main_non_veg: "Non-Veg Main Course",
+  dessert: "Desserts",
+  beverage_alcohol: "Alcoholic Beverages",
+  beverage_non_alcohol: "Non-Alcoholic Beverages",
+};
 
 function VenueCardSkeleton() {
   return (
@@ -110,14 +148,17 @@ export default function App() {
 
   const [form, setForm] = useState({
     customer_name: "",
+    contact_mobile: "",
+    contact_email: "",
     package_id: "",
     booking_type_id: "",
+    occasion_other: "",
     event_date: "",
     event_time: "",
     slot: "Evening",
-    headcount: "",
     male_count: "",
     female_count: "",
+    special_request: "",
     ack: false,
     tc_agree: false,
   });
@@ -129,7 +170,7 @@ export default function App() {
     setVenuesLoading(true);
     try {
       const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*)&status=eq.approved&order=created_at.desc"
+        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*))&status=eq.approved&order=created_at.desc"
       );
       setVenues(data);
     } catch (e) {
@@ -447,14 +488,17 @@ export default function App() {
   function startRequest(pkg) {
     setForm({
       customer_name: profile?.full_name || "",
+      contact_mobile: profile?.phone || "",
+      contact_email: profile?.email || session?.email || "",
       package_id: pkg.id,
       booking_type_id: "",
+      occasion_other: "",
       event_date: "",
       event_time: "",
       slot: "Evening",
-      headcount: "",
       male_count: "",
       female_count: "",
+      special_request: "",
       ack: false,
       tc_agree: false,
     });
@@ -467,17 +511,36 @@ export default function App() {
     e.preventDefault();
     setSubmitError("");
     if (!form.customer_name.trim()) {
-      setSubmitError("Enter your name.");
+      setSubmitError("Enter your full name.");
       return;
     }
-    const headcount = parseInt(form.headcount, 10);
-    if (!headcount || headcount < 1) {
-      setSubmitError("Enter a valid headcount.");
+    if (!form.contact_mobile.trim()) {
+      setSubmitError("Enter your mobile number.");
+      return;
+    }
+    if (!form.contact_email.trim()) {
+      setSubmitError("Enter your email address.");
+      return;
+    }
+    if (!form.booking_type_id) {
+      setSubmitError("Select an occasion.");
+      return;
+    }
+    const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
+    if (selectedBookingType?.name === "Other" && !form.occasion_other.trim()) {
+      setSubmitError("Please specify the occasion.");
+      return;
+    }
+    const maleNum = parseInt(form.male_count, 10) || 0;
+    const femaleNum = parseInt(form.female_count, 10) || 0;
+    const headcount = maleNum + femaleNum;
+    if (headcount < 1) {
+      setSubmitError("Enter at least 1 guest across Male / Female.");
       return;
     }
     const hrs = hoursUntil(form.event_date, form.event_time);
     if (hrs !== null && hrs < 72 && !form.ack) {
-      setSubmitError("Please acknowledge the last-minute booking terms before submitting.");
+      setSubmitError("Please acknowledge the Express Booking terms before submitting.");
       return;
     }
     if (hrs !== null && hrs < 0) {
@@ -507,12 +570,16 @@ export default function App() {
           venue_id: selectedVenue.id,
           package_id: form.package_id,
           booking_type_id: form.booking_type_id || null,
+          occasion_other: selectedBookingType?.name === "Other" ? form.occasion_other.trim() : null,
           event_date: form.event_date,
           event_time: form.event_time,
           slot: form.slot,
-          headcount,
-          male_count: form.male_count ? parseInt(form.male_count, 10) : null,
-          female_count: form.female_count ? parseInt(form.female_count, 10) : null,
+          male_count: maleNum || null,
+          female_count: femaleNum || null,
+          contact_name: form.customer_name.trim(),
+          contact_mobile: form.contact_mobile.trim(),
+          contact_email: form.contact_email.trim(),
+          special_request: form.special_request.trim() || null,
         },
       });
       setSubmitted(row);
@@ -524,10 +591,13 @@ export default function App() {
   }
 
   const hrs = hoursUntil(form.event_date, form.event_time);
-  const headcountNum = parseInt(form.headcount, 10) || 0;
+  const maleNum = parseInt(form.male_count, 10) || 0;
+  const femaleNum = parseInt(form.female_count, 10) || 0;
+  const headcountNum = maleNum + femaleNum;
   const preview = headcountNum > 0 ? depositPreview(headcountNum, hrs) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
   const totalPreview = selectedPackage && headcountNum ? selectedPackage.price_per_head * headcountNum : 0;
+  const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
     pending: "bg-amber-100 text-amber-800",
@@ -1103,6 +1173,17 @@ export default function App() {
                         ))}
                       </ul>
                     )}
+                    {p.menu_quota_rules?.length > 0 && (
+                      <ul className="list-disc pl-4 mt-2 text-xs text-stone-500 flex flex-col gap-0.5">
+                        {[...p.menu_quota_rules]
+                          .sort((a, b) => a.category_kind.localeCompare(b.category_kind))
+                          .map((q) => (
+                            <li key={q.id}>
+                              Choose {q.quota_count} {QUOTA_LABELS[q.category_kind] || q.category_kind}
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-medium">{inr(p.price_per_head)} / head</p>
@@ -1124,12 +1205,23 @@ export default function App() {
             <button className="text-sm text-stone-500 mb-4" onClick={() => setScreen("venue")}>
               ← Back to {selectedVenue.name}
             </button>
-            <h1 className="font-serif text-3xl mb-1">Request a booking</h1>
-            <p className="text-stone-500 text-sm mb-6">{selectedVenue.name} · {selectedPackage?.name}</p>
+            <h1 className="font-serif text-3xl mb-4">Request a booking</h1>
+
+            <div className="border border-stone-200 rounded-lg p-4 bg-stone-50 text-sm mb-6">
+              <p className="font-medium">{selectedVenue.name}</p>
+              <p className="text-stone-500 text-xs mb-2">
+                {selectedVenue.area ? `${selectedVenue.area}, ` : ""}
+                {selectedVenue.city}
+              </p>
+              <div className="flex justify-between text-xs text-stone-600 pt-2 border-t border-stone-200">
+                <span>{selectedPackage?.name}</span>
+                <span>{inr(selectedPackage?.price_per_head || 0)} / person</span>
+              </div>
+            </div>
 
             <form onSubmit={submitRequest} className="flex flex-col gap-4">
               <div>
-                <label className="text-sm font-medium block mb-1">Your name</label>
+                <label className="text-sm font-medium block mb-1">Full Name</label>
                 <input
                   type="text"
                   required
@@ -1137,6 +1229,30 @@ export default function App() {
                   value={form.customer_name}
                   onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium block mb-1">Mobile Number</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    value={form.contact_mobile}
+                    onChange={(e) => setForm({ ...form, contact_mobile: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium block mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    value={form.contact_email}
+                    onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div>
@@ -1163,6 +1279,19 @@ export default function App() {
                 </select>
               </div>
 
+              {selectedBookingType?.name === "Other" && (
+                <div>
+                  <label className="text-sm font-medium block mb-1">Please specify occasion</label>
+                  <input
+                    type="text"
+                    required
+                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    value={form.occasion_other}
+                    onChange={(e) => setForm({ ...form, occasion_other: e.target.value })}
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium block mb-1">Event date</label>
@@ -1175,7 +1304,7 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium block mb-1">Event time</label>
+                  <label className="text-sm font-medium block mb-1">Party Slot Timing</label>
                   <input
                     type="time"
                     required
@@ -1200,18 +1329,7 @@ export default function App() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-sm font-medium block mb-1">Headcount</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
-                    value={form.headcount}
-                    onChange={(e) => setForm({ ...form, headcount: e.target.value })}
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium block mb-1">Male</label>
                   <input
@@ -1234,14 +1352,35 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="bg-stone-100 rounded px-3 py-2 text-sm flex justify-between items-center">
+                <span className="text-stone-500">Total Guest Count</span>
+                <span className="font-medium">{headcountNum}</span>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium block mb-1">Special Request / Notes</label>
+                <textarea
+                  rows={3}
+                  placeholder="Tell the venue about any special requirements for your event"
+                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  value={form.special_request}
+                  onChange={(e) => setForm({ ...form, special_request: e.target.value })}
+                />
+              </div>
+
               {headcountNum > 0 && (
                 <div className="bg-stone-100 rounded-lg p-4 text-sm">
+                  <h3 className="font-medium text-stone-700 mb-2">Booking Summary</h3>
                   <div className="flex justify-between mb-1">
-                    <span className="text-stone-500">Estimated total</span>
-                    <span className="font-medium">{inr(totalPreview)}</span>
+                    <span className="text-stone-500">{selectedPackage?.name} × {headcountNum} guests</span>
+                    <span className="text-stone-500">{inr(selectedPackage?.price_per_head || 0)} / head</span>
+                  </div>
+                  <div className="flex justify-between mb-2 pb-2 border-b border-stone-200 font-semibold text-base">
+                    <span>Estimated Package Value</span>
+                    <span>{inr(totalPreview)}</span>
                   </div>
                   <div className="flex justify-between mb-1">
-                    <span className="text-stone-500">Payment required at confirmation</span>
+                    <span className="text-stone-500">{preview.bookingCategory}</span>
                     <span className="font-medium">{preview.tier}</span>
                   </div>
                   <p className="text-xs text-stone-400">{preview.reason}</p>
@@ -1250,7 +1389,7 @@ export default function App() {
 
               {hrs !== null && hrs >= 0 && hrs < 72 && (
                 <div className="border border-rose-300 bg-rose-50 rounded-lg p-4 text-sm">
-                  <p className="font-medium text-rose-800 mb-1">This is a last-minute booking</p>
+                  <p className="font-medium text-rose-800 mb-1">This is an Express Booking</p>
                   <p className="text-rose-700 mb-3">
                     Your event is less than 72 hours away. If accepted, full payment is required
                     immediately and this booking cannot be cancelled once confirmed.
@@ -1273,7 +1412,7 @@ export default function App() {
                   <li>The venue has up to 2 hours to accept or reject your request.</li>
                   <li>Your deposit is due immediately once the venue accepts.</li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
-                  <li>Bookings made under 72 hours before the event require full payment and cannot be cancelled.</li>
+                  <li>Express Bookings (made under 72 hours before the event) require full payment and cannot be cancelled.</li>
                   <li>Cancellations 72+ hours before the event are refunded minus a flat ₹2,000 admin fee; later cancellations forfeit more of the deposit to the venue.</li>
                 </ul>
               </div>
@@ -1441,7 +1580,7 @@ export default function App() {
                 <ul className="text-sm text-stone-500 list-disc pl-4 flex flex-col gap-1">
                   <li>How long does a venue have to respond to my request? Up to 2 hours.</li>
                   <li>When do I pay the rest of the bill? Directly at the venue, unless you paid in full.</li>
-                  <li>Can I cancel a last-minute booking? No — bookings under 72 hours are final once confirmed.</li>
+                  <li>Can I cancel an Express Booking? No — bookings under 72 hours are final once confirmed.</li>
                 </ul>
               </div>
             </div>
