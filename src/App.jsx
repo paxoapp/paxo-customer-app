@@ -72,15 +72,32 @@ function depositPreview(headcount, hrsToEvent) {
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
+// [singular, plural] per quota category kind.
 const QUOTA_LABELS = {
-  starter_veg: "Veg Starters",
-  starter_non_veg: "Non-Veg Starters",
-  main_veg: "Veg Main Course",
-  main_non_veg: "Non-Veg Main Course",
-  dessert: "Desserts",
-  beverage_alcohol: "Alcoholic Beverages",
-  beverage_non_alcohol: "Non-Alcoholic Beverages",
+  starter_veg: ["Veg Starter", "Veg Starters"],
+  starter_non_veg: ["Non-Veg Starter", "Non-Veg Starters"],
+  main_veg: ["Veg Main Course", "Veg Main Courses"],
+  main_non_veg: ["Non-Veg Main Course", "Non-Veg Main Courses"],
+  dessert: ["Dessert", "Desserts"],
+  wine: ["Wine", "Wines"],
+  beer: ["Beer", "Beers"],
+  whisky: ["Whisky", "Whiskies"],
+  vodka: ["Vodka", "Vodkas"],
+  rum: ["Rum", "Rums"],
+  gin: ["Gin", "Gins"],
+  classic_cocktails: ["Classic Cocktail", "Classic Cocktails"],
+  mocktails: ["Mocktail", "Mocktails"],
+  soft_beverages: ["Soft Beverage", "Soft Beverages"],
+  // legacy kinds, kept for older packages
+  beverage_alcohol: ["Alcoholic Beverage", "Alcoholic Beverages"],
+  beverage_non_alcohol: ["Non-Alcoholic Beverage", "Non-Alcoholic Beverages"],
 };
+
+function quotaLabel(kind, count) {
+  const pair = QUOTA_LABELS[kind];
+  if (!pair) return kind;
+  return count === 1 ? pair[0] : pair[1];
+}
 
 function VenueCardSkeleton() {
   return (
@@ -1179,7 +1196,7 @@ export default function App() {
                           .sort((a, b) => a.category_kind.localeCompare(b.category_kind))
                           .map((q) => (
                             <li key={q.id}>
-                              Choose {q.quota_count} {QUOTA_LABELS[q.category_kind] || q.category_kind}
+                              Choose {q.quota_count} {quotaLabel(q.category_kind, q.quota_count)}
                             </li>
                           ))}
                       </ul>
