@@ -100,6 +100,133 @@ function quotaLabel(kind, count) {
   return count === 1 ? pair[0] : pair[1];
 }
 
+const FOOD_QUOTA_KINDS = ["starter_veg", "starter_non_veg", "main_veg", "main_non_veg", "dessert"];
+// Hard-liquor categories where a package restricts choice to a specific brand pool.
+const POOL_QUOTA_KINDS = ["whisky", "vodka", "gin", "rum", "beer", "wine"];
+
+// Lowest price among a venue's published packages (RLS only returns published
+// packages to customers), or null if it has none.
+function minPackagePrice(venue) {
+  const prices = (venue?.venue_packages || []).map((p) => Number(p.price_per_head));
+  return prices.length ? Math.min(...prices) : null;
+}
+
+// Shared modal shell — same close affordances as the admin doc viewer:
+// the X button, the Esc key, and a click on the backdrop.
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div
+        className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
+          <p className="font-medium">{title}</p>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-8 h-8 flex items-center justify-center rounded text-stone-400 hover:text-stone-700 hover:bg-stone-100 text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// Read-only pre-purchase menu view for one package.
+function ReviewMenuBody({ pkg, venue }) {
+  const cats = venue?.menu_categories || [];
+  const itemsForKind = (kind) =>
+    cats
+      .filter((c) => c.kind === kind)
+      .flatMap((c) => c.menu_items || [])
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  const quotaFor = (kind) =>
+    pkg.menu_quota_rules?.find((q) => q.category_kind === kind)?.quota_count;
+  const poolIds = new Set((pkg.package_item_pool || []).map((r) => r.menu_item_id));
+
+  const foodKinds = FOOD_QUOTA_KINDS.filter((k) => quotaFor(k));
+  const drinkKinds = POOL_QUOTA_KINDS.filter((k) => quotaFor(k));
+
+  const ItemList = ({ items }) =>
+    items.length ? (
+      <ul className="list-disc pl-5 text-sm text-stone-600 flex flex-col gap-0.5">
+        {items.map((it) => (
+          <li key={it.id} className={it.is_available ? "" : "text-stone-400"}>
+            {it.name}
+            {!it.is_available && " (currently unavailable)"}
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className="text-sm text-stone-400">No items listed yet.</p>
+    );
+
+  const Group = ({ kind, items }) => (
+    <div className="mb-3 last:mb-0">
+      <p className="text-sm font-medium text-stone-700 mb-1">
+        Choose {quotaFor(kind)} {quotaLabel(kind, quotaFor(kind))}
+      </p>
+      <ItemList items={items} />
+    </div>
+  );
+
+  const nothing =
+    foodKinds.length === 0 && drinkKinds.length === 0 && !pkg.inclusions?.length;
+
+  return (
+    <div>
+      {foodKinds.length > 0 && (
+        <div className="mb-5">
+          <h3 className="text-sm font-semibold text-stone-800 mb-2">Food</h3>
+          {foodKinds.map((k) => (
+            <Group key={k} kind={k} items={itemsForKind(k)} />
+          ))}
+        </div>
+      )}
+
+      {drinkKinds.length > 0 && (
+        <div className="mb-5">
+          <h3 className="text-sm font-semibold text-stone-800 mb-2">
+            Drinks included in this package
+          </h3>
+          {drinkKinds.map((k) => (
+            <Group key={k} kind={k} items={itemsForKind(k).filter((it) => poolIds.has(it.id))} />
+          ))}
+        </div>
+      )}
+
+      {pkg.inclusions?.length > 0 && (
+        <div className="mb-5 last:mb-0">
+          <h3 className="text-sm font-semibold text-stone-800 mb-2">Also included</h3>
+          <ul className="list-disc pl-5 text-sm text-stone-600 flex flex-col gap-0.5">
+            {pkg.inclusions.map((inc, i) => (
+              <li key={i}>{inc}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {nothing && <p className="text-sm text-stone-400">No menu details for this package yet.</p>}
+    </div>
+  );
+}
+
 function VenueCardSkeleton() {
   return (
     <div className="border border-stone-200 rounded-lg overflow-hidden bg-white animate-pulse">
@@ -142,6 +269,7 @@ export default function App() {
   const [venues, setVenues] = useState([]);
   const [venuesLoading, setVenuesLoading] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState(null);
+  const [reviewPkg, setReviewPkg] = useState(null); // package whose "Review Menu" modal is open
   const [bookingTypes, setBookingTypes] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
@@ -188,7 +316,7 @@ export default function App() {
     setVenuesLoading(true);
     try {
       const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*))&status=eq.approved&order=created_at.desc"
+        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available))&status=eq.approved&order=created_at.desc"
       );
       setVenues(data);
     } catch (e) {
@@ -1035,13 +1163,10 @@ export default function App() {
                     {venues[heroIndex % venues.length].area ? `${venues[heroIndex % venues.length].area}, ` : ""}
                     {venues[heroIndex % venues.length].city}
                   </p>
-                  {venues[heroIndex % venues.length].venue_packages?.length > 0 && (
+                  {minPackagePrice(venues[heroIndex % venues.length]) != null && (
                     <p className="text-sm text-amber-400 font-medium mt-1">
-                      Starting at{" "}
-                      {inr(
-                        Math.min(...venues[heroIndex % venues.length].venue_packages.map((p) => p.price_per_head))
-                      )}{" "}
-                      / head
+                      Unlimited packages starting{" "}
+                      {inr(minPackagePrice(venues[heroIndex % venues.length]))} / head
                     </p>
                   )}
                 </div>
@@ -1120,6 +1245,11 @@ export default function App() {
                         {v.venue_type ? ` · ${v.venue_type}` : ""}
                       </p>
                       <p className="text-sm text-stone-600 line-clamp-2">{v.description}</p>
+                      {minPackagePrice(v) != null && (
+                        <p className="text-sm font-medium text-amber-700 mt-2">
+                          Unlimited packages starting {inr(minPackagePrice(v))}
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-2 mt-2">
                         {v.serves_alcohol && (
                           <span className="inline-block text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
@@ -1132,6 +1262,16 @@ export default function App() {
                           </span>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        className="mt-3 w-full bg-amber-500 text-slate-900 text-sm font-semibold py-2 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openVenue(v);
+                        }}
+                      >
+                        Book Now
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1173,7 +1313,7 @@ export default function App() {
               )}
             </div>
             <p className="text-stone-700 mb-6">{selectedVenue.description}</p>
-            <h2 className="text-lg font-medium mb-3">Packages</h2>
+            <h2 className="text-lg font-medium mb-3">Unlimited Packages</h2>
             <div className="flex flex-col gap-3">
               {selectedVenue.venue_packages?.map((p) => (
                 <div key={p.id} className="border border-stone-200 rounded-lg p-4 flex items-start justify-between gap-4 bg-white">
@@ -1203,13 +1343,20 @@ export default function App() {
                       </ul>
                     )}
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 flex flex-col items-end gap-2">
                     <p className="font-medium">{inr(p.price_per_head)} / head</p>
                     <button
-                      className="mt-2 bg-amber-500 text-slate-900 text-sm font-medium px-3 py-1.5 rounded"
+                      className="bg-amber-500 text-slate-900 text-sm font-medium px-3 py-1.5 rounded"
                       onClick={() => selectPackage(p)}
                     >
                       Select Package
+                    </button>
+                    <button
+                      type="button"
+                      className="border border-stone-300 text-stone-600 text-sm px-3 py-1.5 rounded"
+                      onClick={() => setReviewPkg(p)}
+                    >
+                      Review Menu
                     </button>
                   </div>
                 </div>
@@ -1605,6 +1752,12 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {reviewPkg && screen === "venue" && selectedVenue && (
+        <Modal title={`${reviewPkg.name} — what's on the menu`} onClose={() => setReviewPkg(null)}>
+          <ReviewMenuBody pkg={reviewPkg} venue={selectedVenue} />
+        </Modal>
+      )}
 
       {session && (
         <nav
