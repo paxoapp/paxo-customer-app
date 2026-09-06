@@ -26,6 +26,22 @@ async function sb(path, { method = "GET", body, token, prefer } = {}) {
   return data;
 }
 
+// Call a Supabase Edge Function with the user's session JWT.
+async function callFn(slug, token, body) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
+    method: "POST",
+    headers: {
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.text().then((t) => (t ? JSON.parse(t) : {}));
+  if (!res.ok) throw new Error(data.error || data.details || "Something went wrong");
+  return data;
+}
+
 function hoursUntil(dateStr, timeStr) {
   if (!dateStr || !timeStr) return null;
   const target = new Date(`${dateStr}T${timeStr}`);
@@ -272,6 +288,8 @@ export default function App() {
   const [reviewPkg, setReviewPkg] = useState(null); // package whose "Review Menu" modal is open
   const [bookingTypes, setBookingTypes] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
+  const [payingBookingId, setPayingBookingId] = useState(null);
+  const [payError, setPayError] = useState({}); // keyed by booking id
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [heroIndex, setHeroIndex] = useState(0);
@@ -338,7 +356,7 @@ export default function App() {
   const loadMyBookings = useCallback(async (token) => {
     try {
       const data = await sb(
-        "/rest/v1/bookings?select=*,venues(name),venue_packages(name)&order=created_at.desc",
+        "/rest/v1/bookings?select=*,venues(name),venue_packages(name),payments(payment_type,status,amount,paid_at)&order=created_at.desc",
         { token }
       );
       setMyBookings(data);
@@ -346,6 +364,82 @@ export default function App() {
       console.error(e);
     }
   }, []);
+
+  // Deposit payment via Razorpay Checkout. Amount is computed server-side by
+  // the create-razorpay-order function — never sent from here.
+  async function payDeposit(booking) {
+    setPayError((m) => ({ ...m, [booking.id]: "" }));
+    setPayingBookingId(booking.id);
+    try {
+      if (!window.Razorpay) {
+        throw new Error("Payment library didn't load — please refresh and try again.");
+      }
+      const order = await callFn("create-razorpay-order", session.token, {
+        booking_id: booking.id,
+        payment_type: "deposit",
+      });
+
+      const rzp = new window.Razorpay({
+        key: order.key_id,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.order_id,
+        name: "PAXO",
+        description: `Deposit — ${booking.venues?.name || "venue booking"}`,
+        prefill: {
+          name: booking.contact_name || profile?.full_name || "",
+          email: booking.contact_email || session.email || "",
+          contact: booking.contact_mobile || profile?.phone || "",
+        },
+        theme: { color: "#f59e0b" },
+        handler: async (response) => {
+          try {
+            const result = await callFn("verify-razorpay-payment", session.token, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            if (result.verified) {
+              setPayError((m) => ({ ...m, [booking.id]: "" }));
+              await loadMyBookings(session.token);
+            } else {
+              setPayError((m) => ({
+                ...m,
+                [booking.id]: result.error || "We couldn't confirm that payment. Please try again.",
+              }));
+            }
+          } catch (err) {
+            setPayError((m) => ({
+              ...m,
+              [booking.id]: err.message || "We couldn't confirm that payment. Please try again.",
+            }));
+          } finally {
+            setPayingBookingId(null);
+          }
+        },
+        modal: {
+          // Customer closed the popup without paying — just return them to the button.
+          ondismiss: () => setPayingBookingId(null),
+        },
+      });
+
+      rzp.on("payment.failed", (resp) => {
+        setPayError((m) => ({
+          ...m,
+          [booking.id]: resp?.error?.description || "The payment didn't go through. Please try again.",
+        }));
+        setPayingBookingId(null);
+      });
+
+      rzp.open();
+    } catch (err) {
+      setPayError((m) => ({
+        ...m,
+        [booking.id]: err.message || "Couldn't start the payment. Please try again.",
+      }));
+      setPayingBookingId(null);
+    }
+  }
 
   const loadProfile = useCallback(async (token, userId) => {
     try {
@@ -1651,24 +1745,47 @@ export default function App() {
               <p className="text-stone-400 text-sm">You haven't requested any bookings yet.</p>
             )}
             <div className="flex flex-col gap-3">
-              {myBookings.map((b) => (
-                <div key={b.id} className="border border-stone-200 rounded-lg p-4 bg-white flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{b.venues?.name}</p>
-                    <p className="text-sm text-stone-500">
-                      {b.venue_packages?.name} · {b.event_date} · {b.headcount} guests
-                    </p>
-                    <p className="text-xs text-stone-400 mt-1">
-                      {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"}
-                      {" · "}
-                      {inr(b.deposit_amount)} due
-                    </p>
+              {myBookings.map((b) => {
+                const depositPaid = b.payments?.some(
+                  (p) => p.payment_type === "deposit" && p.status === "paid"
+                );
+                return (
+                  <div key={b.id} className="border border-stone-200 rounded-lg p-4 bg-white flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{b.venues?.name}</p>
+                      <p className="text-sm text-stone-500">
+                        {b.venue_packages?.name} · {b.event_date} · {b.headcount} guests
+                      </p>
+                      <p className="text-xs text-stone-400 mt-1">
+                        {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"}
+                        {" · "}
+                        {inr(b.deposit_amount)} {depositPaid ? "paid" : "due"}
+                      </p>
+
+                      {depositPaid ? (
+                        <p className="text-sm font-medium text-emerald-700 mt-2">✓ Payment confirmed</p>
+                      ) : b.status === "accepted" ? (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            disabled={payingBookingId === b.id}
+                            onClick={() => payDeposit(b)}
+                            className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                          >
+                            {payingBookingId === b.id ? "Opening…" : `Pay Deposit · ${inr(b.deposit_amount)}`}
+                          </button>
+                          {payError[b.id] && (
+                            <p className="text-xs text-rose-600 mt-1">{payError[b.id]}</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 ${statusColor[b.status] || "bg-stone-100 text-stone-700"}`}>
+                      {b.status.replace("_", " ")}
+                    </span>
                   </div>
-                  <span className={`text-xs font-medium px-2 py-1 rounded ${statusColor[b.status] || "bg-stone-100 text-stone-700"}`}>
-                    {b.status.replace("_", " ")}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
