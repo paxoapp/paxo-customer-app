@@ -1324,24 +1324,46 @@ export default function App() {
                       {p.min_headcount}–{p.max_headcount || "∞"} guests
                       {p.duration_hours ? ` · ${p.duration_hours} hrs` : ""}
                     </p>
-                    {p.inclusions?.length > 0 && (
-                      <ul className="list-disc pl-4 mt-2 text-xs text-stone-500 flex flex-col gap-0.5">
-                        {p.inclusions.map((inc, i) => (
-                          <li key={i}>{inc}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {p.menu_quota_rules?.length > 0 && (
-                      <ul className="list-disc pl-4 mt-2 text-xs text-stone-500 flex flex-col gap-0.5">
-                        {[...p.menu_quota_rules]
-                          .sort((a, b) => a.category_kind.localeCompare(b.category_kind))
-                          .map((q) => (
-                            <li key={q.id}>
-                              Choose {q.quota_count} {quotaLabel(q.category_kind, q.quota_count)}
-                            </li>
-                          ))}
-                      </ul>
-                    )}
+                    {(() => {
+                      const quotas = [...(p.menu_quota_rules || [])].sort((a, b) =>
+                        a.category_kind.localeCompare(b.category_kind)
+                      );
+                      const food = quotas.filter((q) => FOOD_QUOTA_KINDS.includes(q.category_kind));
+                      const bev = quotas.filter((q) => !FOOD_QUOTA_KINDS.includes(q.category_kind));
+                      const line = (q) =>
+                        `Choose ${q.quota_count} ${quotaLabel(q.category_kind, q.quota_count)}`;
+                      return (
+                        <>
+                          {food.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                                Food
+                              </p>
+                              <ul className="list-disc pl-4 text-xs text-stone-500 flex flex-col gap-0.5">
+                                {food.map((q) => (
+                                  <li key={q.id}>{line(q)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {(bev.length > 0 || p.inclusions?.length > 0) && (
+                            <div className="mt-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                                Beverages
+                              </p>
+                              <ul className="list-disc pl-4 text-xs text-stone-500 flex flex-col gap-0.5">
+                                {bev.map((q) => (
+                                  <li key={q.id}>{line(q)}</li>
+                                ))}
+                                {(p.inclusions || []).map((inc, i) => (
+                                  <li key={`inc-${i}`}>{inc}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
                     <p className="font-medium">{inr(p.price_per_head)} / head</p>
