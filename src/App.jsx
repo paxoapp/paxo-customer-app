@@ -2120,7 +2120,15 @@ export default function App() {
             </div>
             <p className="text-ink/90 mb-6">{selectedVenue.description}</p>
             <h2 className="font-display text-xl font-semibold mb-3">Unlimited packages</h2>
-            <div className="flex flex-col gap-3">
+
+            <p className="font-display text-base font-semibold text-ink mb-1">View full menu</p>
+            <p className="text-sm text-haze mb-3">
+              Everything this venue serves. Package-specific choices and quotas are shown on each
+              package's “Review menu”.
+            </p>
+            <VenueFullMenu venue={selectedVenue} />
+
+            <div className="flex flex-col gap-3 mt-8">
               {selectedVenue.venue_packages?.map((p) => (
                 <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-4 bg-surface border border-white/10 shadow-card">
                   <div>
@@ -2190,13 +2198,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-
-            <h2 className="font-display text-xl font-semibold mt-8 mb-3">View full menu</h2>
-            <p className="text-sm text-haze mb-3">
-              Everything this venue serves. Package-specific choices and quotas are shown on each
-              package's “Review menu”.
-            </p>
-            <VenueFullMenu venue={selectedVenue} />
           </div>
         )}
 
