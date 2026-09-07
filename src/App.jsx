@@ -307,6 +307,7 @@ function ReviewMenuBody({ pkg, venue }) {
 
   const foodKinds = FOOD_QUOTA_KINDS.filter((k) => quotaFor(k));
   const drinkKinds = POOL_QUOTA_KINDS.filter((k) => quotaFor(k));
+  const terms = (venue?.terms_and_conditions || "").trim();
 
   const ItemList = ({ items }) =>
     items.length ? (
@@ -340,9 +341,17 @@ function ReviewMenuBody({ pkg, venue }) {
       {foodKinds.length > 0 && (
         <div className="mb-5">
           <h3 className="font-display text-base font-semibold text-ink mb-2">Food</h3>
-          {foodKinds.map((k) => (
-            <Group key={k} kind={k} items={itemsForKind(k)} />
-          ))}
+          <ul className="flex flex-col gap-1 text-sm text-ink">
+            {foodKinds.map((k) => (
+              <li key={k}>
+                Choose <span className="text-amber font-semibold">{quotaFor(k)}</span>{" "}
+                {quotaLabel(k, quotaFor(k))}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-haze/80 mt-2">
+            You'll pick your exact dishes after booking, in Finalize Your Menu.
+          </p>
         </div>
       )}
 
@@ -368,7 +377,18 @@ function ReviewMenuBody({ pkg, venue }) {
         </div>
       )}
 
-      {nothing && <p className="text-sm text-haze/70">No menu details for this package yet.</p>}
+      {terms && (
+        <div className="mb-5 last:mb-0">
+          <h3 className="font-display text-base font-semibold text-ink mb-2">
+            Terms &amp; Conditions
+          </h3>
+          <p className="text-sm text-haze whitespace-pre-wrap">{terms}</p>
+        </div>
+      )}
+
+      {nothing && !terms && (
+        <p className="text-sm text-haze/70">No menu details for this package yet.</p>
+      )}
     </div>
   );
 }
