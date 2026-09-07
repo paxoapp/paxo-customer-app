@@ -243,6 +243,73 @@ function ReviewMenuBody({ pkg, venue }) {
   );
 }
 
+function fmtTime(t) {
+  if (!t) return "";
+  const [h, m] = t.split(":");
+  const hour = Number(h);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const h12 = hour % 12 || 12;
+  return `${h12}:${m} ${ampm}`;
+}
+
+function fmtDate(d) {
+  if (!d) return "";
+  const parsed = new Date(`${d}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? d
+    : parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Customer booking journey. Returns the index (0-3) of the current stage, or
+// null for states that aren't part of the numbered flow (rejected / other).
+const BOOKING_STAGES = ["Request Sent", "Accepted", "Payment & Menu", "Confirmed"];
+const STAGE_MESSAGES = [
+  "Your booking request has been sent. We'll notify you once the venue responds.",
+  "Accepted! Complete payment to confirm your booking.",
+  "Payment received — now finalize your menu.",
+  "All set! Your booking is fully confirmed.",
+];
+
+function bookingStage(b) {
+  if (b.status === "pending") return 0;
+  if (b.status === "accepted") return 1;
+  if (b.status === "confirmed") return b.menu_finalized_at ? 3 : 2;
+  return null;
+}
+
+function BookingStepper({ stage }) {
+  return (
+    <ol className="flex items-start mt-3">
+      {BOOKING_STAGES.map((label, i) => {
+        // Stage 3 is terminal ("fully confirmed"), so every step reads as done.
+        const complete = stage === BOOKING_STAGES.length - 1;
+        const state = complete || i < stage ? "done" : i === stage ? "current" : "todo";
+        const ring =
+          state === "done"
+            ? "bg-emerald-500 text-white border-emerald-500"
+            : state === "current"
+            ? "bg-amber-500 text-slate-900 border-amber-500"
+            : "bg-white text-stone-400 border-stone-300";
+        const line = complete || i < stage ? "bg-emerald-500" : "bg-stone-300";
+        const text = state === "todo" ? "text-stone-400" : "text-stone-600";
+        return (
+          <li key={label} className="flex-1 flex flex-col items-center">
+            <div className="flex items-center w-full">
+              <div
+                className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-[11px] font-semibold ${ring}`}
+              >
+                {state === "done" ? "✓" : i + 1}
+              </div>
+              {i < BOOKING_STAGES.length - 1 && <div className={`h-0.5 flex-1 ${line}`} />}
+            </div>
+            <span className={`mt-1 text-[10px] text-center leading-tight ${text}`}>{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function VenueCardSkeleton() {
   return (
     <div className="border border-stone-200 rounded-lg overflow-hidden bg-white animate-pulse">
@@ -290,6 +357,7 @@ export default function App() {
   const [myBookings, setMyBookings] = useState([]);
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
+  const [menuNoticeId, setMenuNoticeId] = useState(null); // booking id whose "Finalize Your Menu" note is shown
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [heroIndex, setHeroIndex] = useState(0);
@@ -356,7 +424,7 @@ export default function App() {
   const loadMyBookings = useCallback(async (token) => {
     try {
       const data = await sb(
-        "/rest/v1/bookings?select=*,venues(name),venue_packages(name),payments(payment_type,status,amount,paid_at)&order=created_at.desc",
+        "/rest/v1/bookings?select=*,venues(name,city,area,venue_type),venue_packages(name),payments(payment_type,status,amount,paid_at)&order=created_at.desc",
         { token }
       );
       setMyBookings(data);
@@ -1744,45 +1812,139 @@ export default function App() {
             {myBookings.length === 0 && (
               <p className="text-stone-400 text-sm">You haven't requested any bookings yet.</p>
             )}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {myBookings.map((b) => {
                 const depositPaid = b.payments?.some(
                   (p) => p.payment_type === "deposit" && p.status === "paid"
                 );
-                return (
-                  <div key={b.id} className="border border-stone-200 rounded-lg p-4 bg-white flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{b.venues?.name}</p>
-                      <p className="text-sm text-stone-500">
-                        {b.venue_packages?.name} · {b.event_date} · {b.headcount} guests
-                      </p>
-                      <p className="text-xs text-stone-400 mt-1">
-                        {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"}
-                        {" · "}
-                        {inr(b.deposit_amount)} {depositPaid ? "paid" : "due"}
-                      </p>
+                const stage = bookingStage(b);
+                const rejected = b.status === "rejected";
+                const whenLine = [fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join(" · ");
 
-                      {depositPaid ? (
-                        <p className="text-sm font-medium text-emerald-700 mt-2">✓ Payment confirmed</p>
-                      ) : b.status === "accepted" ? (
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            disabled={payingBookingId === b.id}
-                            onClick={() => payDeposit(b)}
-                            className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
-                          >
-                            {payingBookingId === b.id ? "Opening…" : `Pay Deposit · ${inr(b.deposit_amount)}`}
-                          </button>
-                          {payError[b.id] && (
-                            <p className="text-xs text-rose-600 mt-1">{payError[b.id]}</p>
-                          )}
-                        </div>
-                      ) : null}
+                return (
+                  <div key={b.id} className="border border-stone-200 rounded-lg p-4 bg-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{b.venues?.name}</p>
+                        <p className="text-sm text-stone-500">
+                          {b.venue_packages?.name} · {whenLine} · {b.headcount} guests
+                        </p>
+                        <p className="text-xs text-stone-400 mt-0.5">
+                          {b.booking_ref || "Booking"}
+                        </p>
+                      </div>
+                      {stage === null && (
+                        <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 capitalize ${statusColor[b.status] || "bg-stone-100 text-stone-700"}`}>
+                          {b.status.replace(/_/g, " ")}
+                        </span>
+                      )}
                     </div>
-                    <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 ${statusColor[b.status] || "bg-stone-100 text-stone-700"}`}>
-                      {b.status.replace("_", " ")}
-                    </span>
+
+                    {rejected ? (
+                      <div className="mt-3 border border-rose-200 bg-rose-50 rounded-lg p-3">
+                        <p className="text-sm font-medium text-rose-800">Booking declined</p>
+                        <p className="text-sm text-stone-700 mt-1 whitespace-pre-wrap">
+                          {b.rejection_reason || "The venue couldn't take this booking."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setScreen("browse")}
+                          className="mt-2 text-sm font-medium text-amber-700 underline"
+                        >
+                          Browse other venues
+                        </button>
+                      </div>
+                    ) : stage !== null ? (
+                      <>
+                        <BookingStepper stage={stage} />
+                        <p className="text-sm text-stone-600 mt-3">{STAGE_MESSAGES[stage]}</p>
+
+                        {stage === 1 && (
+                          <div className="mt-3 border border-stone-200 rounded-lg p-3 bg-stone-50">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+                              Booking summary
+                            </p>
+                            <dl className="text-sm text-stone-700 flex flex-col gap-1">
+                              <div className="flex justify-between gap-4">
+                                <dt className="text-stone-500">Booking ID</dt>
+                                <dd className="font-medium">{b.booking_ref}</dd>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <dt className="text-stone-500">Date &amp; slot</dt>
+                                <dd className="text-right">{whenLine}</dd>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <dt className="text-stone-500">Venue</dt>
+                                <dd className="text-right">
+                                  {b.venues?.name}
+                                  {(b.venues?.area || b.venues?.city) && (
+                                    <span className="block text-xs text-stone-400">
+                                      {[b.venues?.area, b.venues?.city].filter(Boolean).join(", ")}
+                                      {b.venues?.venue_type ? ` · ${b.venues.venue_type}` : ""}
+                                    </span>
+                                  )}
+                                </dd>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <dt className="text-stone-500">Package</dt>
+                                <dd className="text-right">{b.venue_packages?.name}</dd>
+                              </div>
+                              <div className="flex justify-between gap-4 border-t border-stone-200 pt-1 mt-1">
+                                <dt className="text-stone-500">
+                                  {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
+                                </dt>
+                                <dd className="font-semibold">{inr(b.deposit_amount)}</dd>
+                              </div>
+                            </dl>
+
+                            {depositPaid ? (
+                              <p className="text-sm font-medium text-emerald-700 mt-3">✓ Payment confirmed</p>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={payingBookingId === b.id}
+                                  onClick={() => payDeposit(b)}
+                                  className="mt-3 bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                >
+                                  {payingBookingId === b.id ? "Opening…" : `Pay Deposit · ${inr(b.deposit_amount)}`}
+                                </button>
+                                {payError[b.id] && (
+                                  <p className="text-xs text-rose-600 mt-1">{payError[b.id]}</p>
+                                )}
+                              </>
+                            )}
+
+                            <p className="text-xs text-stone-500 mt-3">
+                              Once your payment is confirmed, you'll be able to choose your exact food and
+                              drinks from this package — for example, if a package allows "Choose 3 Veg
+                              Starters," you'll see every available option but can only select 3.
+                            </p>
+                          </div>
+                        )}
+
+                        {stage === 2 && (
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setMenuNoticeId(menuNoticeId === b.id ? null : b.id)}
+                              className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded"
+                            >
+                              Finalize Your Menu
+                            </button>
+                            {menuNoticeId === b.id && (
+                              <p className="text-xs text-stone-500 mt-1">
+                                Menu selection opens here — this screen is the next piece being built.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-xs text-stone-400 mt-2 capitalize">
+                        Status: {b.status.replace(/_/g, " ")}
+                      </p>
+                    )}
                   </div>
                 );
               })}
