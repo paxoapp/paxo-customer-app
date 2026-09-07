@@ -447,6 +447,17 @@ function BookingStepper({ stage }) {
   );
 }
 
+// Venue photos come from user-supplied URLs, some of which are dead. On a
+// load failure, take the <img> out of the layout so only its gradient
+// fallback shows — no native broken-image icon or alt text. onLoad clears it
+// again because the hero carousel reuses a single <img> across venues.
+const hideBrokenImg = (e) => {
+  e.currentTarget.style.display = "none";
+};
+const restoreImg = (e) => {
+  e.currentTarget.style.display = "";
+};
+
 function VenueCardSkeleton() {
   return (
     <div className="rounded-2xl overflow-hidden bg-surface border border-white/10 animate-pulse">
@@ -1598,11 +1609,18 @@ export default function App() {
                 onClick={() => openVenue(venues[heroIndex % venues.length])}
               >
                 <img
+                  key={
+                    venues[heroIndex % venues.length].venue_images?.[0]?.image_url ||
+                    venues[heroIndex % venues.length].cover_image_url ||
+                    heroIndex
+                  }
                   src={
                     venues[heroIndex % venues.length].venue_images?.[0]?.image_url ||
                     venues[heroIndex % venues.length].cover_image_url
                   }
-                  alt={venues[heroIndex % venues.length].name}
+                  alt=""
+                  onError={hideBrokenImg}
+                  onLoad={restoreImg}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-base via-base/40 to-transparent" />
@@ -1677,7 +1695,9 @@ export default function App() {
                     <div className="relative h-44 bg-gradient-to-br from-surface to-[#2A1512]">
                       <img
                         src={v.venue_images?.[0]?.image_url || v.cover_image_url}
-                        alt={v.name}
+                        alt=""
+                        onError={hideBrokenImg}
+                        onLoad={restoreImg}
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent" />
@@ -1742,11 +1762,15 @@ export default function App() {
             <button className="text-sm text-haze hover:text-ink mb-4" onClick={() => setScreen("browse")}>
               ← Back to venues
             </button>
-            <img
-              src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
-              alt={selectedVenue.name}
-              className="w-full h-60 object-cover rounded-2xl mb-4 shadow-hero bg-gradient-to-br from-surface to-[#2A1512]"
-            />
+            <div className="h-60 mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512]">
+              <img
+                src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
+                alt=""
+                onError={hideBrokenImg}
+                onLoad={restoreImg}
+                className="w-full h-full object-cover"
+              />
+            </div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h1 className="font-display text-3xl font-bold">{selectedVenue.name}</h1>
               {selectedVenue.is_verified && (
