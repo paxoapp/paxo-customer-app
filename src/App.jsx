@@ -196,7 +196,7 @@ function ReviewMenuBody({ pkg, venue }) {
   const Group = ({ kind, items }) => (
     <div className="mb-3 last:mb-0">
       <p className="text-sm font-medium text-ink mb-1">
-        Choose <span className="text-gold font-semibold">{quotaFor(kind)}</span>{" "}
+        Choose <span className="text-amber font-semibold">{quotaFor(kind)}</span>{" "}
         {quotaLabel(kind, quotaFor(kind))}
       </p>
       <ItemList items={items} />
@@ -332,7 +332,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   return (
     <div className="receipt-print bg-white text-stone-900 rounded-xl">
       <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
-      <p className="text-xs font-medium text-amber-600 mb-3">{b.booking_ref}</p>
+      <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
 
       <Row k="Venue" v={b.venues?.name} />
       <Row k="Package" v={b.venue_packages?.name} />
@@ -366,7 +366,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
           <button
             type="button"
             onClick={onFinalize}
-            className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-lg"
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg"
           >
             Finalize your menu
           </button>
@@ -422,13 +422,13 @@ function BookingStepper({ stage }) {
         // Gold = the step you're on now. Lavender = done or not yet reached.
         const ring =
           state === "current"
-            ? "bg-gold text-base border-gold step-active-glow"
+            ? "bg-amber text-[#170D0B] border-amber step-active-glow"
             : state === "done"
             ? "bg-haze/25 text-ink border-haze/40"
             : "bg-transparent text-haze/60 border-white/15";
         const line = complete || i < stage ? "bg-haze/40" : "bg-white/10";
         const text =
-          state === "current" ? "text-gold font-semibold" : state === "done" ? "text-haze" : "text-haze/50";
+          state === "current" ? "text-amber font-semibold" : state === "done" ? "text-haze" : "text-haze/50";
         return (
           <li key={label} className="flex-1 flex flex-col items-center">
             <div className="flex items-center w-full">
@@ -617,7 +617,7 @@ export default function App() {
           email: booking.contact_email || session.email || "",
           contact: booking.contact_mobile || profile?.phone || "",
         },
-        theme: { color: "#FF3D81" },
+        theme: { color: "#F5A623" },
         handler: async (response) => {
           try {
             const result = await callFn("verify-razorpay-payment", session.token, {
@@ -1196,14 +1196,14 @@ export default function App() {
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
-    pending: "bg-gold/15 text-gold border border-gold/30",
-    accepted: "bg-gold/15 text-gold border border-gold/30",
+    pending: "bg-amber/15 text-amber border border-amber/30",
+    accepted: "bg-amber/15 text-amber border border-amber/30",
     confirmed: "bg-haze/15 text-haze border border-haze/30",
     completed: "bg-haze/15 text-haze border border-haze/30",
-    rejected: "bg-rose-500/15 text-rose-300 border border-rose-400/30",
-    cancelled: "bg-rose-500/15 text-rose-300 border border-rose-400/30",
+    rejected: "bg-red-500/15 text-red-300 border border-red-400/30",
+    cancelled: "bg-red-500/15 text-red-300 border border-red-400/30",
     unconfirmed: "bg-white/10 text-haze border border-white/15",
-    no_show: "bg-rose-500/15 text-rose-300 border border-rose-400/30",
+    no_show: "bg-red-500/15 text-red-300 border border-red-400/30",
   };
 
   const cheapestPrice = (v) =>
@@ -1221,7 +1221,13 @@ export default function App() {
     const chipsRow1 = ["Book your venue instantly", "Easy to use", "Unlimited packages", "Select your menu"];
     const chipsRow2 = ["Easy payment methods", "Use anytime, anywhere", "Live booking status", "Rate your experience"];
     return (
-      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1230] text-ink flex flex-col justify-center px-6 py-10 overflow-hidden">
+      <div
+        className="relative min-h-screen bg-base text-ink flex flex-col justify-center px-6 py-10 overflow-hidden"
+        style={{
+          backgroundImage:
+            "radial-gradient(60% 45% at 78% 8%, rgba(245,166,35,0.16), transparent 70%), radial-gradient(55% 40% at 12% 95%, rgba(217,80,40,0.14), transparent 70%)",
+        }}
+      >
         <style>{`
           @keyframes marquee-left { from { transform: translateX(0); } to { transform: translateX(-50%); } }
           @keyframes marquee-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
@@ -1243,7 +1249,7 @@ export default function App() {
           <h1 className="font-display font-bold leading-[0.95] tracking-tight mb-5">
             <span className="block text-5xl">
               <span className="text-ink">Book</span>{" "}
-              <span className="text-magenta">venues</span>
+              <span className="text-amber">venues</span>
             </span>
             <span className="block text-5xl text-ink">without the wait</span>
           </h1>
@@ -1276,7 +1282,7 @@ export default function App() {
             onClick={handleGoogleSignIn}
             className="w-full bg-white text-stone-900 rounded-full px-5 py-3.5 text-sm font-semibold flex items-center justify-center gap-2 mb-4"
           >
-            <span className="w-4 h-4 rounded-full bg-gradient-to-br from-sky-500 via-rose-500 to-amber-400 inline-block" />
+            <span className="w-4 h-4 rounded-full bg-gradient-to-br from-sky-500 via-red-500 to-amber inline-block" />
             Continue with Google
           </button>
 
@@ -1291,7 +1297,7 @@ export default function App() {
               type="email"
               required
               placeholder="Enter email address"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={authEmail}
               onChange={(e) => setAuthEmail(e.target.value)}
             />
@@ -1300,16 +1306,16 @@ export default function App() {
               required
               minLength={6}
               placeholder="Password"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={authPassword}
               onChange={(e) => setAuthPassword(e.target.value)}
             />
-            {authNotice && <p className="text-gold text-sm px-1">{authNotice}</p>}
+            {authNotice && <p className="text-amber text-sm px-1">{authNotice}</p>}
             {authError && (
               <div className="flex flex-col gap-1">
-                <p className="text-rose-300 text-sm px-1">{authError}</p>
+                <p className="text-red-300 text-sm px-1">{authError}</p>
                 {/confirmed/i.test(authError) && (
-                  <button type="button" className="text-magenta text-xs text-left px-1" onClick={resendConfirmation}>
+                  <button type="button" className="text-amber text-xs text-left px-1" onClick={resendConfirmation}>
                     Resend confirmation email
                   </button>
                 )}
@@ -1318,7 +1324,7 @@ export default function App() {
             {authMode === "login" && (
               <button
                 type="button"
-                className="text-magenta text-xs text-right -mt-1"
+                className="text-amber text-xs text-right -mt-1"
                 onClick={() => {
                   setResetError("");
                   setResetStep("request");
@@ -1330,7 +1336,7 @@ export default function App() {
             )}
             <button
               disabled={authLoading}
-              className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50 mt-1"
+              className="bg-amber text-[#170D0B] rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50 mt-1"
             >
               {authLoading ? "Please wait…" : authMode === "login" ? "Sign in" : "Create account"}
             </button>
@@ -1340,7 +1346,7 @@ export default function App() {
             {authMode === "login" ? "New here?" : "Already have an account?"}{" "}
             <button
               type="button"
-              className="text-magenta font-medium"
+              className="text-amber font-medium"
               onClick={() => {
                 setAuthMode(authMode === "login" ? "signup" : "login");
                 setAuthError("");
@@ -1356,7 +1362,7 @@ export default function App() {
 
   if (screen === "forgot") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1230] text-ink flex flex-col justify-center px-6 py-16">
+      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1512] text-ink flex flex-col justify-center px-6 py-16">
         <div className="max-w-sm mx-auto w-full">
           <button className="text-sm text-haze hover:text-ink mb-6" onClick={() => setScreen("auth")}>
             ← Back to sign in
@@ -1369,7 +1375,7 @@ export default function App() {
           <div className="flex gap-2 mb-6">
             <button
               className={`flex-1 rounded-full py-2 text-sm font-medium ${
-                resetMethod === "email" ? "bg-magenta text-white" : "border border-white/15 text-haze"
+                resetMethod === "email" ? "bg-amber text-[#170D0B]" : "border border-white/15 text-haze"
               }`}
               onClick={() => {
                 setResetMethod("email");
@@ -1381,7 +1387,7 @@ export default function App() {
             </button>
             <button
               className={`flex-1 rounded-full py-2 text-sm font-medium ${
-                resetMethod === "phone" ? "bg-magenta text-white" : "border border-white/15 text-haze"
+                resetMethod === "phone" ? "bg-amber text-[#170D0B]" : "border border-white/15 text-haze"
               }`}
               onClick={() => {
                 setResetMethod("phone");
@@ -1399,14 +1405,14 @@ export default function App() {
                 type="email"
                 required
                 placeholder="Enter email address"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
               />
-              {resetError && <p className="text-rose-300 text-sm px-1">{resetError}</p>}
+              {resetError && <p className="text-red-300 text-sm px-1">{resetError}</p>}
               <button
                 disabled={resetLoading}
-                className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+                className="bg-amber text-[#170D0B] rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
               >
                 {resetLoading ? "Sending…" : "Send reset link"}
               </button>
@@ -1414,7 +1420,7 @@ export default function App() {
           )}
 
           {resetMethod === "email" && resetStep === "sent" && (
-            <div className="border border-gold/30 bg-gold/10 rounded-xl p-4 text-sm text-ink">
+            <div className="border border-amber/30 bg-amber/10 rounded-xl p-4 text-sm text-ink">
               Check <span className="font-medium">{resetEmail}</span> for a reset link. Opening it will bring
               you back here to set a new password.
             </div>
@@ -1426,14 +1432,14 @@ export default function App() {
                 type="tel"
                 required
                 placeholder="+91 98765 43210"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetPhone}
                 onChange={(e) => setResetPhone(e.target.value)}
               />
-              {resetError && <p className="text-rose-300 text-sm px-1">{resetError}</p>}
+              {resetError && <p className="text-red-300 text-sm px-1">{resetError}</p>}
               <button
                 disabled={resetLoading}
-                className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+                className="bg-amber text-[#170D0B] rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
               >
                 {resetLoading ? "Sending…" : "Send code"}
               </button>
@@ -1447,7 +1453,7 @@ export default function App() {
                 type="text"
                 required
                 placeholder="6-digit code"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetOtp}
                 onChange={(e) => setResetOtp(e.target.value)}
               />
@@ -1456,14 +1462,14 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="New password"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetNewPassword}
                 onChange={(e) => setResetNewPassword(e.target.value)}
               />
-              {resetError && <p className="text-rose-300 text-sm px-1">{resetError}</p>}
+              {resetError && <p className="text-red-300 text-sm px-1">{resetError}</p>}
               <button
                 disabled={resetLoading}
-                className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+                className="bg-amber text-[#170D0B] rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
               >
                 {resetLoading ? "Resetting…" : "Reset password"}
               </button>
@@ -1476,7 +1482,7 @@ export default function App() {
 
   if (screen === "setNewPassword") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1230] text-ink flex flex-col justify-center px-6 py-16">
+      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1512] text-ink flex flex-col justify-center px-6 py-16">
         <div className="max-w-sm mx-auto w-full">
           <h1 className="font-black text-3xl mb-1">Set a new password</h1>
           <p className="text-haze text-sm mb-6">Choose a new password for your account.</p>
@@ -1486,7 +1492,7 @@ export default function App() {
               required
               minLength={6}
               placeholder="New password"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
@@ -1495,14 +1501,14 @@ export default function App() {
               required
               minLength={6}
               placeholder="Confirm new password"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={newPasswordConfirm}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
             />
-            {newPasswordError && <p className="text-rose-300 text-sm px-1">{newPasswordError}</p>}
+            {newPasswordError && <p className="text-red-300 text-sm px-1">{newPasswordError}</p>}
             <button
               disabled={newPasswordLoading}
-              className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+              className="bg-amber text-[#170D0B] rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
             >
               {newPasswordLoading ? "Saving…" : "Save new password"}
             </button>
@@ -1563,7 +1569,7 @@ export default function App() {
                   <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
                     Help & support
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm text-rose-300 hover:bg-white/5 border-t border-white/10" onClick={logOut}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm text-red-300 hover:bg-white/5 border-t border-white/10" onClick={logOut}>
                     Log out
                   </button>
                 </div>
@@ -1571,7 +1577,7 @@ export default function App() {
             </nav>
           ) : (
             <button
-              className="bg-magenta text-white text-sm font-semibold px-4 py-1.5 rounded-full"
+              className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-1.5 rounded-full"
               onClick={() => setScreen("auth")}
             >
               Sign in
@@ -1588,7 +1594,7 @@ export default function App() {
 
             {venues.length > 0 && (
               <div
-                className="relative rounded-3xl overflow-hidden h-60 mb-7 cursor-pointer shadow-hero bg-gradient-to-br from-surface to-[#2A1230]"
+                className="relative rounded-3xl overflow-hidden h-60 mb-7 cursor-pointer shadow-hero bg-gradient-to-br from-surface to-[#2A1512]"
                 onClick={() => openVenue(venues[heroIndex % venues.length])}
               >
                 <img
@@ -1607,7 +1613,7 @@ export default function App() {
                     {venues[heroIndex % venues.length].city}
                   </p>
                   {minPackagePrice(venues[heroIndex % venues.length]) != null && (
-                    <p className="text-sm text-gold font-semibold mt-1">
+                    <p className="text-sm text-amber font-semibold mt-1">
                       Unlimited packages from{" "}
                       {inr(minPackagePrice(venues[heroIndex % venues.length]))} / head
                     </p>
@@ -1617,7 +1623,7 @@ export default function App() {
                   {venues.map((_, i) => (
                     <span
                       key={i}
-                      className={`w-1.5 h-1.5 rounded-full ${i === heroIndex % venues.length ? "bg-gold" : "bg-white/30"}`}
+                      className={`w-1.5 h-1.5 rounded-full ${i === heroIndex % venues.length ? "bg-amber" : "bg-white/30"}`}
                     />
                   ))}
                 </div>
@@ -1627,7 +1633,7 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-2 mb-6">
               <button
                 className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                  selectedCity === null ? "bg-ink text-base border-ink" : "border-white/15 text-haze hover:text-ink"
+                  selectedCity === null ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"
                 }`}
                 onClick={() => setSelectedCity(null)}
               >
@@ -1637,7 +1643,7 @@ export default function App() {
                 <button
                   key={c}
                   className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                    selectedCity === c ? "bg-ink text-base border-ink" : "border-white/15 text-haze hover:text-ink"
+                    selectedCity === c ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"
                   }`}
                   onClick={() => setSelectedCity(c)}
                 >
@@ -1665,10 +1671,10 @@ export default function App() {
                 {visibleVenues.map((v) => (
                   <div
                     key={v.id}
-                    className="group rounded-2xl overflow-hidden bg-surface border border-white/10 cursor-pointer hover:border-magenta/50 transition-colors shadow-card"
+                    className="group rounded-2xl overflow-hidden bg-surface border border-white/10 cursor-pointer hover:border-amber/50 transition-colors shadow-card"
                     onClick={() => openVenue(v)}
                   >
-                    <div className="relative h-44 bg-gradient-to-br from-surface to-[#2A1230]">
+                    <div className="relative h-44 bg-gradient-to-br from-surface to-[#2A1512]">
                       <img
                         src={v.venue_images?.[0]?.image_url || v.cover_image_url}
                         alt={v.name}
@@ -1676,7 +1682,7 @@ export default function App() {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent" />
                       {v.is_verified && (
-                        <span className="absolute top-3 left-3 text-[10px] font-semibold text-gold bg-base/80 border border-gold/40 rounded px-2 py-0.5">
+                        <span className="absolute top-3 left-3 text-[10px] font-semibold text-amber bg-base/80 border border-amber/40 rounded px-2 py-0.5">
                           ✓ Verified
                         </span>
                       )}
@@ -1687,7 +1693,7 @@ export default function App() {
                           {v.city}
                         </p>
                         {minPackagePrice(v) != null && (
-                          <p className="text-sm font-semibold text-gold mt-0.5">
+                          <p className="text-sm font-semibold text-amber mt-0.5">
                             From {inr(minPackagePrice(v))} / head
                           </p>
                         )}
@@ -1712,7 +1718,7 @@ export default function App() {
                       </div>
                       <button
                         type="button"
-                        className="mt-4 w-full bg-magenta text-white text-sm font-semibold py-2.5 rounded-xl hover:brightness-110 transition"
+                        className="mt-4 w-full bg-amber text-[#170D0B] text-sm font-semibold py-2.5 rounded-xl hover:brightness-110 transition"
                         onClick={(e) => {
                           e.stopPropagation();
                           openVenue(v);
@@ -1739,12 +1745,12 @@ export default function App() {
             <img
               src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
               alt={selectedVenue.name}
-              className="w-full h-60 object-cover rounded-2xl mb-4 shadow-hero bg-gradient-to-br from-surface to-[#2A1230]"
+              className="w-full h-60 object-cover rounded-2xl mb-4 shadow-hero bg-gradient-to-br from-surface to-[#2A1512]"
             />
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h1 className="font-display text-3xl font-bold">{selectedVenue.name}</h1>
               {selectedVenue.is_verified && (
-                <span className="text-xs font-semibold text-gold bg-gold/10 border border-gold/30 rounded px-2 py-0.5">
+                <span className="text-xs font-semibold text-amber bg-amber/10 border border-amber/30 rounded px-2 py-0.5">
                   ✓ Verified
                 </span>
               )}
@@ -1784,7 +1790,7 @@ export default function App() {
                       const bev = quotas.filter((q) => !FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const line = (q) => (
                         <>
-                          Choose <span className="text-gold font-semibold">{q.quota_count}</span>{" "}
+                          Choose <span className="text-amber font-semibold">{q.quota_count}</span>{" "}
                           {quotaLabel(q.category_kind, q.quota_count)}
                         </>
                       );
@@ -1818,9 +1824,9 @@ export default function App() {
                     })()}
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                    <p className="font-semibold text-gold">{inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span></p>
+                    <p className="font-semibold text-amber">{inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span></p>
                     <button
-                      className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
+                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                       onClick={() => selectPackage(p)}
                     >
                       Select package
@@ -1854,7 +1860,7 @@ export default function App() {
               </p>
               <div className="flex justify-between text-xs text-haze pt-2 border-t border-white/10">
                 <span>{selectedPackage?.name}</span>
-                <span className="text-gold font-semibold">{inr(selectedPackage?.price_per_head || 0)} / person</span>
+                <span className="text-amber font-semibold">{inr(selectedPackage?.price_per_head || 0)} / person</span>
               </div>
             </div>
 
@@ -1864,7 +1870,7 @@ export default function App() {
                 <input
                   type="text"
                   required
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={form.customer_name}
                   onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
                 />
@@ -1877,7 +1883,7 @@ export default function App() {
                     type="tel"
                     required
                     placeholder="+91 98765 43210"
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.contact_mobile}
                     onChange={(e) => setForm({ ...form, contact_mobile: e.target.value })}
                   />
@@ -1887,7 +1893,7 @@ export default function App() {
                   <input
                     type="email"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.contact_email}
                     onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
                   />
@@ -1907,7 +1913,7 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium block mb-1">Occasion</label>
                 <select
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={form.booking_type_id}
                   onChange={(e) => setForm({ ...form, booking_type_id: e.target.value })}
                 >
@@ -1924,7 +1930,7 @@ export default function App() {
                   <input
                     type="text"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.occasion_other}
                     onChange={(e) => setForm({ ...form, occasion_other: e.target.value })}
                   />
@@ -1937,7 +1943,7 @@ export default function App() {
                   <input
                     type="date"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.event_date}
                     onChange={(e) => setForm({ ...form, event_date: e.target.value })}
                   />
@@ -1947,7 +1953,7 @@ export default function App() {
                   <input
                     type="time"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.event_time}
                     onChange={(e) => setForm({ ...form, event_time: e.target.value })}
                   />
@@ -1957,7 +1963,7 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium block mb-1">Slot</label>
                 <select
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={form.slot}
                   onChange={(e) => setForm({ ...form, slot: e.target.value })}
                 >
@@ -1974,7 +1980,7 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.male_count}
                     onChange={(e) => setForm({ ...form, male_count: e.target.value })}
                   />
@@ -1984,7 +1990,7 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.female_count}
                     onChange={(e) => setForm({ ...form, female_count: e.target.value })}
                   />
@@ -2001,7 +2007,7 @@ export default function App() {
                 <textarea
                   rows={3}
                   placeholder="Tell the venue about any special requirements for your event"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={form.special_request}
                   onChange={(e) => setForm({ ...form, special_request: e.target.value })}
                 />
@@ -2016,7 +2022,7 @@ export default function App() {
                   </div>
                   <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
-                    <span className="text-gold">{inr(totalPreview)}</span>
+                    <span className="text-amber">{inr(totalPreview)}</span>
                   </div>
                   <div className="flex justify-between mb-1">
                     <span className="text-haze">{preview.bookingCategory}</span>
@@ -2027,16 +2033,16 @@ export default function App() {
               )}
 
               {hrs !== null && hrs >= 0 && hrs < 72 && (
-                <div className="border border-rose-400/40 bg-rose-500/10 rounded-2xl p-4 text-sm">
-                  <p className="font-semibold text-rose-200 mb-1">This is an express booking</p>
-                  <p className="text-rose-200/80 mb-3">
+                <div className="border border-red-400/40 bg-red-500/10 rounded-2xl p-4 text-sm">
+                  <p className="font-semibold text-red-200 mb-1">This is an express booking</p>
+                  <p className="text-red-200/80 mb-3">
                     Your event is less than 72 hours away. If accepted, full payment is required
                     immediately and this booking cannot be cancelled once confirmed.
                   </p>
-                  <label className="flex items-start gap-2 text-rose-200">
+                  <label className="flex items-start gap-2 text-red-200">
                     <input
                       type="checkbox"
-                      className="mt-0.5 accent-magenta"
+                      className="mt-0.5 accent-amber"
                       checked={form.ack}
                       onChange={(e) => setForm({ ...form, ack: e.target.checked })}
                     />
@@ -2058,18 +2064,18 @@ export default function App() {
               <label className="flex items-start gap-2 text-sm text-ink">
                 <input
                   type="checkbox"
-                  className="mt-0.5 accent-magenta"
+                  className="mt-0.5 accent-amber"
                   checked={form.tc_agree}
                   onChange={(e) => setForm({ ...form, tc_agree: e.target.checked })}
                 />
                 <span>I have read and agree to the terms &amp; conditions above.</span>
               </label>
 
-              {submitError && <p className="text-rose-300 text-sm">{submitError}</p>}
+              {submitError && <p className="text-red-300 text-sm">{submitError}</p>}
 
               <button
                 disabled={submitLoading}
-                className="bg-magenta text-white font-semibold rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 hover:brightness-110 transition"
+                className="bg-amber text-[#170D0B] font-semibold rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 hover:brightness-110 transition"
               >
                 {submitLoading ? "Submitting…" : "Submit request"}
               </button>
@@ -2086,7 +2092,7 @@ export default function App() {
                 "My requests".
               </p>
               <button
-                className="bg-magenta text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:brightness-110 transition"
+                className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2.5 rounded-xl hover:brightness-110 transition"
                 onClick={() => setScreen("myBookings")}
               >
                 View my requests
@@ -2129,7 +2135,7 @@ export default function App() {
                           <span className="block">{whenLine}</span>
                           <span className="block">{b.headcount} guests</span>
                         </p>
-                        <p className="text-xs text-gold font-medium mt-0.5">
+                        <p className="text-xs text-amber font-medium mt-0.5">
                           {b.booking_ref || "Booking"}
                         </p>
                       </div>
@@ -2141,15 +2147,15 @@ export default function App() {
                     </div>
 
                     {rejected ? (
-                      <div className="mt-3 border border-rose-400/30 bg-rose-500/10 rounded-xl p-3">
-                        <p className="text-sm font-semibold text-rose-200">Booking declined</p>
+                      <div className="mt-3 border border-red-400/30 bg-red-500/10 rounded-xl p-3">
+                        <p className="text-sm font-semibold text-red-200">Booking declined</p>
                         <p className="text-sm text-haze mt-1 whitespace-pre-wrap">
                           {b.rejection_reason || "The venue couldn't take this booking."}
                         </p>
                         <button
                           type="button"
                           onClick={() => setScreen("browse")}
-                          className="mt-2 text-sm font-medium text-magenta hover:brightness-110"
+                          className="mt-2 text-sm font-medium text-amber hover:brightness-110"
                         >
                           Browse other venues
                         </button>
@@ -2192,7 +2198,7 @@ export default function App() {
                                 <dt className="text-haze">
                                   {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
                                 </dt>
-                                <dd className="font-semibold text-gold">{inr(b.deposit_amount)}</dd>
+                                <dd className="font-semibold text-amber">{inr(b.deposit_amount)}</dd>
                               </div>
                             </dl>
 
@@ -2200,7 +2206,7 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => setReceiptId(b.id)}
-                                className="text-sm font-medium text-gold hover:brightness-110 mt-3"
+                                className="text-sm font-medium text-amber hover:brightness-110 mt-3"
                               >
                                 Payment confirmed — view receipt
                               </button>
@@ -2212,12 +2218,12 @@ export default function App() {
                                       type="button"
                                       disabled={payingBookingId === b.id}
                                       onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
-                                      className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
                                       {`Pay ${pct}% now — ${inr(b.deposit_amount)}`}
                                     </button>
                                     {payAckId === b.id && (
-                                      <div className="border border-gold/30 bg-gold/10 rounded-xl p-3 w-full">
+                                      <div className="border border-amber/30 bg-amber/10 rounded-xl p-3 w-full">
                                         <p className="text-sm text-ink">
                                           The remaining {100 - pct}% is payable directly to the venue at
                                           the event — please arrive at least 30 minutes early to complete
@@ -2227,7 +2233,7 @@ export default function App() {
                                           type="button"
                                           disabled={payingBookingId === b.id}
                                           onClick={() => startPayment(b, "deposit")}
-                                          className="mt-2 bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                          className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                         >
                                           {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
                                         </button>
@@ -2242,13 +2248,13 @@ export default function App() {
                                   className={`text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 transition ${
                                     canSplit
                                       ? "border border-white/15 text-haze hover:text-ink"
-                                      : "bg-magenta text-white hover:brightness-110"
+                                      : "bg-amber text-[#170D0B] hover:brightness-110"
                                   }`}
                                 >
                                   {payingBookingId === b.id ? "Opening…" : `Pay in full now — ${inr(b.total_amount)}`}
                                 </button>
                                 {payError[b.id] && (
-                                  <p className="text-xs text-rose-300">{payError[b.id]}</p>
+                                  <p className="text-xs text-red-300">{payError[b.id]}</p>
                                 )}
                               </div>
                             )}
@@ -2265,7 +2271,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setReceiptId(b.id)}
-                            className="text-sm font-medium text-gold hover:brightness-110 mt-3 block"
+                            className="text-sm font-medium text-amber hover:brightness-110 mt-3 block"
                           >
                             Payment confirmed — view receipt
                           </button>
@@ -2281,7 +2287,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => openFinalize(b, { editing: true })}
-                                  className="text-xs font-medium text-magenta hover:brightness-110"
+                                  className="text-xs font-medium text-amber hover:brightness-110"
                                 >
                                   Edit menu
                                 </button>
@@ -2302,14 +2308,14 @@ export default function App() {
                               Check-in code
                             </p>
                             {b.event_started_at ? (
-                              <p className="text-sm font-medium text-gold">
+                              <p className="text-sm font-medium text-amber">
                                 ✓ Checked in at {fmtDate(b.event_started_at.slice(0, 10))}, {fmtTime(b.event_started_at.slice(11, 16))}
                               </p>
                             ) : (
                               <>
                                 {b.checkin_otp ? (
                                   <>
-                                    <p className="text-3xl font-bold tracking-[0.35em] text-gold my-1">
+                                    <p className="text-3xl font-bold tracking-[0.35em] text-amber my-1">
                                       {b.checkin_otp}
                                     </p>
                                     <p className="text-xs text-haze">
@@ -2319,7 +2325,7 @@ export default function App() {
                                       type="button"
                                       disabled={otpBusyId === b.id}
                                       onClick={() => generateCheckinOtp(b)}
-                                      className="mt-2 text-sm font-medium text-magenta hover:brightness-110 disabled:opacity-50"
+                                      className="mt-2 text-sm font-medium text-amber hover:brightness-110 disabled:opacity-50"
                                     >
                                       {otpBusyId === b.id ? "Generating…" : "Regenerate code"}
                                     </button>
@@ -2333,17 +2339,17 @@ export default function App() {
                                       type="button"
                                       disabled={otpBusyId === b.id}
                                       onClick={() => generateCheckinOtp(b)}
-                                      className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
                                       {otpBusyId === b.id ? "Generating…" : "Generate check-in code"}
                                     </button>
                                   </>
                                 )}
                                 {otpError[b.id] && (
-                                  <p className="text-xs text-rose-300 mt-1">{otpError[b.id]}</p>
+                                  <p className="text-xs text-red-300 mt-1">{otpError[b.id]}</p>
                                 )}
                                 {partialPaid && (
-                                  <p className="text-xs text-gold mt-2">
+                                  <p className="text-xs text-amber mt-2">
                                     The remaining {100 - pct}% is due directly to the venue at the event —
                                     please arrive at least 30 minutes early to pay it and check in.
                                   </p>
@@ -2358,7 +2364,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => openFinalize(b)}
-                              className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
+                              className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                             >
                               Finalize your menu
                             </button>
@@ -2375,7 +2381,7 @@ export default function App() {
                             <p className="text-xs font-semibold text-haze mb-1">
                               Your feedback
                             </p>
-                            <p className="text-gold text-lg leading-none">
+                            <p className="text-amber text-lg leading-none">
                               {"★".repeat(fb.rating || 0)}
                               <span className="text-white/15">{"★".repeat(5 - (fb.rating || 0))}</span>
                             </p>
@@ -2387,7 +2393,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setFbOpenId(b.id)}
-                            className="text-sm font-medium text-magenta hover:brightness-110"
+                            className="text-sm font-medium text-amber hover:brightness-110"
                           >
                             Leave feedback
                           </button>
@@ -2406,7 +2412,7 @@ export default function App() {
                                     setFbDraft((d) => ({ ...d, [b.id]: { ...draft, rating: n } }))
                                   }
                                   className={`text-2xl leading-none ${
-                                    draft.rating >= n ? "text-gold" : "text-white/15"
+                                    draft.rating >= n ? "text-amber" : "text-white/15"
                                   }`}
                                 >
                                   ★
@@ -2420,10 +2426,10 @@ export default function App() {
                               onChange={(e) =>
                                 setFbDraft((d) => ({ ...d, [b.id]: { ...draft, comment: e.target.value } }))
                               }
-                              className="bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-sm w-full mt-1 text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                              className="bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-sm w-full mt-1 text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                             />
                             {fbError[b.id] && (
-                              <p className="text-xs text-rose-300 mt-1">{fbError[b.id]}</p>
+                              <p className="text-xs text-red-300 mt-1">{fbError[b.id]}</p>
                             )}
                             <div className="flex gap-2 mt-2">
                               <button
@@ -2436,7 +2442,7 @@ export default function App() {
                                     comment: draft.comment.trim() || null,
                                   })
                                 }
-                                className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                               >
                                 {fbBusyId === b.id ? "Saving…" : "Submit"}
                               </button>
@@ -2482,7 +2488,7 @@ export default function App() {
                 <label className="text-sm font-medium block mb-1">Full name</label>
                 <input
                   type="text"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={profileForm.full_name}
                   onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
                 />
@@ -2492,7 +2498,7 @@ export default function App() {
                 <input
                   type="tel"
                   placeholder="+91 98765 43210"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={profileForm.phone}
                   onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                 />
@@ -2506,11 +2512,11 @@ export default function App() {
                   value={profile?.email || session.email}
                 />
               </div>
-              {profileError && <p className="text-rose-300 text-sm">{profileError}</p>}
-              {profileSaved && <p className="text-gold text-sm">Profile saved.</p>}
+              {profileError && <p className="text-red-300 text-sm">{profileError}</p>}
+              {profileSaved && <p className="text-amber text-sm">Profile saved.</p>}
               <button
                 disabled={profileLoading}
-                className="bg-magenta text-white font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
+                className="bg-amber text-[#170D0B] font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
               >
                 {profileLoading ? "Saving…" : "Save changes"}
               </button>
@@ -2529,7 +2535,7 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="New password"
-                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                 value={settingsPassword}
                 onChange={(e) => setSettingsPassword(e.target.value)}
               />
@@ -2538,15 +2544,15 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="Confirm new password"
-                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
+                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                 value={settingsPasswordConfirm}
                 onChange={(e) => setSettingsPasswordConfirm(e.target.value)}
               />
-              {settingsError && <p className="text-rose-300 text-sm">{settingsError}</p>}
-              {settingsSaved && <p className="text-gold text-sm">Password updated.</p>}
+              {settingsError && <p className="text-red-300 text-sm">{settingsError}</p>}
+              {settingsSaved && <p className="text-amber text-sm">Password updated.</p>}
               <button
                 disabled={settingsLoading}
-                className="bg-magenta text-white font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
+                className="bg-amber text-[#170D0B] font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
               >
                 {settingsLoading ? "Updating…" : "Update password"}
               </button>
@@ -2580,12 +2586,12 @@ export default function App() {
                 </h1>
                 <p className="text-haze text-sm mb-5">
                   {b.venue_packages?.name} at {b.venues?.name}
-                  <span className="block text-gold font-medium">{b.booking_ref}</span>
+                  <span className="block text-amber font-medium">{b.booking_ref}</span>
                 </p>
 
                 {!showForm ? (
                   <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
-                    <p className="text-sm font-medium text-gold mb-2">✓ Your menu is confirmed</p>
+                    <p className="text-sm font-medium text-amber mb-2">✓ Your menu is confirmed</p>
                     <MenuSummary booking={b} />
                   </div>
                 ) : ctx.rules.length === 0 ? (
@@ -2598,10 +2604,10 @@ export default function App() {
                       return (
                         <div key={r.category_kind} className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
                           <p className="text-sm font-medium mb-1 text-ink">
-                            Choose <span className="text-gold font-semibold">{r.quota_count}</span> {quotaLabel(r.category_kind, r.quota_count)}
+                            Choose <span className="text-amber font-semibold">{r.quota_count}</span> {quotaLabel(r.category_kind, r.quota_count)}
                             <span
                               className={`ml-2 text-xs ${
-                                picked.length === r.quota_count ? "text-gold" : "text-haze/60"
+                                picked.length === r.quota_count ? "text-amber" : "text-haze/60"
                               }`}
                             >
                               ({picked.length}/{r.quota_count})
@@ -2621,7 +2627,7 @@ export default function App() {
                                   >
                                     <input
                                       type="checkbox"
-                                      className="accent-magenta"
+                                      className="accent-amber"
                                       checked={on}
                                       disabled={disabled}
                                       onChange={() => togglePick(r.category_kind, it.id, r.quota_count)}
@@ -2639,13 +2645,13 @@ export default function App() {
                       );
                     })}
 
-                    {finalizeError && <p className="text-rose-300 text-sm">{finalizeError}</p>}
+                    {finalizeError && <p className="text-red-300 text-sm">{finalizeError}</p>}
 
                     <button
                       type="button"
                       disabled={!complete || finalizeBusy}
                       onClick={() => submitMenu(b)}
-                      className="bg-magenta text-white text-sm font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 self-start hover:brightness-110 transition"
+                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 self-start hover:brightness-110 transition"
                     >
                       {finalizeBusy ? "Saving…" : menuEditing ? "Save changes" : "Submit menu"}
                     </button>
@@ -2732,7 +2738,7 @@ export default function App() {
                 key={key}
                 type="button"
                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-xs ${
-                  active ? "text-magenta" : "text-haze/70"
+                  active ? "text-amber" : "text-haze/70"
                 }`}
                 onClick={() => setScreen(key)}
               >

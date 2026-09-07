@@ -4,13 +4,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Nightlife palette — deep aubergine, one magenta CTA, one gold tier signal.
-        base: "#14101F", // page background
-        surface: "#1E1830", // cards and raised surfaces
-        magenta: "#FF3D81", // primary CTAs only
-        gold: "#FFB020", // premium / tier signals only
-        ink: "#F5F1FA", // primary text
-        haze: "#A99BC2", // secondary / muted text
+        // Nightlife palette — matched to the existing login screen:
+        // warm near-black ground, one amber accent, warm-neutral text.
+        base: "#170D0B", // page background — near-black, warm maroon undertone
+        surface: "#221410", // cards and raised surfaces, one step up from base
+        amber: "#F5A623", // the single accent — every CTA and every tier/price signal
+        ink: "#F5F1EE", // primary text — warm white
+        haze: "#C9B8AE", // secondary / muted text — warm tan-grey
       },
       fontFamily: {
         display: ['"Space Grotesk"', "ui-sans-serif", "system-ui", "sans-serif"],
@@ -23,8 +23,8 @@ export default {
         ],
       },
       boxShadow: {
-        hero: "0 24px 60px -20px rgba(0,0,0,0.65)",
-        card: "0 8px 24px -12px rgba(0,0,0,0.5)",
+        hero: "0 24px 60px -20px rgba(0,0,0,0.7)",
+        card: "0 8px 24px -12px rgba(0,0,0,0.55)",
       },
     },
   },

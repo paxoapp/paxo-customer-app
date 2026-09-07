@@ -4,8 +4,8 @@
 
 @layer base {
   body {
-    background-color: #14101f;
-    color: #f5f1fa;
+    background-color: #170d0b;
+    color: #f5f1ee;
     font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
@@ -21,10 +21,10 @@
 @keyframes stepPulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 61, 129, 0);
+    box-shadow: 0 0 0 0 rgba(245, 166, 35, 0);
   }
   50% {
-    box-shadow: 0 0 14px 2px rgba(255, 61, 129, 0.55);
+    box-shadow: 0 0 14px 2px rgba(245, 166, 35, 0.55);
   }
 }
 .step-active-glow {
@@ -33,7 +33,7 @@
 @media (prefers-reduced-motion: reduce) {
   .step-active-glow {
     animation: none;
-    box-shadow: 0 0 12px 1px rgba(255, 61, 129, 0.45);
+    box-shadow: 0 0 12px 1px rgba(245, 166, 35, 0.45);
   }
 }
 
