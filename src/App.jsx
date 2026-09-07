@@ -104,6 +104,8 @@ const QUOTA_LABELS = {
   classic_cocktails: ["Classic Cocktail", "Classic Cocktails"],
   mocktails: ["Mocktail", "Mocktails"],
   soft_beverages: ["Soft Beverage", "Soft Beverages"],
+  single_malt: ["Single Malt", "Single Malts"],
+  side: ["Side", "Sides"],
   other: ["Other", "Other"],
   // legacy kinds, kept for older packages
   beverage_alcohol: ["Alcoholic Beverage", "Alcoholic Beverages"],
