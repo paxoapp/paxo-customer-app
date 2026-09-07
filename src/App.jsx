@@ -364,6 +364,143 @@ function ReviewMenuBody({ pkg, venue }) {
   );
 }
 
+// Venue-wide "what does this place serve" browsing — no package attribution or
+// quotas (those live in each package's own Review Menu).
+const FOOD_MENU_SECTIONS = [
+  { kind: "starter_veg", label: "Veg Starters" },
+  { kind: "starter_non_veg", label: "Non-Veg Starters" },
+  { kind: "main_veg", label: "Veg Main Courses" },
+  { kind: "main_non_veg", label: "Non-Veg Main Courses" },
+  { kind: "dessert", label: "Dessert" },
+];
+const BEVERAGE_MENU_SECTIONS = [
+  { kind: "whisky", label: "Whisky" },
+  { kind: "vodka", label: "Vodka" },
+  { kind: "gin", label: "Gin" },
+  { kind: "rum", label: "Rum" },
+  { kind: "beer", label: "Beer" },
+  { kind: "wine", label: "Wine" },
+];
+// Free-text inclusion lines worth surfacing under "Also available".
+const SOFT_DRINK_INCLUSION_RE = /cocktail|mocktail|soft/i;
+
+function VenueFullMenu({ venue }) {
+  const [tab, setTab] = useState("food");
+  const cats = venue?.menu_categories || [];
+  const packages = venue?.venue_packages || [];
+
+  const byName = (a, b) => a.localeCompare(b);
+  const itemsOfKind = (kind) =>
+    cats.filter((c) => c.kind === kind).flatMap((c) => c.menu_items || []);
+
+  // Every available dish of a kind, names only.
+  const foodNames = (kind) =>
+    itemsOfKind(kind)
+      .filter((it) => it.is_available)
+      .map((it) => it.name)
+      .sort(byName);
+
+  // Deduplicated union of every brand pooled by ANY of this venue's packages.
+  const pooledIds = new Set(
+    packages.flatMap((p) => (p.package_item_pool || []).map((r) => r.menu_item_id))
+  );
+  const brandNames = (kind) => {
+    const seen = new Set();
+    return itemsOfKind(kind)
+      .filter((it) => pooledIds.has(it.id) && !seen.has(it.id) && seen.add(it.id))
+      .map((it) => it.name)
+      .sort(byName);
+  };
+
+  const alsoAvailable = [
+    ...new Set(
+      packages
+        .flatMap((p) => p.inclusions || [])
+        .map((line) => (line || "").trim())
+        .filter((line) => line && SOFT_DRINK_INCLUSION_RE.test(line))
+    ),
+  ];
+
+  if (packages.length === 0) {
+    return (
+      <div className="rounded-2xl p-4 bg-surface border border-white/10 text-sm text-haze/70">
+        Menu details coming soon.
+      </div>
+    );
+  }
+
+  const foodSections = FOOD_MENU_SECTIONS.map((s) => ({
+    ...s,
+    items: foodNames(s.kind),
+  })).filter((s) => s.items.length);
+  const bevSections = BEVERAGE_MENU_SECTIONS.map((s) => ({
+    ...s,
+    items: brandNames(s.kind),
+  })).filter((s) => s.items.length);
+
+  const Section = ({ label, items }) => (
+    <div>
+      <p className="text-sm font-semibold text-ink mb-1">{label}</p>
+      <ul className="list-disc pl-5 text-sm text-haze flex flex-col gap-0.5">
+        {items.map((n, i) => (
+          <li key={i}>{n}</li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  return (
+    <div className="rounded-2xl bg-surface border border-white/10 shadow-card overflow-hidden">
+      <div className="flex border-b border-white/10">
+        {[
+          ["food", "Food Menu"],
+          ["beverages", "Beverages"],
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setTab(k)}
+            className={`flex-1 text-sm font-medium py-2.5 transition-colors ${
+              tab === k
+                ? "text-amber border-b-2 border-amber"
+                : "text-haze hover:text-ink border-b-2 border-transparent"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="p-4">
+        {tab === "food" &&
+          (foodSections.length ? (
+            <div className="flex flex-col gap-4">
+              {foodSections.map((s) => (
+                <Section key={s.kind} label={s.label} items={s.items} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-haze/70">Food menu coming soon.</p>
+          ))}
+        {tab === "beverages" &&
+          (bevSections.length || alsoAvailable.length ? (
+            <div className="flex flex-col gap-4">
+              {bevSections.map((s) => (
+                <Section key={s.kind} label={s.label} items={s.items} />
+              ))}
+              {alsoAvailable.length > 0 && (
+                <div className="border-t border-white/10 pt-3">
+                  <Section label="Also available" items={alsoAvailable} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-haze/70">Beverage details coming soon.</p>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 // The DB locks menu edits within 48h of the event; mirror that in the UI.
 function menuLocked(booking) {
   const h = hoursUntil(booking?.event_date, booking?.event_time);
@@ -525,6 +662,17 @@ const STAGE_MESSAGES = [
 
 const tierPercent = (tier) => (tier === "20pct" ? 20 : tier === "50pct" ? 50 : 100);
 
+// Preset cancellation reasons; the last pre-fills nothing and asks for free text.
+const CANCEL_OTHER = "Other (please specify)";
+const CANCEL_REASONS = [
+  "Change of plans",
+  "Found a better offer elsewhere",
+  "Booked by mistake",
+  "Venue no longer suitable for my event",
+  "Budget constraints",
+  CANCEL_OTHER,
+];
+
 function bookingStage(b) {
   if (b.status === "pending") return 0;
   if (b.status === "accepted") return 1;
@@ -639,6 +787,12 @@ export default function App() {
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [finalizeError, setFinalizeError] = useState("");
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
+
+  const [cancelId, setCancelId] = useState(null); // pending booking whose cancel form is open
+  const [cancelPreset, setCancelPreset] = useState(""); // selected preset reason
+  const [cancelReason, setCancelReason] = useState(""); // editable reason text sent to the DB
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [selectedCity, setSelectedCity] = useState(null);
@@ -850,6 +1004,53 @@ export default function App() {
       setFbError((m) => ({ ...m, [booking.id]: e.message || "Couldn't save your feedback. Please try again." }));
     } finally {
       setFbBusyId(null);
+    }
+  }
+
+  function openCancel(booking) {
+    setCancelId(booking.id);
+    setCancelPreset("");
+    setCancelReason("");
+    setCancelError("");
+  }
+
+  function closeCancel() {
+    setCancelId(null);
+    setCancelPreset("");
+    setCancelReason("");
+    setCancelError("");
+  }
+
+  // Pick a preset reason: everything except "Other" pre-fills the editable field.
+  function pickCancelPreset(value) {
+    setCancelPreset(value);
+    setCancelReason(value === CANCEL_OTHER || value === "" ? "" : value);
+  }
+
+  // Customer-side cancellation, pending bookings only. The DB
+  // (protect_booking_core_fields) rejects any other transition and stamps
+  // cancelled_at itself, so we only ever send status + reason.
+  async function cancelBooking(booking) {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      setCancelError("Please give a reason for cancelling.");
+      return;
+    }
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
+        method: "PATCH",
+        token: session.token,
+        prefer: "return=minimal",
+        body: { status: "cancelled", cancellation_reason: reason },
+      });
+      closeCancel();
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setCancelError(e.message || "Couldn't cancel the request. Please try again.");
+    } finally {
+      setCancelBusy(false);
     }
   }
 
@@ -1989,6 +2190,13 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            <h2 className="font-display text-xl font-semibold mt-8 mb-3">View full menu</h2>
+            <p className="text-sm text-haze mb-3">
+              Everything this venue serves. Package-specific choices and quotas are shown on each
+              package's “Review menu”.
+            </p>
+            <VenueFullMenu venue={selectedVenue} />
           </div>
         )}
 
@@ -2314,6 +2522,58 @@ export default function App() {
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
+                        {b.status === "pending" && (
+                          cancelId === b.id ? (
+                            <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03] flex flex-col gap-2">
+                              <p className="text-xs font-semibold text-haze">Cancel this request</p>
+                              <Select
+                                ariaLabel="Reason for cancelling"
+                                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
+                                value={cancelPreset}
+                                onChange={pickCancelPreset}
+                                options={[
+                                  { value: "", label: "Select a reason" },
+                                  ...CANCEL_REASONS.map((r) => ({ value: r, label: r })),
+                                ]}
+                              />
+                              <textarea
+                                rows={2}
+                                placeholder="Tell the venue why you're cancelling"
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                              />
+                              {cancelError && <p className="text-xs text-red-300">{cancelError}</p>}
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  disabled={cancelBusy || !cancelReason.trim()}
+                                  onClick={() => cancelBooking(b)}
+                                  className="bg-red-500/90 text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                >
+                                  {cancelBusy ? "Cancelling…" : "Confirm cancellation"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={cancelBusy}
+                                  onClick={closeCancel}
+                                  className="text-sm text-haze hover:text-ink px-2 disabled:opacity-50"
+                                >
+                                  Keep request
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openCancel(b)}
+                              className="mt-3 text-sm font-medium text-red-300 hover:brightness-110"
+                            >
+                              Cancel request
+                            </button>
+                          )
+                        )}
+
                         {stage === 1 && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
                             <p className="text-xs font-semibold text-haze mb-2">
@@ -2616,6 +2876,22 @@ export default function App() {
                             </div>
                           </>
                         )}
+                      </div>
+                    ) : b.status === "cancelled" ? (
+                      <div className="mt-3 border border-red-400/30 bg-red-500/10 rounded-xl p-3">
+                        <p className="text-sm font-semibold text-red-200">Request cancelled</p>
+                        {b.cancellation_reason && (
+                          <p className="text-sm text-haze mt-1 whitespace-pre-wrap">
+                            {b.cancellation_reason}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setScreen("browse")}
+                          className="mt-2 text-sm font-medium text-amber hover:brightness-110"
+                        >
+                          Browse other venues
+                        </button>
                       </div>
                     ) : (
                       <p className="text-xs text-haze/70 mt-2 capitalize">
