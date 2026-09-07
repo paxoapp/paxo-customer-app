@@ -88,6 +88,36 @@ function depositPreview(headcount, hrsToEvent) {
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
+// Label-only GST view. `price_per_head` is authoritative and never changes — for
+// "included" packages we just break the amount into base + GST for transparency
+// (18% when the package has alcohol, 5% for food-only, CA-confirmed). "excluded"
+// packages cost exactly the same; GST simply isn't itemised here.
+const gstRateFor = (pkg) => (pkg?.includes_alcohol ? 0.18 : 0.05);
+function gstSplit(amount, pkg) {
+  const rate = gstRateFor(pkg);
+  const base = Math.round((amount / (1 + rate)) * 100) / 100;
+  return { rate, pct: Math.round(rate * 100), base, gst: Math.round((amount - base) * 100) / 100 };
+}
+
+// Compact GST breakdown line for a per-head package price.
+function GstLine({ pkg, className = "text-xs text-haze/80" }) {
+  const price = Number(pkg?.price_per_head || 0);
+  if (!price) return null;
+  if (pkg?.gst_mode === "excluded") {
+    return (
+      <p className={className}>
+        {inr(price)}/head is exclusive of GST — the total you pay is unchanged.
+      </p>
+    );
+  }
+  const { pct, base, gst } = gstSplit(price, pkg);
+  return (
+    <p className={className}>
+      Incl. GST: {inr(base)} base + {inr(gst)} GST ({pct}%) = {inr(price)}/head
+    </p>
+  );
+}
+
 // [singular, plural] per quota category kind.
 const QUOTA_LABELS = {
   starter_veg: ["Veg Starter", "Veg Starters"],
@@ -338,6 +368,14 @@ function ReviewMenuBody({ pkg, venue }) {
 
   return (
     <div>
+      {Number(pkg?.price_per_head) > 0 && (
+        <div className="mb-5">
+          <h3 className="font-display text-base font-semibold text-ink mb-2">Pricing</h3>
+          <p className="text-sm text-ink font-medium">{inr(pkg.price_per_head)} / head</p>
+          <GstLine pkg={pkg} className="text-xs text-haze/80 mt-1" />
+        </div>
+      )}
+
       {foodKinds.length > 0 && (
         <div className="mb-5">
           <h3 className="font-display text-base font-semibold text-ink mb-2">Food</h3>
@@ -655,6 +693,23 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
       <Row k="Deposit tier" v={tierLabel} />
       <Row k="Amount paid" v={inr(amountPaid)} />
       <Row k="Total package amount" v={inr(total)} />
+      {total > 0 && b.venue_packages && (
+        b.venue_packages.gst_mode === "excluded" ? (
+          <p className="text-xs text-stone-500 py-1.5">
+            Amounts are exclusive of GST; the total payable is unchanged.
+          </p>
+        ) : (
+          (() => {
+            const { pct, base, gst } = gstSplit(total, b.venue_packages);
+            return (
+              <>
+                <Row k="— Base (excl. GST)" v={inr(base)} />
+                <Row k={`— GST (${pct}%)`} v={inr(gst)} />
+              </>
+            );
+          })()
+        )
+      )}
       <Row k="Remaining balance (payable at venue)" v={inr(remaining)} />
       <Row k="Payment reference" v={paymentRef} />
 
@@ -846,6 +901,7 @@ export default function App() {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const [menuSummaryCollapsed, setMenuSummaryCollapsed] = useState({}); // { [bookingId]: true } — "Your menu" summary hidden; expanded by default
+  const [bookingsTab, setBookingsTab] = useState("all"); // My requests status filter
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [selectedCity, setSelectedCity] = useState(null);
@@ -913,7 +969,7 @@ export default function App() {
       const data = await sb(
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
-          "venue_packages(name,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
+          "venue_packages(name,price_per_head,includes_alcohol,gst_mode,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
           "payments(payment_type,status,amount,paid_at,razorpay_payment_id)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)" +
@@ -2226,6 +2282,7 @@ export default function App() {
                         </>
                       );
                     })()}
+                    <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
                     <p className="font-semibold text-amber">{inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span></p>
@@ -2507,15 +2564,42 @@ export default function App() {
           </div>
         )}
 
-        {screen === "myBookings" && (
+        {screen === "myBookings" && (() => {
+          const BOOKINGS_TABS = ["all", "pending", "accepted", "confirmed", "completed", "cancelled"];
+          const visibleBookings = myBookings.filter(
+            (b) => bookingsTab === "all" || b.status === bookingsTab
+          );
+          return (
           <div>
             <h1 className="font-display text-3xl font-bold mb-1">My requests</h1>
-            <p className="text-haze text-sm mb-6">Track the status of every booking you've requested.</p>
-            {myBookings.length === 0 && (
+            <p className="text-haze text-sm mb-4">Track the status of every booking you've requested.</p>
+
+            <div className="flex flex-wrap gap-2 mb-6">
+              {BOOKINGS_TABS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setBookingsTab(t)}
+                  className={`text-sm px-3 py-1.5 rounded-full border capitalize transition-colors ${
+                    bookingsTab === t
+                      ? "bg-ink text-[#170D0B] border-ink"
+                      : "border-white/15 text-haze hover:text-ink"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            {myBookings.length === 0 ? (
               <p className="text-haze/70 text-sm">You haven't requested any bookings yet.</p>
-            )}
+            ) : visibleBookings.length === 0 ? (
+              <p className="text-haze/70 text-sm">
+                No {bookingsTab === "all" ? "" : `${bookingsTab} `}requests.
+              </p>
+            ) : null}
             <div className="flex flex-col gap-4">
-              {myBookings.map((b) => {
+              {visibleBookings.map((b) => {
                 const paid = (b.payments || []).filter((p) => p.status === "paid");
                 const paidFull = paid.some((p) => p.payment_type === "full");
                 const paidDeposit = paid.some((p) => p.payment_type === "deposit");
@@ -2969,7 +3053,8 @@ export default function App() {
               })}
             </div>
           </div>
-        )}
+          );
+        })()}
         {screen === "profile" && (
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Profile</h1>
