@@ -243,6 +243,139 @@ function ReviewMenuBody({ pkg, venue }) {
   );
 }
 
+// Per-booking menu context: the quota rules and which items can satisfy each.
+function bookingMenuContext(booking) {
+  const pkg = booking?.venue_packages || null;
+  const cats = booking?.venues?.menu_categories || [];
+  const rules = (pkg?.menu_quota_rules || [])
+    .slice()
+    .sort((a, b) => a.category_kind.localeCompare(b.category_kind));
+  const poolIds = new Set((pkg?.package_item_pool || []).map((r) => r.menu_item_id));
+  const itemsForKind = (kind) =>
+    cats
+      .filter((c) => c.kind === kind)
+      .flatMap((c) => c.menu_items || [])
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  // Food: the venue's full menu for that category. Hard-liquor: this package's pool.
+  const optionsForKind = (kind) =>
+    FOOD_QUOTA_KINDS.includes(kind)
+      ? itemsForKind(kind)
+      : itemsForKind(kind).filter((it) => poolIds.has(it.id));
+  const itemById = {};
+  const kindByItemId = {};
+  cats.forEach((c) =>
+    (c.menu_items || []).forEach((it) => {
+      itemById[it.id] = it;
+      kindByItemId[it.id] = c.kind;
+    })
+  );
+  return { pkg, rules, itemsForKind, optionsForKind, itemById, kindByItemId };
+}
+
+// Read-only list of the items a customer selected, grouped by quota category.
+function MenuSummary({ booking }) {
+  const { rules, itemById, kindByItemId } = bookingMenuContext(booking);
+  const selected = Array.isArray(booking?.booking_menu_selections)
+    ? booking.booking_menu_selections
+    : booking?.booking_menu_selections
+    ? [booking.booking_menu_selections]
+    : [];
+  return (
+    <div className="flex flex-col gap-2">
+      {rules.map((r) => {
+        const names = selected
+          .filter((s) => kindByItemId[s.menu_item_id] === r.category_kind)
+          .map((s) => itemById[s.menu_item_id]?.name)
+          .filter(Boolean)
+          .sort();
+        return (
+          <div key={r.category_kind}>
+            <p className="text-sm font-medium text-stone-700">
+              {quotaLabel(r.category_kind, r.quota_count)}
+            </p>
+            {names.length ? (
+              <ul className="list-disc pl-5 text-sm text-stone-600">
+                {names.map((n, i) => (
+                  <li key={i}>{n}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-stone-400">—</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
+  const b = booking;
+  const total = Number(b.total_amount || 0);
+  const remaining = Math.max(0, total - amountPaid);
+  const tierLabel =
+    b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50%" : "20%";
+  const Row = ({ k, v }) => (
+    <div className="flex justify-between gap-4 py-1 border-b border-stone-100 text-sm">
+      <span className="text-stone-500">{k}</span>
+      <span className="text-right font-medium">{v || "—"}</span>
+    </div>
+  );
+  return (
+    <div className="receipt-print bg-white">
+      <h2 className="text-lg font-semibold">Booking Confirmation Receipt</h2>
+      <p className="text-xs text-stone-400 mb-3">{b.booking_ref}</p>
+
+      <Row k="Venue" v={b.venues?.name} />
+      <Row k="Package" v={b.venue_packages?.name} />
+      <Row
+        k="Event"
+        v={[fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join(" · ")}
+      />
+      <Row k="Guests" v={b.headcount} />
+
+      <div className="h-3" />
+      <Row k="Deposit tier" v={tierLabel} />
+      <Row k="Amount paid" v={inr(amountPaid)} />
+      <Row k="Total package amount" v={inr(total)} />
+      <Row k="Remaining balance (payable at venue)" v={inr(remaining)} />
+      <Row k="Payment reference" v={paymentRef} />
+
+      <div className="h-3" />
+      <Row k="Name" v={b.contact_name} />
+      <Row k="Mobile" v={b.contact_mobile} />
+      <Row k="Email" v={b.contact_email} />
+
+      {b.menu_finalized_at && (
+        <div className="mt-4">
+          <h3 className="text-sm font-semibold mb-1">Your menu selections</h3>
+          <MenuSummary booking={b} />
+        </div>
+      )}
+
+      <div className="no-print flex flex-wrap gap-2 mt-4">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="bg-slate-900 text-white text-sm font-medium px-3 py-1.5 rounded"
+        >
+          Download
+        </button>
+        {b.status === "confirmed" && !b.menu_finalized_at && (
+          <button
+            type="button"
+            onClick={onFinalize}
+            className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded"
+          >
+            Finalize Your Menu
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function fmtTime(t) {
   if (!t) return "";
   const [h, m] = t.split(":");
@@ -360,13 +493,17 @@ export default function App() {
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
-  const [menuNoticeId, setMenuNoticeId] = useState(null); // booking id whose "Finalize Your Menu" note is shown
   const [otpBusyId, setOtpBusyId] = useState(null);
   const [otpError, setOtpError] = useState({}); // keyed by booking id
   const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
   const [fbBusyId, setFbBusyId] = useState(null);
   const [fbError, setFbError] = useState({}); // keyed by booking id
   const [fbOpenId, setFbOpenId] = useState(null); // booking id whose feedback form is expanded after a skip
+  const [receiptId, setReceiptId] = useState(null); // booking id whose receipt modal is open
+  const [finalizeId, setFinalizeId] = useState(null); // booking id being finalized on the finalizeMenu screen
+  const [menuPicks, setMenuPicks] = useState({}); // { [category_kind]: menu_item_id[] }
+  const [finalizeBusy, setFinalizeBusy] = useState(false);
+  const [finalizeError, setFinalizeError] = useState("");
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [heroIndex, setHeroIndex] = useState(0);
@@ -433,7 +570,13 @@ export default function App() {
   const loadMyBookings = useCallback(async (token) => {
     try {
       const data = await sb(
-        "/rest/v1/bookings?select=*,venues(name,city,area,venue_type),venue_packages(name),payments(payment_type,status,amount,paid_at),booking_feedback(id,rating,comment,status)&order=created_at.desc",
+        "/rest/v1/bookings?select=*," +
+          "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
+          "venue_packages(name,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
+          "payments(payment_type,status,amount,paid_at,razorpay_payment_id)," +
+          "booking_feedback(id,rating,comment,status)," +
+          "booking_menu_selections(menu_item_id)" +
+          "&order=created_at.desc",
         { token }
       );
       setMyBookings(data);
@@ -573,6 +716,62 @@ export default function App() {
       setFbError((m) => ({ ...m, [booking.id]: e.message || "Couldn't save your feedback. Please try again." }));
     } finally {
       setFbBusyId(null);
+    }
+  }
+
+  function openFinalize(booking) {
+    const { rules } = bookingMenuContext(booking);
+    setFinalizeId(booking.id);
+    setMenuPicks(Object.fromEntries(rules.map((r) => [r.category_kind, []])));
+    setFinalizeError("");
+    setReceiptId(null);
+    setScreen("finalizeMenu");
+  }
+
+  function togglePick(kind, itemId, quota) {
+    setMenuPicks((m) => {
+      const cur = m[kind] || [];
+      if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
+      const next = [...cur, itemId];
+      while (next.length > quota) next.shift(); // enforce exact count: drop the oldest
+      return { ...m, [kind]: next };
+    });
+  }
+
+  async function submitMenu(booking) {
+    const { rules } = bookingMenuContext(booking);
+    const complete = rules.every(
+      (r) => (menuPicks[r.category_kind] || []).length === r.quota_count
+    );
+    if (!complete) return;
+    setFinalizeBusy(true);
+    setFinalizeError("");
+    try {
+      const rows = rules.flatMap((r) =>
+        (menuPicks[r.category_kind] || []).map((id) => ({ booking_id: booking.id, menu_item_id: id }))
+      );
+      await sb(`/rest/v1/booking_menu_selections?booking_id=eq.${booking.id}`, {
+        method: "DELETE",
+        token: session.token,
+        prefer: "return=minimal",
+      });
+      await sb("/rest/v1/booking_menu_selections", {
+        method: "POST",
+        token: session.token,
+        prefer: "return=minimal",
+        body: rows,
+      });
+      await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
+        method: "PATCH",
+        token: session.token,
+        prefer: "return=minimal",
+        body: { menu_finalized_at: new Date().toISOString() },
+      });
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setFinalizeError(e.message || "Couldn't save your menu. Please try again.");
+    } finally {
+      setFinalizeBusy(false);
     }
   }
 
@@ -1973,7 +2172,13 @@ export default function App() {
                             </dl>
 
                             {anyPaid ? (
-                              <p className="text-sm font-medium text-emerald-700 mt-3">✓ Payment confirmed</p>
+                              <button
+                                type="button"
+                                onClick={() => setReceiptId(b.id)}
+                                className="text-sm font-medium text-emerald-700 underline mt-3"
+                              >
+                                ✓ Payment confirmed · View receipt
+                              </button>
                             ) : (
                               <div className="mt-3 flex flex-col gap-2 items-start">
                                 {canSplit && (
@@ -2028,6 +2233,25 @@ export default function App() {
                               drinks from this package — for example, if a package allows "Choose 3 Veg
                               Starters," you'll see every available option but can only select 3.
                             </p>
+                          </div>
+                        )}
+
+                        {b.status === "confirmed" && (
+                          <button
+                            type="button"
+                            onClick={() => setReceiptId(b.id)}
+                            className="text-sm font-medium text-emerald-700 underline mt-3 block"
+                          >
+                            ✓ Payment confirmed · View receipt
+                          </button>
+                        )}
+
+                        {stage === 3 && (
+                          <div className="mt-3 border border-stone-200 rounded-lg p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">
+                              Your menu
+                            </p>
+                            <MenuSummary booking={b} />
                           </div>
                         )}
 
@@ -2092,16 +2316,14 @@ export default function App() {
                           <div className="mt-3">
                             <button
                               type="button"
-                              onClick={() => setMenuNoticeId(menuNoticeId === b.id ? null : b.id)}
+                              onClick={() => openFinalize(b)}
                               className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded"
                             >
                               Finalize Your Menu
                             </button>
-                            {menuNoticeId === b.id && (
-                              <p className="text-xs text-stone-500 mt-1">
-                                Menu selection opens here — this screen is the next piece being built.
-                              </p>
-                            )}
+                            <p className="text-xs text-stone-500 mt-1">
+                              Pick your exact dishes and drinks for this package.
+                            </p>
                           </div>
                         )}
                       </>
@@ -2291,6 +2513,102 @@ export default function App() {
           </div>
         )}
 
+        {screen === "finalizeMenu" &&
+          (() => {
+            const b = myBookings.find((x) => x.id === finalizeId);
+            if (!b) return <p className="text-stone-400 text-sm">Booking not found.</p>;
+            const ctx = bookingMenuContext(b);
+            const finalized = !!b.menu_finalized_at;
+            const complete = ctx.rules.every(
+              (r) => (menuPicks[r.category_kind] || []).length === r.quota_count
+            );
+            return (
+              <div className="max-w-lg">
+                <button
+                  className="text-sm text-stone-500 mb-4"
+                  onClick={() => {
+                    setScreen("myBookings");
+                    setFinalizeId(null);
+                  }}
+                >
+                  ← Back to bookings
+                </button>
+                <h1 className="font-serif text-3xl mb-1">Finalize Your Menu</h1>
+                <p className="text-stone-500 text-sm mb-5">
+                  {b.venue_packages?.name} at {b.venues?.name} · {b.booking_ref}
+                </p>
+
+                {finalized ? (
+                  <div className="bg-white border border-stone-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-emerald-700 mb-2">✓ Your menu is confirmed</p>
+                    <MenuSummary booking={b} />
+                  </div>
+                ) : ctx.rules.length === 0 ? (
+                  <p className="text-sm text-stone-500">This package has no menu choices to make.</p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {ctx.rules.map((r) => {
+                      const opts = ctx.optionsForKind(r.category_kind);
+                      const picked = menuPicks[r.category_kind] || [];
+                      return (
+                        <div key={r.category_kind} className="bg-white border border-stone-200 rounded-lg p-4">
+                          <p className="text-sm font-medium mb-1">
+                            Choose {r.quota_count} {quotaLabel(r.category_kind, r.quota_count)}
+                            <span
+                              className={`ml-2 text-xs ${
+                                picked.length === r.quota_count ? "text-emerald-600" : "text-stone-400"
+                              }`}
+                            >
+                              ({picked.length}/{r.quota_count})
+                            </span>
+                          </p>
+                          {opts.length === 0 ? (
+                            <p className="text-sm text-stone-400">No options available for this category.</p>
+                          ) : (
+                            <div className="flex flex-col gap-1.5 mt-1">
+                              {opts.map((it) => {
+                                const on = picked.includes(it.id);
+                                const disabled = !it.is_available;
+                                return (
+                                  <label
+                                    key={it.id}
+                                    className={`flex items-center gap-2 text-sm ${disabled ? "text-stone-400" : ""}`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={on}
+                                      disabled={disabled}
+                                      onChange={() => togglePick(r.category_kind, it.id, r.quota_count)}
+                                    />
+                                    <span>
+                                      {it.name}
+                                      {disabled && " (currently unavailable)"}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {finalizeError && <p className="text-rose-600 text-sm">{finalizeError}</p>}
+
+                    <button
+                      type="button"
+                      disabled={!complete || finalizeBusy}
+                      onClick={() => submitMenu(b)}
+                      className="bg-amber-500 text-slate-900 text-sm font-semibold px-4 py-2 rounded disabled:opacity-50 self-start"
+                    >
+                      {finalizeBusy ? "Saving…" : "Submit menu"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         {screen === "help" && (
           <div className="max-w-lg">
             <h1 className="font-serif text-3xl mb-1">Help & support</h1>
@@ -2318,6 +2636,26 @@ export default function App() {
           <ReviewMenuBody pkg={reviewPkg} venue={selectedVenue} />
         </Modal>
       )}
+
+      {receiptId &&
+        screen === "myBookings" &&
+        (() => {
+          const b = myBookings.find((x) => x.id === receiptId);
+          if (!b) return null;
+          const paid = (b.payments || []).filter((p) => p.status === "paid");
+          const amountPaid = paid.reduce((s, p) => s + Number(p.amount || 0), 0);
+          const paymentRef = paid.find((p) => p.razorpay_payment_id)?.razorpay_payment_id || null;
+          return (
+            <Modal title="Receipt" onClose={() => setReceiptId(null)}>
+              <ReceiptBody
+                booking={b}
+                amountPaid={amountPaid}
+                paymentRef={paymentRef}
+                onFinalize={() => openFinalize(b)}
+              />
+            </Modal>
+          );
+        })()}
 
       {session && (
         <nav
