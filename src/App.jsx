@@ -2281,11 +2281,7 @@ export default function App() {
                                 </button>
                               )}
                             </div>
-                            {(b.booking_menu_selections || []).length > 0 ? (
-                              <MenuSummary booking={b} />
-                            ) : menuLocked(b) ? null : (
-                              <p className="text-sm text-stone-400">—</p>
-                            )}
+                            <MenuSummary booking={b} />
                             {menuLocked(b) && (
                               <p className="text-xs text-stone-500 mt-2">
                                 Menu changes are locked within 48 hours of your event, so the venue can prepare.
