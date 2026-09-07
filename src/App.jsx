@@ -347,13 +347,6 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
       <Row k="Mobile" v={b.contact_mobile} />
       <Row k="Email" v={b.contact_email} />
 
-      {b.menu_finalized_at && (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold mb-1">Your menu selections</h3>
-          <MenuSummary booking={b} />
-        </div>
-      )}
-
       <div className="no-print flex flex-wrap gap-2 mt-4">
         <button
           type="button"
