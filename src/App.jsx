@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MapPin, CalendarCheck, User } from "lucide-react";
 
 const SUPABASE_URL = "https://cjjksssylejwxwbalury.supabase.co";
@@ -159,6 +159,126 @@ function Modal({ title, onClose, children }) {
         </div>
         <div className="flex-1 overflow-auto p-4">{children}</div>
       </div>
+    </div>
+  );
+}
+
+// Custom dropdown that renders its option list as themed DOM instead of the
+// browser/OS native <select> popup (which shows illegible pale-on-white text and,
+// on mobile, an OS picker we can't style). Same value contract as a native
+// <select>: `value` is a string, `onChange` receives the chosen option's value.
+// `options` is [{ value, label }]. Keyboard: ↑/↓/Home/End move, Enter selects,
+// Esc closes; closes on outside click or selection.
+function Select({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  className = "",
+  wrapperClassName = "",
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const rootRef = useRef(null);
+
+  const selected = options.find((o) => o.value === value);
+  const label = selected ? selected.label : options[0]?.label ?? "Select";
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocDown = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDocDown);
+    return () => document.removeEventListener("pointerdown", onDocDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const cur = options.findIndex((o) => o.value === value);
+    setActiveIdx(cur >= 0 ? cur : 0);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function commit(idx) {
+    const opt = options[idx];
+    if (opt) onChange(opt.value);
+    setOpen(false);
+  }
+
+  function onKeyDown(e) {
+    if (!open) {
+      if (["Enter", " ", "ArrowDown", "ArrowUp"].includes(e.key)) {
+        e.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(options.length - 1, i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(0, i - 1));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIdx(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIdx(options.length - 1);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      commit(activeIdx);
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={rootRef} className={`relative ${wrapperClassName}`}>
+      {/* role=button div rather than <button>: a native button synthesizes a
+          click on Enter/Space, which would fight the keydown handler below. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        className={`${className} flex items-center justify-between gap-2 text-left cursor-pointer select-none`}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={onKeyDown}
+      >
+        <span className={selected && selected.value ? "" : "text-haze/60"}>{label}</span>
+        <span aria-hidden className="text-haze pointer-events-none leading-none">▾</span>
+      </div>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={ariaLabel}
+          className="absolute left-0 z-50 mt-1 max-h-60 min-w-full w-max max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border border-white/15 bg-surface py-1 shadow-hero"
+        >
+          {options.map((o, i) => (
+            <li
+              key={o.value === "" ? "__empty__" : o.value}
+              role="option"
+              aria-selected={o.value === value}
+              onMouseEnter={() => setActiveIdx(i)}
+              onClick={() => commit(i)}
+              className={`cursor-pointer px-3 py-2 text-sm ${
+                i === activeIdx
+                  ? "bg-amber text-[#170D0B]"
+                  : o.value === value
+                  ? "text-amber"
+                  : "text-ink"
+              }`}
+            >
+              {o.label}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -1668,15 +1788,18 @@ export default function App() {
                   {c}
                 </button>
               ))}
-              <select
-                className="text-sm px-3 py-1.5 rounded-full border border-white/15 text-haze bg-surface sm:ml-auto focus:outline-none"
+              <Select
+                ariaLabel="Sort by price"
+                wrapperClassName="sm:ml-auto"
+                className="text-sm px-3 py-1.5 rounded-full border border-white/15 text-haze bg-surface focus:outline-none focus:border-amber/60"
                 value={priceSort}
-                onChange={(e) => setPriceSort(e.target.value)}
-              >
-                <option value="">Sort by price</option>
-                <option value="asc">Price: low to high</option>
-                <option value="desc">Price: high to low</option>
-              </select>
+                onChange={(v) => setPriceSort(v)}
+                options={[
+                  { value: "", label: "Sort by price" },
+                  { value: "asc", label: "Price: low to high" },
+                  { value: "desc", label: "Price: high to low" },
+                ]}
+              />
             </div>
 
             {venuesLoading ? (
@@ -1936,16 +2059,16 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium block mb-1">Occasion</label>
-                <select
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                <Select
+                  ariaLabel="Occasion"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
                   value={form.booking_type_id}
-                  onChange={(e) => setForm({ ...form, booking_type_id: e.target.value })}
-                >
-                  <option value="">Select an occasion</option>
-                  {bookingTypes.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setForm({ ...form, booking_type_id: v })}
+                  options={[
+                    { value: "", label: "Select an occasion" },
+                    ...bookingTypes.map((t) => ({ value: t.id, label: t.name })),
+                  ]}
+                />
               </div>
 
               {selectedBookingType?.name === "Other" && (
@@ -1986,16 +2109,18 @@ export default function App() {
 
               <div>
                 <label className="text-sm font-medium block mb-1">Slot</label>
-                <select
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                <Select
+                  ariaLabel="Slot"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
                   value={form.slot}
-                  onChange={(e) => setForm({ ...form, slot: e.target.value })}
-                >
-                  <option>Morning</option>
-                  <option>Afternoon</option>
-                  <option>Evening</option>
-                  <option>Night</option>
-                </select>
+                  onChange={(v) => setForm({ ...form, slot: v })}
+                  options={[
+                    { value: "Morning", label: "Morning" },
+                    { value: "Afternoon", label: "Afternoon" },
+                    { value: "Evening", label: "Evening" },
+                    { value: "Night", label: "Night" },
+                  ]}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
