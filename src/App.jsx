@@ -380,9 +380,11 @@ const FOOD_MENU_SECTIONS = [
   { kind: "starter_non_veg", label: "Non-Veg Starters" },
   { kind: "main_veg", label: "Veg Main Courses" },
   { kind: "main_non_veg", label: "Non-Veg Main Courses" },
+  { kind: "side", label: "Sides" },
   { kind: "dessert", label: "Dessert" },
 ];
 const BEVERAGE_MENU_SECTIONS = [
+  { kind: "single_malt", label: "Single Malt" },
   { kind: "whisky", label: "Whisky" },
   { kind: "vodka", label: "Vodka" },
   { kind: "gin", label: "Gin" },
