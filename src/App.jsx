@@ -144,15 +144,15 @@ function Modal({ title, onClose, children }) {
       aria-label={title}
     >
       <div
-        className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-xl"
+        className="bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200">
-          <p className="font-medium">{title}</p>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <p className="font-display font-semibold">{title}</p>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-8 h-8 flex items-center justify-center rounded text-stone-400 hover:text-stone-700 hover:bg-stone-100 text-lg leading-none"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-haze hover:text-ink hover:bg-white/10 text-lg leading-none"
           >
             ✕
           </button>
@@ -181,22 +181,23 @@ function ReviewMenuBody({ pkg, venue }) {
 
   const ItemList = ({ items }) =>
     items.length ? (
-      <ul className="list-disc pl-5 text-sm text-stone-600 flex flex-col gap-0.5">
+      <ul className="list-disc pl-5 text-sm text-haze flex flex-col gap-0.5">
         {items.map((it) => (
-          <li key={it.id} className={it.is_available ? "" : "text-stone-400"}>
+          <li key={it.id} className={it.is_available ? "" : "opacity-50"}>
             {it.name}
             {!it.is_available && " (currently unavailable)"}
           </li>
         ))}
       </ul>
     ) : (
-      <p className="text-sm text-stone-400">No items listed yet.</p>
+      <p className="text-sm text-haze/70">No items listed yet.</p>
     );
 
   const Group = ({ kind, items }) => (
     <div className="mb-3 last:mb-0">
-      <p className="text-sm font-medium text-stone-700 mb-1">
-        Choose {quotaFor(kind)} {quotaLabel(kind, quotaFor(kind))}
+      <p className="text-sm font-medium text-ink mb-1">
+        Choose <span className="text-gold font-semibold">{quotaFor(kind)}</span>{" "}
+        {quotaLabel(kind, quotaFor(kind))}
       </p>
       <ItemList items={items} />
     </div>
@@ -209,7 +210,7 @@ function ReviewMenuBody({ pkg, venue }) {
     <div>
       {foodKinds.length > 0 && (
         <div className="mb-5">
-          <h3 className="text-sm font-semibold text-stone-800 mb-2">Food</h3>
+          <h3 className="font-display text-base font-semibold text-ink mb-2">Food</h3>
           {foodKinds.map((k) => (
             <Group key={k} kind={k} items={itemsForKind(k)} />
           ))}
@@ -218,7 +219,7 @@ function ReviewMenuBody({ pkg, venue }) {
 
       {drinkKinds.length > 0 && (
         <div className="mb-5">
-          <h3 className="text-sm font-semibold text-stone-800 mb-2">
+          <h3 className="font-display text-base font-semibold text-ink mb-2">
             Drinks included in this package
           </h3>
           {drinkKinds.map((k) => (
@@ -229,8 +230,8 @@ function ReviewMenuBody({ pkg, venue }) {
 
       {pkg.inclusions?.length > 0 && (
         <div className="mb-5 last:mb-0">
-          <h3 className="text-sm font-semibold text-stone-800 mb-2">Also included</h3>
-          <ul className="list-disc pl-5 text-sm text-stone-600 flex flex-col gap-0.5">
+          <h3 className="font-display text-base font-semibold text-ink mb-2">Also included</h3>
+          <ul className="list-disc pl-5 text-sm text-haze flex flex-col gap-0.5">
             {pkg.inclusions.map((inc, i) => (
               <li key={i}>{inc}</li>
             ))}
@@ -238,7 +239,7 @@ function ReviewMenuBody({ pkg, venue }) {
         </div>
       )}
 
-      {nothing && <p className="text-sm text-stone-400">No menu details for this package yet.</p>}
+      {nothing && <p className="text-sm text-haze/70">No menu details for this package yet.</p>}
     </div>
   );
 }
@@ -297,17 +298,17 @@ function MenuSummary({ booking }) {
           .sort();
         return (
           <div key={r.category_kind}>
-            <p className="text-sm font-medium text-stone-700">
+            <p className="text-sm font-medium text-ink">
               {quotaLabel(r.category_kind, r.quota_count)}
             </p>
             {names.length ? (
-              <ul className="list-disc pl-5 text-sm text-stone-600">
+              <ul className="list-disc pl-5 text-sm text-haze">
                 {names.map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-stone-400">—</p>
+              <p className="text-sm text-haze/60">—</p>
             )}
           </div>
         );
@@ -323,21 +324,21 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   const tierLabel =
     b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50%" : "20%";
   const Row = ({ k, v }) => (
-    <div className="flex justify-between gap-4 py-1 border-b border-stone-100 text-sm">
+    <div className="flex justify-between gap-4 py-1.5 border-b border-stone-100 text-sm">
       <span className="text-stone-500">{k}</span>
-      <span className="text-right font-medium">{v || "—"}</span>
+      <span className="text-right font-medium text-stone-900">{v || "—"}</span>
     </div>
   );
   return (
-    <div className="receipt-print bg-white">
-      <h2 className="text-lg font-semibold">Booking Confirmation Receipt</h2>
-      <p className="text-xs text-stone-400 mb-3">{b.booking_ref}</p>
+    <div className="receipt-print bg-white text-stone-900 rounded-xl">
+      <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
+      <p className="text-xs font-medium text-amber-600 mb-3">{b.booking_ref}</p>
 
       <Row k="Venue" v={b.venues?.name} />
       <Row k="Package" v={b.venue_packages?.name} />
       <Row
         k="Event"
-        v={[fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join(" · ")}
+        v={[fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join("   ")}
       />
       <Row k="Guests" v={b.headcount} />
 
@@ -353,11 +354,11 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
       <Row k="Mobile" v={b.contact_mobile} />
       <Row k="Email" v={b.contact_email} />
 
-      <div className="no-print flex flex-wrap gap-2 mt-4">
+      <div className="no-print flex flex-wrap gap-2 mt-5">
         <button
           type="button"
           onClick={() => window.print()}
-          className="bg-slate-900 text-white text-sm font-medium px-3 py-1.5 rounded"
+          className="border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-stone-50"
         >
           Download
         </button>
@@ -365,9 +366,9 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
           <button
             type="button"
             onClick={onFinalize}
-            className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded"
+            className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-lg"
           >
-            Finalize Your Menu
+            Finalize your menu
           </button>
         )}
       </div>
@@ -413,30 +414,32 @@ function bookingStage(b) {
 
 function BookingStepper({ stage }) {
   return (
-    <ol className="flex items-start mt-3">
+    <ol className="flex items-start mt-4">
       {BOOKING_STAGES.map((label, i) => {
         // Stage 3 is terminal ("fully confirmed"), so every step reads as done.
         const complete = stage === BOOKING_STAGES.length - 1;
         const state = complete || i < stage ? "done" : i === stage ? "current" : "todo";
+        // Gold = the step you're on now. Lavender = done or not yet reached.
         const ring =
-          state === "done"
-            ? "bg-emerald-500 text-white border-emerald-500"
-            : state === "current"
-            ? "bg-amber-500 text-slate-900 border-amber-500"
-            : "bg-white text-stone-400 border-stone-300";
-        const line = complete || i < stage ? "bg-emerald-500" : "bg-stone-300";
-        const text = state === "todo" ? "text-stone-400" : "text-stone-600";
+          state === "current"
+            ? "bg-gold text-base border-gold step-active-glow"
+            : state === "done"
+            ? "bg-haze/25 text-ink border-haze/40"
+            : "bg-transparent text-haze/60 border-white/15";
+        const line = complete || i < stage ? "bg-haze/40" : "bg-white/10";
+        const text =
+          state === "current" ? "text-gold font-semibold" : state === "done" ? "text-haze" : "text-haze/50";
         return (
           <li key={label} className="flex-1 flex flex-col items-center">
             <div className="flex items-center w-full">
               <div
-                className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-[11px] font-semibold ${ring}`}
+                className={`shrink-0 w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-semibold ${ring}`}
               >
                 {state === "done" ? "✓" : i + 1}
               </div>
               {i < BOOKING_STAGES.length - 1 && <div className={`h-0.5 flex-1 ${line}`} />}
             </div>
-            <span className={`mt-1 text-[10px] text-center leading-tight ${text}`}>{label}</span>
+            <span className={`mt-1.5 text-[10px] text-center leading-tight ${text}`}>{label}</span>
           </li>
         );
       })}
@@ -446,13 +449,13 @@ function BookingStepper({ stage }) {
 
 function VenueCardSkeleton() {
   return (
-    <div className="border border-stone-200 rounded-lg overflow-hidden bg-white animate-pulse">
-      <div className="w-full h-40 bg-stone-200" />
+    <div className="rounded-2xl overflow-hidden bg-surface border border-white/10 animate-pulse">
+      <div className="w-full h-48 bg-white/5" />
       <div className="p-4">
-        <div className="h-4 bg-stone-200 rounded w-2/3 mb-2" />
-        <div className="h-3 bg-stone-200 rounded w-1/3 mb-3" />
-        <div className="h-3 bg-stone-200 rounded w-full mb-1" />
-        <div className="h-3 bg-stone-200 rounded w-5/6" />
+        <div className="h-4 bg-white/10 rounded w-2/3 mb-2" />
+        <div className="h-3 bg-white/10 rounded w-1/3 mb-3" />
+        <div className="h-3 bg-white/10 rounded w-full mb-1" />
+        <div className="h-3 bg-white/10 rounded w-5/6" />
       </div>
     </div>
   );
@@ -614,7 +617,7 @@ export default function App() {
           email: booking.contact_email || session.email || "",
           contact: booking.contact_mobile || profile?.phone || "",
         },
-        theme: { color: "#f59e0b" },
+        theme: { color: "#FF3D81" },
         handler: async (response) => {
           try {
             const result = await callFn("verify-razorpay-payment", session.token, {
@@ -1193,14 +1196,14 @@ export default function App() {
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
-    pending: "bg-amber-100 text-amber-800",
-    accepted: "bg-blue-100 text-blue-800",
-    confirmed: "bg-emerald-100 text-emerald-800",
-    completed: "bg-emerald-100 text-emerald-800",
-    rejected: "bg-rose-100 text-rose-800",
-    cancelled: "bg-rose-100 text-rose-800",
-    unconfirmed: "bg-stone-200 text-stone-800",
-    no_show: "bg-rose-100 text-rose-800",
+    pending: "bg-gold/15 text-gold border border-gold/30",
+    accepted: "bg-gold/15 text-gold border border-gold/30",
+    confirmed: "bg-haze/15 text-haze border border-haze/30",
+    completed: "bg-haze/15 text-haze border border-haze/30",
+    rejected: "bg-rose-500/15 text-rose-300 border border-rose-400/30",
+    cancelled: "bg-rose-500/15 text-rose-300 border border-rose-400/30",
+    unconfirmed: "bg-white/10 text-haze border border-white/15",
+    no_show: "bg-rose-500/15 text-rose-300 border border-rose-400/30",
   };
 
   const cheapestPrice = (v) =>
@@ -1218,7 +1221,7 @@ export default function App() {
     const chipsRow1 = ["Book your venue instantly", "Easy to use", "Unlimited packages", "Select your menu"];
     const chipsRow2 = ["Easy payment methods", "Use anytime, anywhere", "Live booking status", "Rate your experience"];
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-950 via-stone-950 to-amber-950 text-white flex flex-col justify-center px-6 py-10 overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1230] text-ink flex flex-col justify-center px-6 py-10 overflow-hidden">
         <style>{`
           @keyframes marquee-left { from { transform: translateX(0); } to { transform: translateX(-50%); } }
           @keyframes marquee-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
@@ -1229,7 +1232,7 @@ export default function App() {
         <div className="max-w-sm mx-auto w-full">
           <button
             type="button"
-            className="text-sm text-stone-400 mb-6"
+            className="text-sm text-haze hover:text-ink mb-6"
             onClick={() => {
               setPendingPackage(null);
               setScreen("browse");
@@ -1237,12 +1240,12 @@ export default function App() {
           >
             ← Back to browsing
           </button>
-          <h1 className="uppercase font-black leading-[0.95] tracking-tight mb-5">
+          <h1 className="font-display font-bold leading-[0.95] tracking-tight mb-5">
             <span className="block text-5xl">
-              <span className="text-white">Book</span>{" "}
-              <span className="text-amber-500">venues</span>
+              <span className="text-ink">Book</span>{" "}
+              <span className="text-magenta">venues</span>
             </span>
-            <span className="block text-5xl text-white">without the wait</span>
+            <span className="block text-5xl text-ink">without the wait</span>
           </h1>
         </div>
 
@@ -1250,7 +1253,7 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-left">
               {[...chipsRow1, ...chipsRow1].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-stone-300 border border-amber-800 rounded-full px-4 py-2">
+                <span key={i} className="whitespace-nowrap text-sm text-haze border border-white/15 rounded-full px-4 py-2">
                   {c}
                 </span>
               ))}
@@ -1259,7 +1262,7 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-right">
               {[...chipsRow2, ...chipsRow2].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-stone-300 border border-amber-800 rounded-full px-4 py-2">
+                <span key={i} className="whitespace-nowrap text-sm text-haze border border-white/15 rounded-full px-4 py-2">
                   {c}
                 </span>
               ))}
@@ -1278,9 +1281,9 @@ export default function App() {
           </button>
 
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 h-px bg-stone-700" />
-            <span className="text-xs text-stone-500">or</span>
-            <div className="flex-1 h-px bg-stone-700" />
+            <div className="flex-1 h-px bg-white/15" />
+            <span className="text-xs text-haze">or</span>
+            <div className="flex-1 h-px bg-white/15" />
           </div>
 
           <form onSubmit={handleAuth} className="flex flex-col gap-3">
@@ -1288,7 +1291,7 @@ export default function App() {
               type="email"
               required
               placeholder="Enter email address"
-              className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
               value={authEmail}
               onChange={(e) => setAuthEmail(e.target.value)}
             />
@@ -1297,16 +1300,16 @@ export default function App() {
               required
               minLength={6}
               placeholder="Password"
-              className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
               value={authPassword}
               onChange={(e) => setAuthPassword(e.target.value)}
             />
-            {authNotice && <p className="text-emerald-400 text-sm px-1">{authNotice}</p>}
+            {authNotice && <p className="text-gold text-sm px-1">{authNotice}</p>}
             {authError && (
               <div className="flex flex-col gap-1">
-                <p className="text-rose-400 text-sm px-1">{authError}</p>
+                <p className="text-rose-300 text-sm px-1">{authError}</p>
                 {/confirmed/i.test(authError) && (
-                  <button type="button" className="text-amber-500 text-xs text-left px-1" onClick={resendConfirmation}>
+                  <button type="button" className="text-magenta text-xs text-left px-1" onClick={resendConfirmation}>
                     Resend confirmation email
                   </button>
                 )}
@@ -1315,7 +1318,7 @@ export default function App() {
             {authMode === "login" && (
               <button
                 type="button"
-                className="text-amber-500 text-xs text-right -mt-1"
+                className="text-magenta text-xs text-right -mt-1"
                 onClick={() => {
                   setResetError("");
                   setResetStep("request");
@@ -1327,17 +1330,17 @@ export default function App() {
             )}
             <button
               disabled={authLoading}
-              className="bg-amber-500 text-stone-900 rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50 mt-1"
+              className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50 mt-1"
             >
               {authLoading ? "Please wait…" : authMode === "login" ? "Sign in" : "Create account"}
             </button>
           </form>
 
-          <p className="text-center text-stone-500 text-sm mt-6">
+          <p className="text-center text-haze text-sm mt-6">
             {authMode === "login" ? "New here?" : "Already have an account?"}{" "}
             <button
               type="button"
-              className="text-amber-500 font-medium"
+              className="text-magenta font-medium"
               onClick={() => {
                 setAuthMode(authMode === "login" ? "signup" : "login");
                 setAuthError("");
@@ -1353,20 +1356,20 @@ export default function App() {
 
   if (screen === "forgot") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-950 via-stone-950 to-amber-950 text-white flex flex-col justify-center px-6 py-16">
+      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1230] text-ink flex flex-col justify-center px-6 py-16">
         <div className="max-w-sm mx-auto w-full">
-          <button className="text-sm text-stone-400 mb-6" onClick={() => setScreen("auth")}>
+          <button className="text-sm text-haze hover:text-ink mb-6" onClick={() => setScreen("auth")}>
             ← Back to sign in
           </button>
           <h1 className="font-black text-3xl mb-1">Reset your password</h1>
-          <p className="text-stone-400 text-sm mb-6">
+          <p className="text-haze text-sm mb-6">
             We'll help you set a new password using your email or phone number.
           </p>
 
           <div className="flex gap-2 mb-6">
             <button
               className={`flex-1 rounded-full py-2 text-sm font-medium ${
-                resetMethod === "email" ? "bg-amber-500 text-stone-900" : "border border-stone-700 text-stone-300"
+                resetMethod === "email" ? "bg-magenta text-white" : "border border-white/15 text-haze"
               }`}
               onClick={() => {
                 setResetMethod("email");
@@ -1378,7 +1381,7 @@ export default function App() {
             </button>
             <button
               className={`flex-1 rounded-full py-2 text-sm font-medium ${
-                resetMethod === "phone" ? "bg-amber-500 text-stone-900" : "border border-stone-700 text-stone-300"
+                resetMethod === "phone" ? "bg-magenta text-white" : "border border-white/15 text-haze"
               }`}
               onClick={() => {
                 setResetMethod("phone");
@@ -1396,14 +1399,14 @@ export default function App() {
                 type="email"
                 required
                 placeholder="Enter email address"
-                className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
               />
-              {resetError && <p className="text-rose-400 text-sm px-1">{resetError}</p>}
+              {resetError && <p className="text-rose-300 text-sm px-1">{resetError}</p>}
               <button
                 disabled={resetLoading}
-                className="bg-amber-500 text-stone-900 rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+                className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
               >
                 {resetLoading ? "Sending…" : "Send reset link"}
               </button>
@@ -1411,7 +1414,7 @@ export default function App() {
           )}
 
           {resetMethod === "email" && resetStep === "sent" && (
-            <div className="border border-emerald-800 bg-emerald-950 rounded-lg p-4 text-sm text-emerald-200">
+            <div className="border border-gold/30 bg-gold/10 rounded-xl p-4 text-sm text-ink">
               Check <span className="font-medium">{resetEmail}</span> for a reset link. Opening it will bring
               you back here to set a new password.
             </div>
@@ -1423,14 +1426,14 @@ export default function App() {
                 type="tel"
                 required
                 placeholder="+91 98765 43210"
-                className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
                 value={resetPhone}
                 onChange={(e) => setResetPhone(e.target.value)}
               />
-              {resetError && <p className="text-rose-400 text-sm px-1">{resetError}</p>}
+              {resetError && <p className="text-rose-300 text-sm px-1">{resetError}</p>}
               <button
                 disabled={resetLoading}
-                className="bg-amber-500 text-stone-900 rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+                className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
               >
                 {resetLoading ? "Sending…" : "Send code"}
               </button>
@@ -1439,12 +1442,12 @@ export default function App() {
 
           {resetMethod === "phone" && resetStep === "verify" && (
             <form onSubmit={verifyPhoneOtpAndReset} className="flex flex-col gap-3">
-              <p className="text-stone-400 text-xs -mt-1">Code sent to {resetPhone}</p>
+              <p className="text-haze text-xs -mt-1">Code sent to {resetPhone}</p>
               <input
                 type="text"
                 required
                 placeholder="6-digit code"
-                className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
                 value={resetOtp}
                 onChange={(e) => setResetOtp(e.target.value)}
               />
@@ -1453,14 +1456,14 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="New password"
-                className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
                 value={resetNewPassword}
                 onChange={(e) => setResetNewPassword(e.target.value)}
               />
-              {resetError && <p className="text-rose-400 text-sm px-1">{resetError}</p>}
+              {resetError && <p className="text-rose-300 text-sm px-1">{resetError}</p>}
               <button
                 disabled={resetLoading}
-                className="bg-amber-500 text-stone-900 rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+                className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
               >
                 {resetLoading ? "Resetting…" : "Reset password"}
               </button>
@@ -1473,17 +1476,17 @@ export default function App() {
 
   if (screen === "setNewPassword") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-950 via-stone-950 to-amber-950 text-white flex flex-col justify-center px-6 py-16">
+      <div className="min-h-screen bg-gradient-to-br from-base via-base to-[#2A1230] text-ink flex flex-col justify-center px-6 py-16">
         <div className="max-w-sm mx-auto w-full">
           <h1 className="font-black text-3xl mb-1">Set a new password</h1>
-          <p className="text-stone-400 text-sm mb-6">Choose a new password for your account.</p>
+          <p className="text-haze text-sm mb-6">Choose a new password for your account.</p>
           <form onSubmit={submitNewPassword} className="flex flex-col gap-3">
             <input
               type="password"
               required
               minLength={6}
               placeholder="New password"
-              className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
@@ -1492,14 +1495,14 @@ export default function App() {
               required
               minLength={6}
               placeholder="Confirm new password"
-              className="bg-stone-900 border border-amber-900 rounded-full px-5 py-3.5 text-sm placeholder-stone-500 text-white focus:outline-none focus:border-amber-600"
+              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-magenta/60"
               value={newPasswordConfirm}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
             />
-            {newPasswordError && <p className="text-rose-400 text-sm px-1">{newPasswordError}</p>}
+            {newPasswordError && <p className="text-rose-300 text-sm px-1">{newPasswordError}</p>}
             <button
               disabled={newPasswordLoading}
-              className="bg-amber-500 text-stone-900 rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
+              className="bg-magenta text-white rounded-full px-5 py-3.5 text-sm font-semibold disabled:opacity-50"
             >
               {newPasswordLoading ? "Saving…" : "Save new password"}
             </button>
@@ -1510,64 +1513,57 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 pb-20 sm:pb-0">
-      <style>{`
-        @keyframes screenFadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .screen-fade { animation: screenFadeIn 0.2s ease-out; }
-      `}</style>
-      <header className="bg-slate-900 text-white">
+    <div className="min-h-screen bg-base text-ink pb-20 sm:pb-0">
+      <header className="bg-base/90 backdrop-blur border-b border-white/10 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-baseline gap-2 cursor-pointer" onClick={() => setScreen("browse")}>
-            <span className="font-serif text-2xl tracking-tight">Paxo</span>
-            <span className="text-xs text-slate-400 hidden sm:inline">venue bookings</span>
+            <span className="font-display text-2xl font-bold tracking-tight text-ink">Paxo</span>
+            <span className="text-xs text-haze hidden sm:inline">venue bookings</span>
           </div>
           {session ? (
             <nav className="flex items-center gap-4 text-sm relative">
               <div className="hidden sm:flex items-center gap-4">
                 <button
-                  className={`hover:text-amber-400 ${screen === "browse" ? "text-amber-400" : "text-slate-300"}`}
+                  className={`transition-colors ${screen === "browse" ? "text-ink" : "text-haze hover:text-ink"}`}
                   onClick={() => setScreen("browse")}
                 >
                   Venues
                 </button>
                 <button
-                  className={`hover:text-amber-400 ${screen === "myBookings" ? "text-amber-400" : "text-slate-300"}`}
+                  className={`transition-colors ${screen === "myBookings" ? "text-ink" : "text-haze hover:text-ink"}`}
                   onClick={() => setScreen("myBookings")}
                 >
                   My bookings
                 </button>
                 <button
-                  className={`hover:text-amber-400 ${screen === "profile" ? "text-amber-400" : "text-slate-300"}`}
+                  className={`transition-colors ${screen === "profile" ? "text-ink" : "text-haze hover:text-ink"}`}
                   onClick={() => setScreen("profile")}
                 >
                   Profile
                 </button>
               </div>
               <button
-                className="w-8 h-8 rounded-full bg-amber-500 text-slate-900 font-semibold flex items-center justify-center text-xs"
+                className="w-8 h-8 rounded-full bg-white/10 text-ink font-semibold flex items-center justify-center text-xs border border-white/15"
                 onClick={() => setMenuOpen((v) => !v)}
               >
                 {(session.email || "?").slice(0, 1).toUpperCase()}
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-10 w-48 bg-white text-stone-900 rounded-lg border border-stone-200 shadow-lg overflow-hidden z-10">
-                  <p className="px-4 py-3 text-xs text-stone-400 border-b border-stone-100 truncate">{session.email}</p>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50" onClick={() => { setScreen("profile"); setMenuOpen(false); }}>
+                <div className="absolute right-0 top-10 w-48 bg-surface text-ink rounded-xl border border-white/10 shadow-hero overflow-hidden z-10">
+                  <p className="px-4 py-3 text-xs text-haze border-b border-white/10 truncate">{session.email}</p>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("profile"); setMenuOpen(false); }}>
                     Profile
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50" onClick={() => { setScreen("myBookings"); setMenuOpen(false); }}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("myBookings"); setMenuOpen(false); }}>
                     My bookings
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50" onClick={() => { setScreen("settings"); setMenuOpen(false); }}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("settings"); setMenuOpen(false); }}>
                     Settings
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-stone-50" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
                     Help & support
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm text-rose-600 hover:bg-stone-50 border-t border-stone-100" onClick={logOut}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm text-rose-300 hover:bg-white/5 border-t border-white/10" onClick={logOut}>
                     Log out
                   </button>
                 </div>
@@ -1575,7 +1571,7 @@ export default function App() {
             </nav>
           ) : (
             <button
-              className="bg-amber-500 text-slate-900 text-sm font-semibold px-4 py-1.5 rounded-full"
+              className="bg-magenta text-white text-sm font-semibold px-4 py-1.5 rounded-full"
               onClick={() => setScreen("auth")}
             >
               Sign in
@@ -1584,15 +1580,15 @@ export default function App() {
         </div>
       </header>
 
-      <main key={screen} className="max-w-4xl mx-auto px-5 py-8 screen-fade">
+      <main key={screen} className="max-w-4xl mx-auto px-5 py-8">
         {screen === "browse" && (
           <div>
-            <h1 className="font-serif text-3xl mb-1">Find a venue</h1>
-            <p className="text-stone-500 text-sm mb-5">Browse approved venues and request a booking.</p>
+            <h1 className="font-display text-3xl font-bold mb-1">Find a venue</h1>
+            <p className="text-haze text-sm mb-5">Clubs, lounges and banquets ready for your night.</p>
 
             {venues.length > 0 && (
               <div
-                className="relative rounded-lg overflow-hidden h-52 mb-6 cursor-pointer"
+                className="relative rounded-3xl overflow-hidden h-60 mb-7 cursor-pointer shadow-hero bg-gradient-to-br from-surface to-[#2A1230]"
                 onClick={() => openVenue(venues[heroIndex % venues.length])}
               >
                 <img
@@ -1603,25 +1599,25 @@ export default function App() {
                   alt={venues[heroIndex % venues.length].name}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-4 text-white">
-                  <p className="font-serif text-2xl">{venues[heroIndex % venues.length].name}</p>
-                  <p className="text-sm text-stone-200">
+                <div className="absolute inset-0 bg-gradient-to-t from-base via-base/40 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-5 text-ink">
+                  <p className="font-display text-2xl font-bold">{venues[heroIndex % venues.length].name}</p>
+                  <p className="text-sm text-haze">
                     {venues[heroIndex % venues.length].area ? `${venues[heroIndex % venues.length].area}, ` : ""}
                     {venues[heroIndex % venues.length].city}
                   </p>
                   {minPackagePrice(venues[heroIndex % venues.length]) != null && (
-                    <p className="text-sm text-amber-400 font-medium mt-1">
-                      Unlimited packages starting{" "}
+                    <p className="text-sm text-gold font-semibold mt-1">
+                      Unlimited packages from{" "}
                       {inr(minPackagePrice(venues[heroIndex % venues.length]))} / head
                     </p>
                   )}
                 </div>
-                <div className="absolute bottom-3 right-4 flex gap-1">
+                <div className="absolute bottom-4 right-5 flex gap-1.5">
                   {venues.map((_, i) => (
                     <span
                       key={i}
-                      className={`w-1.5 h-1.5 rounded-full ${i === heroIndex % venues.length ? "bg-amber-400" : "bg-white/40"}`}
+                      className={`w-1.5 h-1.5 rounded-full ${i === heroIndex % venues.length ? "bg-gold" : "bg-white/30"}`}
                     />
                   ))}
                 </div>
@@ -1630,8 +1626,8 @@ export default function App() {
 
             <div className="flex flex-wrap items-center gap-2 mb-6">
               <button
-                className={`text-sm px-3 py-1.5 rounded-full border ${
-                  selectedCity === null ? "bg-slate-900 text-white border-slate-900" : "border-stone-300 text-stone-600"
+                className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
+                  selectedCity === null ? "bg-ink text-base border-ink" : "border-white/15 text-haze hover:text-ink"
                 }`}
                 onClick={() => setSelectedCity(null)}
               >
@@ -1640,8 +1636,8 @@ export default function App() {
               {CITIES.map((c) => (
                 <button
                   key={c}
-                  className={`text-sm px-3 py-1.5 rounded-full border ${
-                    selectedCity === c ? "bg-slate-900 text-white border-slate-900" : "border-stone-300 text-stone-600"
+                  className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
+                    selectedCity === c ? "bg-ink text-base border-ink" : "border-white/15 text-haze hover:text-ink"
                   }`}
                   onClick={() => setSelectedCity(c)}
                 >
@@ -1649,13 +1645,13 @@ export default function App() {
                 </button>
               ))}
               <select
-                className="text-sm px-3 py-1.5 rounded-full border border-stone-300 text-stone-600 bg-white sm:ml-auto"
+                className="text-sm px-3 py-1.5 rounded-full border border-white/15 text-haze bg-surface sm:ml-auto focus:outline-none"
                 value={priceSort}
                 onChange={(e) => setPriceSort(e.target.value)}
               >
                 <option value="">Sort by price</option>
-                <option value="asc">Price: Low to High</option>
-                <option value="desc">Price: High to Low</option>
+                <option value="asc">Price: low to high</option>
+                <option value="desc">Price: high to low</option>
               </select>
             </div>
 
@@ -1669,61 +1665,66 @@ export default function App() {
                 {visibleVenues.map((v) => (
                   <div
                     key={v.id}
-                    className="border border-stone-200 rounded-lg overflow-hidden bg-white cursor-pointer hover:border-stone-400 transition"
+                    className="group rounded-2xl overflow-hidden bg-surface border border-white/10 cursor-pointer hover:border-magenta/50 transition-colors shadow-card"
                     onClick={() => openVenue(v)}
                   >
-                    <img
-                      src={v.venue_images?.[0]?.image_url || v.cover_image_url}
-                      alt={v.name}
-                      className="w-full h-40 object-cover"
-                    />
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-serif text-lg">{v.name}</h3>
-                        {v.is_verified && (
-                          <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                            ✓ Verified
-                          </span>
+                    <div className="relative h-44 bg-gradient-to-br from-surface to-[#2A1230]">
+                      <img
+                        src={v.venue_images?.[0]?.image_url || v.cover_image_url}
+                        alt={v.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent" />
+                      {v.is_verified && (
+                        <span className="absolute top-3 left-3 text-[10px] font-semibold text-gold bg-base/80 border border-gold/40 rounded px-2 py-0.5">
+                          ✓ Verified
+                        </span>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 p-3">
+                        <h3 className="font-display text-lg font-semibold text-ink leading-tight">{v.name}</h3>
+                        <p className="text-xs text-haze">
+                          {v.area ? `${v.area}, ` : ""}
+                          {v.city}
+                        </p>
+                        {minPackagePrice(v) != null && (
+                          <p className="text-sm font-semibold text-gold mt-0.5">
+                            From {inr(minPackagePrice(v))} / head
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-stone-500 mb-2">
-                        {v.area ? `${v.area}, ` : ""}
-                        {v.city}
-                        {v.venue_type ? ` · ${v.venue_type}` : ""}
-                      </p>
-                      <p className="text-sm text-stone-600 line-clamp-2">{v.description}</p>
-                      {minPackagePrice(v) != null && (
-                        <p className="text-sm font-medium text-amber-700 mt-2">
-                          Unlimited packages starting {inr(minPackagePrice(v))}
-                        </p>
+                    </div>
+                    <div className="p-4">
+                      {v.venue_type && (
+                        <p className="text-xs text-haze mb-1">{v.venue_type}</p>
                       )}
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <p className="text-sm text-haze line-clamp-2">{v.description}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
                         {v.serves_alcohol && (
-                          <span className="inline-block text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                          <span className="inline-block text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
                             Serves alcohol
                           </span>
                         )}
                         {v.guest_capacity && (
-                          <span className="inline-block text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                          <span className="inline-block text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
                             Up to {v.guest_capacity} guests
                           </span>
                         )}
                       </div>
                       <button
                         type="button"
-                        className="mt-3 w-full bg-amber-500 text-slate-900 text-sm font-semibold py-2 rounded"
+                        className="mt-4 w-full bg-magenta text-white text-sm font-semibold py-2.5 rounded-xl hover:brightness-110 transition"
                         onClick={(e) => {
                           e.stopPropagation();
                           openVenue(v);
                         }}
                       >
-                        Book Now
+                        Book now
                       </button>
                     </div>
                   </div>
                 ))}
                 {visibleVenues.length === 0 && (
-                  <p className="text-stone-400 text-sm col-span-2">No venues in {selectedCity} yet.</p>
+                  <p className="text-haze/70 text-sm col-span-2">No venues in {selectedCity} yet.</p>
                 )}
               </div>
             )}
@@ -1732,44 +1733,48 @@ export default function App() {
 
         {screen === "venue" && selectedVenue && (
           <div>
-            <button className="text-sm text-stone-500 mb-4" onClick={() => setScreen("browse")}>
+            <button className="text-sm text-haze hover:text-ink mb-4" onClick={() => setScreen("browse")}>
               ← Back to venues
             </button>
             <img
               src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
               alt={selectedVenue.name}
-              className="w-full h-56 object-cover rounded-lg mb-4"
+              className="w-full h-60 object-cover rounded-2xl mb-4 shadow-hero bg-gradient-to-br from-surface to-[#2A1230]"
             />
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h1 className="font-serif text-3xl">{selectedVenue.name}</h1>
+              <h1 className="font-display text-3xl font-bold">{selectedVenue.name}</h1>
               {selectedVenue.is_verified && (
-                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                <span className="text-xs font-semibold text-gold bg-gold/10 border border-gold/30 rounded px-2 py-0.5">
                   ✓ Verified
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500 mb-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-haze mb-4">
               <span>
                 {selectedVenue.address || `${selectedVenue.area}, ${selectedVenue.city}`}
-                {selectedVenue.venue_type ? ` · ${selectedVenue.venue_type}` : ""}
               </span>
+              {selectedVenue.venue_type && (
+                <span className="text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
+                  {selectedVenue.venue_type}
+                </span>
+              )}
               {selectedVenue.guest_capacity && (
-                <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">
+                <span className="text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
                   Up to {selectedVenue.guest_capacity} guests
                 </span>
               )}
             </div>
-            <p className="text-stone-700 mb-6">{selectedVenue.description}</p>
-            <h2 className="text-lg font-medium mb-3">Unlimited Packages</h2>
+            <p className="text-ink/90 mb-6">{selectedVenue.description}</p>
+            <h2 className="font-display text-xl font-semibold mb-3">Unlimited packages</h2>
             <div className="flex flex-col gap-3">
               {selectedVenue.venue_packages?.map((p) => (
-                <div key={p.id} className="border border-stone-200 rounded-lg p-4 flex items-start justify-between gap-4 bg-white">
+                <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-4 bg-surface border border-white/10 shadow-card">
                   <div>
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-sm text-stone-500">{p.description}</p>
-                    <p className="text-xs text-stone-400 mt-1">
+                    <p className="font-display font-semibold text-ink">{p.name}</p>
+                    <p className="text-sm text-haze">{p.description}</p>
+                    <p className="text-xs text-haze/70 mt-1">
                       {p.min_headcount}–{p.max_headcount || "∞"} guests
-                      {p.duration_hours ? ` · ${p.duration_hours} hrs` : ""}
+                      {p.duration_hours ? `   ${p.duration_hours} hrs` : ""}
                     </p>
                     {(() => {
                       const quotas = [...(p.menu_quota_rules || [])].sort((a, b) =>
@@ -1777,16 +1782,18 @@ export default function App() {
                       );
                       const food = quotas.filter((q) => FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const bev = quotas.filter((q) => !FOOD_QUOTA_KINDS.includes(q.category_kind));
-                      const line = (q) =>
-                        `Choose ${q.quota_count} ${quotaLabel(q.category_kind, q.quota_count)}`;
+                      const line = (q) => (
+                        <>
+                          Choose <span className="text-gold font-semibold">{q.quota_count}</span>{" "}
+                          {quotaLabel(q.category_kind, q.quota_count)}
+                        </>
+                      );
                       return (
                         <>
                           {food.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                                Food
-                              </p>
-                              <ul className="list-disc pl-4 text-xs text-stone-500 flex flex-col gap-0.5">
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-ink mb-0.5">Food</p>
+                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
                                 {food.map((q) => (
                                   <li key={q.id}>{line(q)}</li>
                                 ))}
@@ -1794,11 +1801,9 @@ export default function App() {
                             </div>
                           )}
                           {(bev.length > 0 || p.inclusions?.length > 0) && (
-                            <div className="mt-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                                Beverages
-                              </p>
-                              <ul className="list-disc pl-4 text-xs text-stone-500 flex flex-col gap-0.5">
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-ink mb-0.5">Beverages</p>
+                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
                                 {bev.map((q) => (
                                   <li key={q.id}>{line(q)}</li>
                                 ))}
@@ -1813,19 +1818,19 @@ export default function App() {
                     })()}
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                    <p className="font-medium">{inr(p.price_per_head)} / head</p>
+                    <p className="font-semibold text-gold">{inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span></p>
                     <button
-                      className="bg-amber-500 text-slate-900 text-sm font-medium px-3 py-1.5 rounded"
+                      className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                       onClick={() => selectPackage(p)}
                     >
-                      Select Package
+                      Select package
                     </button>
                     <button
                       type="button"
-                      className="border border-stone-300 text-stone-600 text-sm px-3 py-1.5 rounded"
+                      className="border border-white/15 text-haze hover:text-ink text-sm px-4 py-2 rounded-xl"
                       onClick={() => setReviewPkg(p)}
                     >
-                      Review Menu
+                      Review menu
                     </button>
                   </div>
                 </div>
@@ -1836,30 +1841,30 @@ export default function App() {
 
         {screen === "request" && selectedVenue && !submitted && (
           <div className="max-w-lg">
-            <button className="text-sm text-stone-500 mb-4" onClick={() => setScreen("venue")}>
+            <button className="text-sm text-haze hover:text-ink mb-4" onClick={() => setScreen("venue")}>
               ← Back to {selectedVenue.name}
             </button>
-            <h1 className="font-serif text-3xl mb-4">Request a booking</h1>
+            <h1 className="font-display text-3xl font-bold mb-4">Request a booking</h1>
 
-            <div className="border border-stone-200 rounded-lg p-4 bg-stone-50 text-sm mb-6">
-              <p className="font-medium">{selectedVenue.name}</p>
-              <p className="text-stone-500 text-xs mb-2">
+            <div className="rounded-2xl p-4 bg-surface border border-white/10 text-sm mb-6">
+              <p className="font-display font-semibold text-ink">{selectedVenue.name}</p>
+              <p className="text-haze text-xs mb-2">
                 {selectedVenue.area ? `${selectedVenue.area}, ` : ""}
                 {selectedVenue.city}
               </p>
-              <div className="flex justify-between text-xs text-stone-600 pt-2 border-t border-stone-200">
+              <div className="flex justify-between text-xs text-haze pt-2 border-t border-white/10">
                 <span>{selectedPackage?.name}</span>
-                <span>{inr(selectedPackage?.price_per_head || 0)} / person</span>
+                <span className="text-gold font-semibold">{inr(selectedPackage?.price_per_head || 0)} / person</span>
               </div>
             </div>
 
             <form onSubmit={submitRequest} className="flex flex-col gap-4">
               <div>
-                <label className="text-sm font-medium block mb-1">Full Name</label>
+                <label className="text-sm font-medium block mb-1">Full name</label>
                 <input
                   type="text"
                   required
-                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                   value={form.customer_name}
                   onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
                 />
@@ -1867,22 +1872,22 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium block mb-1">Mobile Number</label>
+                  <label className="text-sm font-medium block mb-1">Mobile number</label>
                   <input
                     type="tel"
                     required
                     placeholder="+91 98765 43210"
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.contact_mobile}
                     onChange={(e) => setForm({ ...form, contact_mobile: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium block mb-1">Email Address</label>
+                  <label className="text-sm font-medium block mb-1">Email address</label>
                   <input
                     type="email"
                     required
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.contact_email}
                     onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
                   />
@@ -1894,7 +1899,7 @@ export default function App() {
                 <input
                   type="text"
                   disabled
-                  className="border border-stone-200 bg-stone-100 text-stone-500 rounded px-3 py-2 text-sm w-full"
+                  className="border border-white/10 bg-white/[0.03] text-haze rounded-lg px-3 py-2 text-sm w-full"
                   value={selectedVenue.city}
                 />
               </div>
@@ -1902,7 +1907,7 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium block mb-1">Occasion</label>
                 <select
-                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                   value={form.booking_type_id}
                   onChange={(e) => setForm({ ...form, booking_type_id: e.target.value })}
                 >
@@ -1919,7 +1924,7 @@ export default function App() {
                   <input
                     type="text"
                     required
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.occasion_other}
                     onChange={(e) => setForm({ ...form, occasion_other: e.target.value })}
                   />
@@ -1932,17 +1937,17 @@ export default function App() {
                   <input
                     type="date"
                     required
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.event_date}
                     onChange={(e) => setForm({ ...form, event_date: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium block mb-1">Party Slot Timing</label>
+                  <label className="text-sm font-medium block mb-1">Party slot timing</label>
                   <input
                     type="time"
                     required
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.event_time}
                     onChange={(e) => setForm({ ...form, event_time: e.target.value })}
                   />
@@ -1952,7 +1957,7 @@ export default function App() {
               <div>
                 <label className="text-sm font-medium block mb-1">Slot</label>
                 <select
-                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                   value={form.slot}
                   onChange={(e) => setForm({ ...form, slot: e.target.value })}
                 >
@@ -1969,7 +1974,7 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.male_count}
                     onChange={(e) => setForm({ ...form, male_count: e.target.value })}
                   />
@@ -1979,59 +1984,59 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                     value={form.female_count}
                     onChange={(e) => setForm({ ...form, female_count: e.target.value })}
                   />
                 </div>
               </div>
 
-              <div className="bg-stone-100 rounded px-3 py-2 text-sm flex justify-between items-center">
-                <span className="text-stone-500">Total Guest Count</span>
-                <span className="font-medium">{headcountNum}</span>
+              <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm flex justify-between items-center">
+                <span className="text-haze">Total guest count</span>
+                <span className="font-semibold text-ink">{headcountNum}</span>
               </div>
 
               <div>
-                <label className="text-sm font-medium block mb-1">Special Request / Notes</label>
+                <label className="text-sm font-medium block mb-1">Special request / notes</label>
                 <textarea
                   rows={3}
                   placeholder="Tell the venue about any special requirements for your event"
-                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                   value={form.special_request}
                   onChange={(e) => setForm({ ...form, special_request: e.target.value })}
                 />
               </div>
 
               {headcountNum > 0 && (
-                <div className="bg-stone-100 rounded-lg p-4 text-sm">
-                  <h3 className="font-medium text-stone-700 mb-2">Booking Summary</h3>
+                <div className="bg-surface border border-white/10 rounded-2xl p-4 text-sm">
+                  <h3 className="font-display font-semibold text-ink mb-2">Booking summary</h3>
                   <div className="flex justify-between mb-1">
-                    <span className="text-stone-500">{selectedPackage?.name} × {headcountNum} guests</span>
-                    <span className="text-stone-500">{inr(selectedPackage?.price_per_head || 0)} / head</span>
+                    <span className="text-haze">{selectedPackage?.name} × {headcountNum} guests</span>
+                    <span className="text-haze">{inr(selectedPackage?.price_per_head || 0)} / head</span>
                   </div>
-                  <div className="flex justify-between mb-2 pb-2 border-b border-stone-200 font-semibold text-base">
-                    <span>Estimated Package Value</span>
-                    <span>{inr(totalPreview)}</span>
+                  <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
+                    <span>Estimated package value</span>
+                    <span className="text-gold">{inr(totalPreview)}</span>
                   </div>
                   <div className="flex justify-between mb-1">
-                    <span className="text-stone-500">{preview.bookingCategory}</span>
-                    <span className="font-medium">{preview.tier}</span>
+                    <span className="text-haze">{preview.bookingCategory}</span>
+                    <span className="font-medium text-ink">{preview.tier}</span>
                   </div>
-                  <p className="text-xs text-stone-400">{preview.reason}</p>
+                  <p className="text-xs text-haze/80">{preview.reason}</p>
                 </div>
               )}
 
               {hrs !== null && hrs >= 0 && hrs < 72 && (
-                <div className="border border-rose-300 bg-rose-50 rounded-lg p-4 text-sm">
-                  <p className="font-medium text-rose-800 mb-1">This is an Express Booking</p>
-                  <p className="text-rose-700 mb-3">
+                <div className="border border-rose-400/40 bg-rose-500/10 rounded-2xl p-4 text-sm">
+                  <p className="font-semibold text-rose-200 mb-1">This is an express booking</p>
+                  <p className="text-rose-200/80 mb-3">
                     Your event is less than 72 hours away. If accepted, full payment is required
                     immediately and this booking cannot be cancelled once confirmed.
                   </p>
-                  <label className="flex items-start gap-2 text-rose-800">
+                  <label className="flex items-start gap-2 text-rose-200">
                     <input
                       type="checkbox"
-                      className="mt-0.5"
+                      className="mt-0.5 accent-magenta"
                       checked={form.ack}
                       onChange={(e) => setForm({ ...form, ack: e.target.checked })}
                     />
@@ -2040,8 +2045,8 @@ export default function App() {
                 </div>
               )}
 
-              <div className="border border-stone-200 rounded-lg p-4 text-xs text-stone-500 max-h-32 overflow-y-auto">
-                <p className="font-medium text-stone-700 mb-1">Booking terms & conditions</p>
+              <div className="border border-white/10 bg-white/[0.03] rounded-2xl p-4 text-xs text-haze max-h-32 overflow-y-auto">
+                <p className="font-semibold text-ink mb-1">Booking terms &amp; conditions</p>
                 <ul className="list-disc pl-4 flex flex-col gap-1">
                   <li>The venue has up to 2 hours to accept or reject your request.</li>
                   <li>Your deposit is due immediately once the venue accepts.</li>
@@ -2050,21 +2055,21 @@ export default function App() {
                   <li>Cancellations 72+ hours before the event are refunded minus a flat ₹2,000 admin fee; later cancellations forfeit more of the deposit to the venue.</li>
                 </ul>
               </div>
-              <label className="flex items-start gap-2 text-sm">
+              <label className="flex items-start gap-2 text-sm text-ink">
                 <input
                   type="checkbox"
-                  className="mt-0.5"
+                  className="mt-0.5 accent-magenta"
                   checked={form.tc_agree}
                   onChange={(e) => setForm({ ...form, tc_agree: e.target.checked })}
                 />
-                <span>I have read and agree to the Terms & Conditions above.</span>
+                <span>I have read and agree to the terms &amp; conditions above.</span>
               </label>
 
-              {submitError && <p className="text-rose-600 text-sm">{submitError}</p>}
+              {submitError && <p className="text-rose-300 text-sm">{submitError}</p>}
 
               <button
                 disabled={submitLoading}
-                className="bg-amber-500 text-slate-900 font-medium rounded px-4 py-2 text-sm disabled:opacity-50"
+                className="bg-magenta text-white font-semibold rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 hover:brightness-110 transition"
               >
                 {submitLoading ? "Submitting…" : "Submit request"}
               </button>
@@ -2074,14 +2079,14 @@ export default function App() {
 
         {screen === "request" && submitted && (
           <div className="max-w-lg">
-            <div className="border border-emerald-200 bg-emerald-50 rounded-lg p-6 text-center">
-              <h2 className="font-serif text-2xl text-emerald-900 mb-2">Request sent</h2>
-              <p className="text-emerald-800 text-sm mb-4">
+            <div className="bg-surface border border-white/10 rounded-2xl p-6 text-center shadow-card">
+              <h2 className="font-display text-2xl font-bold text-ink mb-2">Request sent</h2>
+              <p className="text-haze text-sm mb-4">
                 {selectedVenue.name} has up to 2 hours to respond. You'll see the status update under
                 "My requests".
               </p>
               <button
-                className="bg-slate-900 text-white text-sm font-medium px-4 py-2 rounded"
+                className="bg-magenta text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:brightness-110 transition"
                 onClick={() => setScreen("myBookings")}
               >
                 View my requests
@@ -2092,10 +2097,10 @@ export default function App() {
 
         {screen === "myBookings" && (
           <div>
-            <h1 className="font-serif text-3xl mb-1">My requests</h1>
-            <p className="text-stone-500 text-sm mb-6">Track the status of every booking you've requested.</p>
+            <h1 className="font-display text-3xl font-bold mb-1">My requests</h1>
+            <p className="text-haze text-sm mb-6">Track the status of every booking you've requested.</p>
             {myBookings.length === 0 && (
-              <p className="text-stone-400 text-sm">You haven't requested any bookings yet.</p>
+              <p className="text-haze/70 text-sm">You haven't requested any bookings yet.</p>
             )}
             <div className="flex flex-col gap-4">
               {myBookings.map((b) => {
@@ -2112,37 +2117,39 @@ export default function App() {
                   ? b.booking_feedback[0] || null
                   : b.booking_feedback || null;
                 const draft = fbDraft[b.id] || { rating: 0, comment: "" };
-                const whenLine = [fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join(" · ");
+                const whenLine = [fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join("   ");
 
                 return (
-                  <div key={b.id} className="border border-stone-200 rounded-lg p-4 bg-white">
+                  <div key={b.id} className="rounded-2xl p-4 bg-surface border border-white/10 shadow-card">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium">{b.venues?.name}</p>
-                        <p className="text-sm text-stone-500">
-                          {b.venue_packages?.name} · {whenLine} · {b.headcount} guests
+                        <p className="font-display font-semibold text-ink">{b.venues?.name}</p>
+                        <p className="text-sm text-haze">
+                          {b.venue_packages?.name}
+                          <span className="block">{whenLine}</span>
+                          <span className="block">{b.headcount} guests</span>
                         </p>
-                        <p className="text-xs text-stone-400 mt-0.5">
+                        <p className="text-xs text-gold font-medium mt-0.5">
                           {b.booking_ref || "Booking"}
                         </p>
                       </div>
                       {stage === null && (
-                        <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 capitalize ${statusColor[b.status] || "bg-stone-100 text-stone-700"}`}>
+                        <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 capitalize ${statusColor[b.status] || "bg-white/10 text-haze"}`}>
                           {b.status.replace(/_/g, " ")}
                         </span>
                       )}
                     </div>
 
                     {rejected ? (
-                      <div className="mt-3 border border-rose-200 bg-rose-50 rounded-lg p-3">
-                        <p className="text-sm font-medium text-rose-800">Booking declined</p>
-                        <p className="text-sm text-stone-700 mt-1 whitespace-pre-wrap">
+                      <div className="mt-3 border border-rose-400/30 bg-rose-500/10 rounded-xl p-3">
+                        <p className="text-sm font-semibold text-rose-200">Booking declined</p>
+                        <p className="text-sm text-haze mt-1 whitespace-pre-wrap">
                           {b.rejection_reason || "The venue couldn't take this booking."}
                         </p>
                         <button
                           type="button"
                           onClick={() => setScreen("browse")}
-                          className="mt-2 text-sm font-medium text-amber-700 underline"
+                          className="mt-2 text-sm font-medium text-magenta hover:brightness-110"
                         >
                           Browse other venues
                         </button>
@@ -2150,43 +2157,42 @@ export default function App() {
                     ) : stage !== null ? (
                       <>
                         <BookingStepper stage={stage} />
-                        <p className="text-sm text-stone-600 mt-3">{STAGE_MESSAGES[stage]}</p>
+                        <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
                         {stage === 1 && (
-                          <div className="mt-3 border border-stone-200 rounded-lg p-3 bg-stone-50">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+                          <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
+                            <p className="text-xs font-semibold text-haze mb-2">
                               Booking summary
                             </p>
-                            <dl className="text-sm text-stone-700 flex flex-col gap-1">
+                            <dl className="text-sm text-ink flex flex-col gap-1">
                               <div className="flex justify-between gap-4">
-                                <dt className="text-stone-500">Booking ID</dt>
+                                <dt className="text-haze">Booking ID</dt>
                                 <dd className="font-medium">{b.booking_ref}</dd>
                               </div>
                               <div className="flex justify-between gap-4">
-                                <dt className="text-stone-500">Date &amp; slot</dt>
+                                <dt className="text-haze">Date &amp; slot</dt>
                                 <dd className="text-right">{whenLine}</dd>
                               </div>
                               <div className="flex justify-between gap-4">
-                                <dt className="text-stone-500">Venue</dt>
+                                <dt className="text-haze">Venue</dt>
                                 <dd className="text-right">
                                   {b.venues?.name}
                                   {(b.venues?.area || b.venues?.city) && (
-                                    <span className="block text-xs text-stone-400">
+                                    <span className="block text-xs text-haze/70">
                                       {[b.venues?.area, b.venues?.city].filter(Boolean).join(", ")}
-                                      {b.venues?.venue_type ? ` · ${b.venues.venue_type}` : ""}
                                     </span>
                                   )}
                                 </dd>
                               </div>
                               <div className="flex justify-between gap-4">
-                                <dt className="text-stone-500">Package</dt>
+                                <dt className="text-haze">Package</dt>
                                 <dd className="text-right">{b.venue_packages?.name}</dd>
                               </div>
-                              <div className="flex justify-between gap-4 border-t border-stone-200 pt-1 mt-1">
-                                <dt className="text-stone-500">
+                              <div className="flex justify-between gap-4 border-t border-white/10 pt-1 mt-1">
+                                <dt className="text-haze">
                                   {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
                                 </dt>
-                                <dd className="font-semibold">{inr(b.deposit_amount)}</dd>
+                                <dd className="font-semibold text-gold">{inr(b.deposit_amount)}</dd>
                               </div>
                             </dl>
 
@@ -2194,9 +2200,9 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => setReceiptId(b.id)}
-                                className="text-sm font-medium text-emerald-700 underline mt-3"
+                                className="text-sm font-medium text-gold hover:brightness-110 mt-3"
                               >
-                                ✓ Payment confirmed · View receipt
+                                Payment confirmed — view receipt
                               </button>
                             ) : (
                               <div className="mt-3 flex flex-col gap-2 items-start">
@@ -2206,13 +2212,13 @@ export default function App() {
                                       type="button"
                                       disabled={payingBookingId === b.id}
                                       onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
-                                      className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                      className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
-                                      {`Pay ${pct}% now · ${inr(b.deposit_amount)}`}
+                                      {`Pay ${pct}% now — ${inr(b.deposit_amount)}`}
                                     </button>
                                     {payAckId === b.id && (
-                                      <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 w-full">
-                                        <p className="text-sm text-amber-900">
+                                      <div className="border border-gold/30 bg-gold/10 rounded-xl p-3 w-full">
+                                        <p className="text-sm text-ink">
                                           The remaining {100 - pct}% is payable directly to the venue at
                                           the event — please arrive at least 30 minutes early to complete
                                           this and check in.
@@ -2221,7 +2227,7 @@ export default function App() {
                                           type="button"
                                           disabled={payingBookingId === b.id}
                                           onClick={() => startPayment(b, "deposit")}
-                                          className="mt-2 bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                          className="mt-2 bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                         >
                                           {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
                                         </button>
@@ -2233,21 +2239,21 @@ export default function App() {
                                   type="button"
                                   disabled={payingBookingId === b.id}
                                   onClick={() => startPayment(b, "full")}
-                                  className={`text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50 ${
+                                  className={`text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 transition ${
                                     canSplit
-                                      ? "border border-stone-300 text-stone-700"
-                                      : "bg-amber-500 text-slate-900"
+                                      ? "border border-white/15 text-haze hover:text-ink"
+                                      : "bg-magenta text-white hover:brightness-110"
                                   }`}
                                 >
-                                  {payingBookingId === b.id ? "Opening…" : `Pay in full now · ${inr(b.total_amount)}`}
+                                  {payingBookingId === b.id ? "Opening…" : `Pay in full now — ${inr(b.total_amount)}`}
                                 </button>
                                 {payError[b.id] && (
-                                  <p className="text-xs text-rose-600">{payError[b.id]}</p>
+                                  <p className="text-xs text-rose-300">{payError[b.id]}</p>
                                 )}
                               </div>
                             )}
 
-                            <p className="text-xs text-stone-500 mt-3">
+                            <p className="text-xs text-haze/80 mt-3">
                               Once your payment is confirmed, you'll be able to choose your exact food and
                               drinks from this package — for example, if a package allows "Choose 3 Veg
                               Starters," you'll see every available option but can only select 3.
@@ -2259,31 +2265,31 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setReceiptId(b.id)}
-                            className="text-sm font-medium text-emerald-700 underline mt-3 block"
+                            className="text-sm font-medium text-gold hover:brightness-110 mt-3 block"
                           >
-                            ✓ Payment confirmed · View receipt
+                            Payment confirmed — view receipt
                           </button>
                         )}
 
                         {stage === 3 && (
-                          <div className="mt-3 border border-stone-200 rounded-lg p-3">
+                          <div className="mt-3 border border-white/10 rounded-xl p-3">
                             <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                              <p className="text-xs font-semibold text-haze">
                                 Your menu
                               </p>
                               {!menuLocked(b) && (
                                 <button
                                   type="button"
                                   onClick={() => openFinalize(b, { editing: true })}
-                                  className="text-xs font-medium text-amber-700 underline"
+                                  className="text-xs font-medium text-magenta hover:brightness-110"
                                 >
-                                  Edit Menu
+                                  Edit menu
                                 </button>
                               )}
                             </div>
                             <MenuSummary booking={b} />
                             {menuLocked(b) && (
-                              <p className="text-xs text-stone-500 mt-2">
+                              <p className="text-xs text-haze/80 mt-2">
                                 Menu changes are locked within 48 hours of your event, so the venue can prepare.
                               </p>
                             )}
@@ -2291,53 +2297,53 @@ export default function App() {
                         )}
 
                         {b.status === "confirmed" && (
-                          <div className="mt-3 border border-stone-200 rounded-lg p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">
+                          <div className="mt-3 border border-white/10 rounded-xl p-3">
+                            <p className="text-xs font-semibold text-haze mb-1">
                               Check-in code
                             </p>
                             {b.event_started_at ? (
-                              <p className="text-sm font-medium text-emerald-700">
+                              <p className="text-sm font-medium text-gold">
                                 ✓ Checked in at {fmtDate(b.event_started_at.slice(0, 10))}, {fmtTime(b.event_started_at.slice(11, 16))}
                               </p>
                             ) : (
                               <>
                                 {b.checkin_otp ? (
                                   <>
-                                    <p className="text-3xl font-bold tracking-[0.35em] text-slate-900 my-1">
+                                    <p className="text-3xl font-bold tracking-[0.35em] text-gold my-1">
                                       {b.checkin_otp}
                                     </p>
-                                    <p className="text-xs text-stone-500">
+                                    <p className="text-xs text-haze">
                                       Show this code to venue staff when you arrive.
                                     </p>
                                     <button
                                       type="button"
                                       disabled={otpBusyId === b.id}
                                       onClick={() => generateCheckinOtp(b)}
-                                      className="mt-2 text-sm font-medium text-amber-700 underline disabled:opacity-50"
+                                      className="mt-2 text-sm font-medium text-magenta hover:brightness-110 disabled:opacity-50"
                                     >
                                       {otpBusyId === b.id ? "Generating…" : "Regenerate code"}
                                     </button>
                                   </>
                                 ) : (
                                   <>
-                                    <p className="text-sm text-stone-600 mb-2">
+                                    <p className="text-sm text-haze mb-2">
                                       Generate a code to show venue staff at check-in.
                                     </p>
                                     <button
                                       type="button"
                                       disabled={otpBusyId === b.id}
                                       onClick={() => generateCheckinOtp(b)}
-                                      className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                      className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
-                                      {otpBusyId === b.id ? "Generating…" : "Generate Check-in OTP"}
+                                      {otpBusyId === b.id ? "Generating…" : "Generate check-in code"}
                                     </button>
                                   </>
                                 )}
                                 {otpError[b.id] && (
-                                  <p className="text-xs text-rose-600 mt-1">{otpError[b.id]}</p>
+                                  <p className="text-xs text-rose-300 mt-1">{otpError[b.id]}</p>
                                 )}
                                 {partialPaid && (
-                                  <p className="text-xs text-amber-700 mt-2">
+                                  <p className="text-xs text-gold mt-2">
                                     The remaining {100 - pct}% is due directly to the venue at the event —
                                     please arrive at least 30 minutes early to pay it and check in.
                                   </p>
@@ -2352,42 +2358,42 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => openFinalize(b)}
-                              className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded"
+                              className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                             >
-                              Finalize Your Menu
+                              Finalize your menu
                             </button>
-                            <p className="text-xs text-stone-500 mt-1">
+                            <p className="text-xs text-haze/80 mt-1">
                               Pick your exact dishes and drinks for this package.
                             </p>
                           </div>
                         )}
                       </>
                     ) : b.status === "completed" ? (
-                      <div className="mt-3 border border-stone-200 rounded-lg p-3">
+                      <div className="mt-3 border border-white/10 rounded-xl p-3">
                         {fb?.status === "submitted" ? (
                           <>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">
+                            <p className="text-xs font-semibold text-haze mb-1">
                               Your feedback
                             </p>
-                            <p className="text-amber-500 text-lg leading-none">
+                            <p className="text-gold text-lg leading-none">
                               {"★".repeat(fb.rating || 0)}
-                              <span className="text-stone-300">{"★".repeat(5 - (fb.rating || 0))}</span>
+                              <span className="text-white/15">{"★".repeat(5 - (fb.rating || 0))}</span>
                             </p>
                             {fb.comment && (
-                              <p className="text-sm text-stone-600 mt-1 whitespace-pre-wrap">{fb.comment}</p>
+                              <p className="text-sm text-haze mt-1 whitespace-pre-wrap">{fb.comment}</p>
                             )}
                           </>
                         ) : fb?.status === "skipped" && fbOpenId !== b.id ? (
                           <button
                             type="button"
                             onClick={() => setFbOpenId(b.id)}
-                            className="text-sm font-medium text-amber-700 underline"
+                            className="text-sm font-medium text-magenta hover:brightness-110"
                           >
                             Leave feedback
                           </button>
                         ) : (
                           <>
-                            <p className="text-sm font-medium text-stone-800 mb-1">
+                            <p className="text-sm font-medium text-ink mb-1">
                               How was your event at {b.venues?.name}?
                             </p>
                             <div className="flex gap-1 my-1">
@@ -2400,7 +2406,7 @@ export default function App() {
                                     setFbDraft((d) => ({ ...d, [b.id]: { ...draft, rating: n } }))
                                   }
                                   className={`text-2xl leading-none ${
-                                    draft.rating >= n ? "text-amber-500" : "text-stone-300"
+                                    draft.rating >= n ? "text-gold" : "text-white/15"
                                   }`}
                                 >
                                   ★
@@ -2414,10 +2420,10 @@ export default function App() {
                               onChange={(e) =>
                                 setFbDraft((d) => ({ ...d, [b.id]: { ...draft, comment: e.target.value } }))
                               }
-                              className="border border-stone-300 rounded px-2 py-1.5 text-sm w-full mt-1"
+                              className="bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-sm w-full mt-1 text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                             />
                             {fbError[b.id] && (
-                              <p className="text-xs text-rose-600 mt-1">{fbError[b.id]}</p>
+                              <p className="text-xs text-rose-300 mt-1">{fbError[b.id]}</p>
                             )}
                             <div className="flex gap-2 mt-2">
                               <button
@@ -2430,7 +2436,7 @@ export default function App() {
                                     comment: draft.comment.trim() || null,
                                   })
                                 }
-                                className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                className="bg-magenta text-white text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                               >
                                 {fbBusyId === b.id ? "Saving…" : "Submit"}
                               </button>
@@ -2438,7 +2444,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => setFbOpenId(null)}
-                                  className="text-sm text-stone-500 px-2"
+                                  className="text-sm text-haze hover:text-ink px-2"
                                 >
                                   Cancel
                                 </button>
@@ -2447,7 +2453,7 @@ export default function App() {
                                   type="button"
                                   disabled={fbBusyId === b.id}
                                   onClick={() => saveFeedback(b, fb, { status: "skipped" })}
-                                  className="text-sm text-stone-500 px-2 disabled:opacity-50"
+                                  className="text-sm text-haze hover:text-ink px-2 disabled:opacity-50"
                                 >
                                   Skip
                                 </button>
@@ -2457,7 +2463,7 @@ export default function App() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs text-stone-400 mt-2 capitalize">
+                      <p className="text-xs text-haze/70 mt-2 capitalize">
                         Status: {b.status.replace(/_/g, " ")}
                       </p>
                     )}
@@ -2469,14 +2475,14 @@ export default function App() {
         )}
         {screen === "profile" && (
           <div className="max-w-lg">
-            <h1 className="font-serif text-3xl mb-1">Profile</h1>
-            <p className="text-stone-500 text-sm mb-6">Keep your details up to date for smoother bookings.</p>
-            <form onSubmit={saveProfile} className="flex flex-col gap-4 bg-white border border-stone-200 rounded-lg p-5">
+            <h1 className="font-display text-3xl font-bold mb-1">Profile</h1>
+            <p className="text-haze text-sm mb-6">Keep your details up to date for smoother bookings.</p>
+            <form onSubmit={saveProfile} className="flex flex-col gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card">
               <div>
                 <label className="text-sm font-medium block mb-1">Full name</label>
                 <input
                   type="text"
-                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                   value={profileForm.full_name}
                   onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
                 />
@@ -2486,7 +2492,7 @@ export default function App() {
                 <input
                   type="tel"
                   placeholder="+91 98765 43210"
-                  className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                   value={profileForm.phone}
                   onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                 />
@@ -2496,15 +2502,15 @@ export default function App() {
                 <input
                   type="email"
                   disabled
-                  className="border border-stone-200 bg-stone-100 text-stone-500 rounded px-3 py-2 text-sm w-full"
+                  className="border border-white/10 bg-white/[0.03] text-haze rounded-lg px-3 py-2 text-sm w-full"
                   value={profile?.email || session.email}
                 />
               </div>
-              {profileError && <p className="text-rose-600 text-sm">{profileError}</p>}
-              {profileSaved && <p className="text-emerald-600 text-sm">Profile saved.</p>}
+              {profileError && <p className="text-rose-300 text-sm">{profileError}</p>}
+              {profileSaved && <p className="text-gold text-sm">Profile saved.</p>}
               <button
                 disabled={profileLoading}
-                className="bg-amber-500 text-slate-900 font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
+                className="bg-magenta text-white font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
               >
                 {profileLoading ? "Saving…" : "Save changes"}
               </button>
@@ -2514,16 +2520,16 @@ export default function App() {
 
         {screen === "settings" && (
           <div className="max-w-lg">
-            <h1 className="font-serif text-3xl mb-1">Settings</h1>
-            <p className="text-stone-500 text-sm mb-6">Manage your account security.</p>
-            <form onSubmit={changePassword} className="flex flex-col gap-4 bg-white border border-stone-200 rounded-lg p-5">
+            <h1 className="font-display text-3xl font-bold mb-1">Settings</h1>
+            <p className="text-haze text-sm mb-6">Manage your account security.</p>
+            <form onSubmit={changePassword} className="flex flex-col gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card">
               <h2 className="text-sm font-medium">Change password</h2>
               <input
                 type="password"
                 required
                 minLength={6}
                 placeholder="New password"
-                className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                 value={settingsPassword}
                 onChange={(e) => setSettingsPassword(e.target.value)}
               />
@@ -2532,15 +2538,15 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="Confirm new password"
-                className="border border-stone-300 rounded px-3 py-2 text-sm w-full"
+                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-magenta/60"
                 value={settingsPasswordConfirm}
                 onChange={(e) => setSettingsPasswordConfirm(e.target.value)}
               />
-              {settingsError && <p className="text-rose-600 text-sm">{settingsError}</p>}
-              {settingsSaved && <p className="text-emerald-600 text-sm">Password updated.</p>}
+              {settingsError && <p className="text-rose-300 text-sm">{settingsError}</p>}
+              {settingsSaved && <p className="text-gold text-sm">Password updated.</p>}
               <button
                 disabled={settingsLoading}
-                className="bg-amber-500 text-slate-900 font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
+                className="bg-magenta text-white font-medium rounded px-4 py-2 text-sm disabled:opacity-50 self-start"
               >
                 {settingsLoading ? "Updating…" : "Update password"}
               </button>
@@ -2551,7 +2557,7 @@ export default function App() {
         {screen === "finalizeMenu" &&
           (() => {
             const b = myBookings.find((x) => x.id === finalizeId);
-            if (!b) return <p className="text-stone-400 text-sm">Booking not found.</p>;
+            if (!b) return <p className="text-haze/70 text-sm">Booking not found.</p>;
             const ctx = bookingMenuContext(b);
             const showForm = !b.menu_finalized_at || menuEditing;
             const complete = ctx.rules.every(
@@ -2560,7 +2566,7 @@ export default function App() {
             return (
               <div className="max-w-lg">
                 <button
-                  className="text-sm text-stone-500 mb-4"
+                  className="text-sm text-haze hover:text-ink mb-4"
                   onClick={() => {
                     setScreen("myBookings");
                     setFinalizeId(null);
@@ -2569,39 +2575,40 @@ export default function App() {
                 >
                   ← Back to bookings
                 </button>
-                <h1 className="font-serif text-3xl mb-1">
-                  {menuEditing ? "Edit Your Menu" : "Finalize Your Menu"}
+                <h1 className="font-display text-3xl font-bold mb-1">
+                  {menuEditing ? "Edit your menu" : "Finalize your menu"}
                 </h1>
-                <p className="text-stone-500 text-sm mb-5">
-                  {b.venue_packages?.name} at {b.venues?.name} · {b.booking_ref}
+                <p className="text-haze text-sm mb-5">
+                  {b.venue_packages?.name} at {b.venues?.name}
+                  <span className="block text-gold font-medium">{b.booking_ref}</span>
                 </p>
 
                 {!showForm ? (
-                  <div className="bg-white border border-stone-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-emerald-700 mb-2">✓ Your menu is confirmed</p>
+                  <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
+                    <p className="text-sm font-medium text-gold mb-2">✓ Your menu is confirmed</p>
                     <MenuSummary booking={b} />
                   </div>
                 ) : ctx.rules.length === 0 ? (
-                  <p className="text-sm text-stone-500">This package has no menu choices to make.</p>
+                  <p className="text-sm text-haze">This package has no menu choices to make.</p>
                 ) : (
                   <div className="flex flex-col gap-4">
                     {ctx.rules.map((r) => {
                       const opts = ctx.optionsForKind(r.category_kind);
                       const picked = menuPicks[r.category_kind] || [];
                       return (
-                        <div key={r.category_kind} className="bg-white border border-stone-200 rounded-lg p-4">
-                          <p className="text-sm font-medium mb-1">
-                            Choose {r.quota_count} {quotaLabel(r.category_kind, r.quota_count)}
+                        <div key={r.category_kind} className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
+                          <p className="text-sm font-medium mb-1 text-ink">
+                            Choose <span className="text-gold font-semibold">{r.quota_count}</span> {quotaLabel(r.category_kind, r.quota_count)}
                             <span
                               className={`ml-2 text-xs ${
-                                picked.length === r.quota_count ? "text-emerald-600" : "text-stone-400"
+                                picked.length === r.quota_count ? "text-gold" : "text-haze/60"
                               }`}
                             >
                               ({picked.length}/{r.quota_count})
                             </span>
                           </p>
                           {opts.length === 0 ? (
-                            <p className="text-sm text-stone-400">No options available for this category.</p>
+                            <p className="text-sm text-haze/70">No options available for this category.</p>
                           ) : (
                             <div className="flex flex-col gap-1.5 mt-1">
                               {opts.map((it) => {
@@ -2610,10 +2617,11 @@ export default function App() {
                                 return (
                                   <label
                                     key={it.id}
-                                    className={`flex items-center gap-2 text-sm ${disabled ? "text-stone-400" : ""}`}
+                                    className={`flex items-center gap-2 text-sm ${disabled ? "text-haze/50" : "text-ink"}`}
                                   >
                                     <input
                                       type="checkbox"
+                                      className="accent-magenta"
                                       checked={on}
                                       disabled={disabled}
                                       onChange={() => togglePick(r.category_kind, it.id, r.quota_count)}
@@ -2631,13 +2639,13 @@ export default function App() {
                       );
                     })}
 
-                    {finalizeError && <p className="text-rose-600 text-sm">{finalizeError}</p>}
+                    {finalizeError && <p className="text-rose-300 text-sm">{finalizeError}</p>}
 
                     <button
                       type="button"
                       disabled={!complete || finalizeBusy}
                       onClick={() => submitMenu(b)}
-                      className="bg-amber-500 text-slate-900 text-sm font-semibold px-4 py-2 rounded disabled:opacity-50 self-start"
+                      className="bg-magenta text-white text-sm font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 self-start hover:brightness-110 transition"
                     >
                       {finalizeBusy ? "Saving…" : menuEditing ? "Save changes" : "Submit menu"}
                     </button>
@@ -2649,7 +2657,7 @@ export default function App() {
                           setScreen("myBookings");
                           setFinalizeId(null);
                         }}
-                        className="text-sm text-stone-500 self-start"
+                        className="text-sm text-haze hover:text-ink self-start"
                       >
                         Cancel
                       </button>
@@ -2662,19 +2670,19 @@ export default function App() {
 
         {screen === "help" && (
           <div className="max-w-lg">
-            <h1 className="font-serif text-3xl mb-1">Help & support</h1>
-            <p className="text-stone-500 text-sm mb-6">We're here if something doesn't look right.</p>
-            <div className="bg-white border border-stone-200 rounded-lg p-5 flex flex-col gap-4">
+            <h1 className="font-display text-3xl font-bold mb-1">Help &amp; support</h1>
+            <p className="text-haze text-sm mb-6">We're here if something doesn't look right.</p>
+            <div className="bg-surface border border-white/10 rounded-2xl p-5 flex flex-col gap-4 shadow-card">
               <div>
-                <p className="text-sm font-medium">Email us</p>
-                <p className="text-sm text-stone-500">hello.mypaxo@gmail.com</p>
+                <p className="text-sm font-medium text-ink">Email us</p>
+                <p className="text-sm text-haze">hello.mypaxo@gmail.com</p>
               </div>
-              <div className="border-t border-stone-100 pt-4">
-                <p className="text-sm font-medium mb-1">Common questions</p>
-                <ul className="text-sm text-stone-500 list-disc pl-4 flex flex-col gap-1">
+              <div className="border-t border-white/10 pt-4">
+                <p className="text-sm font-medium text-ink mb-1">Common questions</p>
+                <ul className="text-sm text-haze list-disc pl-4 flex flex-col gap-1">
                   <li>How long does a venue have to respond to my request? Up to 2 hours.</li>
                   <li>When do I pay the rest of the bill? Directly at the venue, unless you paid in full.</li>
-                  <li>Can I cancel an Express Booking? No — bookings under 72 hours are final once confirmed.</li>
+                  <li>Can I cancel an express booking? No — bookings under 72 hours are final once confirmed.</li>
                 </ul>
               </div>
             </div>
@@ -2710,7 +2718,7 @@ export default function App() {
 
       {session && (
         <nav
-          className="sm:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-stone-200 flex items-stretch"
+          className="sm:hidden fixed bottom-0 inset-x-0 z-20 bg-base/95 backdrop-blur border-t border-white/10 flex items-stretch"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           {[
@@ -2724,7 +2732,7 @@ export default function App() {
                 key={key}
                 type="button"
                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-xs ${
-                  active ? "text-amber-600" : "text-stone-400"
+                  active ? "text-magenta" : "text-haze/70"
                 }`}
                 onClick={() => setScreen(key)}
               >

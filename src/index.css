@@ -2,6 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    background-color: #14101f;
+    color: #f5f1fa;
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* The booking stepper is the one place motion is welcome: the active step
+   glows like a neon sign holding its charge. */
+@keyframes stepPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 61, 129, 0);
+  }
+  50% {
+    box-shadow: 0 0 14px 2px rgba(255, 61, 129, 0.55);
+  }
+}
+.step-active-glow {
+  animation: stepPulse 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-active-glow {
+    animation: none;
+    box-shadow: 0 0 12px 1px rgba(255, 61, 129, 0.45);
+  }
+}
+
 /* Receipt "Download" = browser print-to-PDF. Hide everything except the
    receipt content, and drop interactive chrome inside it. */
 @media print {
