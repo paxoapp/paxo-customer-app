@@ -363,6 +363,10 @@ export default function App() {
   const [menuNoticeId, setMenuNoticeId] = useState(null); // booking id whose "Finalize Your Menu" note is shown
   const [otpBusyId, setOtpBusyId] = useState(null);
   const [otpError, setOtpError] = useState({}); // keyed by booking id
+  const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
+  const [fbBusyId, setFbBusyId] = useState(null);
+  const [fbError, setFbError] = useState({}); // keyed by booking id
+  const [fbOpenId, setFbOpenId] = useState(null); // booking id whose feedback form is expanded after a skip
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [heroIndex, setHeroIndex] = useState(0);
@@ -429,7 +433,7 @@ export default function App() {
   const loadMyBookings = useCallback(async (token) => {
     try {
       const data = await sb(
-        "/rest/v1/bookings?select=*,venues(name,city,area,venue_type),venue_packages(name),payments(payment_type,status,amount,paid_at)&order=created_at.desc",
+        "/rest/v1/bookings?select=*,venues(name,city,area,venue_type),venue_packages(name),payments(payment_type,status,amount,paid_at),booking_feedback(id,rating,comment,status)&order=created_at.desc",
         { token }
       );
       setMyBookings(data);
@@ -538,6 +542,37 @@ export default function App() {
       }));
     } finally {
       setOtpBusyId(null);
+    }
+  }
+
+  // One booking_feedback row per booking (UNIQUE booking_id). Insert the first
+  // time; if a "skipped" row already exists, the DB allows updating it to
+  // "submitted" (one-way — submitted rows are immutable).
+  async function saveFeedback(booking, existing, payload) {
+    setFbError((m) => ({ ...m, [booking.id]: "" }));
+    setFbBusyId(booking.id);
+    try {
+      if (existing?.id) {
+        await sb(`/rest/v1/booking_feedback?booking_id=eq.${booking.id}`, {
+          method: "PATCH",
+          token: session.token,
+          prefer: "return=minimal",
+          body: payload,
+        });
+      } else {
+        await sb("/rest/v1/booking_feedback", {
+          method: "POST",
+          token: session.token,
+          prefer: "return=minimal",
+          body: { booking_id: booking.id, ...payload },
+        });
+      }
+      setFbOpenId(null);
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setFbError((m) => ({ ...m, [booking.id]: e.message || "Couldn't save your feedback. Please try again." }));
+    } finally {
+      setFbBusyId(null);
     }
   }
 
@@ -1855,6 +1890,10 @@ export default function App() {
                 const canSplit = b.deposit_tier !== "full"; // full-payment tiers have no partial option
                 const stage = bookingStage(b);
                 const rejected = b.status === "rejected";
+                const fb = Array.isArray(b.booking_feedback)
+                  ? b.booking_feedback[0] || null
+                  : b.booking_feedback || null;
+                const draft = fbDraft[b.id] || { rating: 0, comment: "" };
                 const whenLine = [fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join(" · ");
 
                 return (
@@ -2066,6 +2105,100 @@ export default function App() {
                           </div>
                         )}
                       </>
+                    ) : b.status === "completed" ? (
+                      <div className="mt-3 border border-stone-200 rounded-lg p-3">
+                        {fb?.status === "submitted" ? (
+                          <>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">
+                              Your feedback
+                            </p>
+                            <p className="text-amber-500 text-lg leading-none">
+                              {"★".repeat(fb.rating || 0)}
+                              <span className="text-stone-300">{"★".repeat(5 - (fb.rating || 0))}</span>
+                            </p>
+                            {fb.comment && (
+                              <p className="text-sm text-stone-600 mt-1 whitespace-pre-wrap">{fb.comment}</p>
+                            )}
+                          </>
+                        ) : fb?.status === "skipped" && fbOpenId !== b.id ? (
+                          <button
+                            type="button"
+                            onClick={() => setFbOpenId(b.id)}
+                            className="text-sm font-medium text-amber-700 underline"
+                          >
+                            Leave feedback
+                          </button>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-stone-800 mb-1">
+                              How was your event at {b.venues?.name}?
+                            </p>
+                            <div className="flex gap-1 my-1">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                                  onClick={() =>
+                                    setFbDraft((d) => ({ ...d, [b.id]: { ...draft, rating: n } }))
+                                  }
+                                  className={`text-2xl leading-none ${
+                                    draft.rating >= n ? "text-amber-500" : "text-stone-300"
+                                  }`}
+                                >
+                                  ★
+                                </button>
+                              ))}
+                            </div>
+                            <textarea
+                              rows={2}
+                              placeholder="Add a comment (optional)"
+                              value={draft.comment}
+                              onChange={(e) =>
+                                setFbDraft((d) => ({ ...d, [b.id]: { ...draft, comment: e.target.value } }))
+                              }
+                              className="border border-stone-300 rounded px-2 py-1.5 text-sm w-full mt-1"
+                            />
+                            {fbError[b.id] && (
+                              <p className="text-xs text-rose-600 mt-1">{fbError[b.id]}</p>
+                            )}
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                type="button"
+                                disabled={fbBusyId === b.id || !draft.rating}
+                                onClick={() =>
+                                  saveFeedback(b, fb, {
+                                    status: "submitted",
+                                    rating: draft.rating,
+                                    comment: draft.comment.trim() || null,
+                                  })
+                                }
+                                className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                              >
+                                {fbBusyId === b.id ? "Saving…" : "Submit"}
+                              </button>
+                              {fb?.status === "skipped" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setFbOpenId(null)}
+                                  className="text-sm text-stone-500 px-2"
+                                >
+                                  Cancel
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={fbBusyId === b.id}
+                                  onClick={() => saveFeedback(b, fb, { status: "skipped" })}
+                                  className="text-sm text-stone-500 px-2 disabled:opacity-50"
+                                >
+                                  Skip
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <p className="text-xs text-stone-400 mt-2 capitalize">
                         Status: {b.status.replace(/_/g, " ")}
