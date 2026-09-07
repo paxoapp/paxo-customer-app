@@ -118,9 +118,16 @@ function quotaLabel(kind, count) {
   return count === 1 ? pair[0] : pair[1];
 }
 
-const FOOD_QUOTA_KINDS = ["starter_veg", "starter_non_veg", "main_veg", "main_non_veg", "dessert"];
+const FOOD_QUOTA_KINDS = [
+  "starter_veg",
+  "starter_non_veg",
+  "main_veg",
+  "main_non_veg",
+  "side",
+  "dessert",
+];
 // Hard-liquor categories where a package restricts choice to a specific brand pool.
-const POOL_QUOTA_KINDS = ["whisky", "vodka", "gin", "rum", "beer", "wine"];
+const POOL_QUOTA_KINDS = ["single_malt", "whisky", "vodka", "gin", "rum", "beer", "wine"];
 
 // Lowest price among a venue's published packages (RLS only returns published
 // packages to customers), or null if it has none.
