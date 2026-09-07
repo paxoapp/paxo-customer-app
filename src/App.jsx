@@ -243,6 +243,12 @@ function ReviewMenuBody({ pkg, venue }) {
   );
 }
 
+// The DB locks menu edits within 48h of the event; mirror that in the UI.
+function menuLocked(booking) {
+  const h = hoursUntil(booking?.event_date, booking?.event_time);
+  return h !== null && h <= 48;
+}
+
 // Per-booking menu context: the quota rules and which items can satisfy each.
 function bookingMenuContext(booking) {
   const pkg = booking?.venue_packages || null;
@@ -494,6 +500,7 @@ export default function App() {
   const [fbOpenId, setFbOpenId] = useState(null); // booking id whose feedback form is expanded after a skip
   const [receiptId, setReceiptId] = useState(null); // booking id whose receipt modal is open
   const [finalizeId, setFinalizeId] = useState(null); // booking id being finalized on the finalizeMenu screen
+  const [menuEditing, setMenuEditing] = useState(false); // reopened an already-finalized menu to change it
   const [menuPicks, setMenuPicks] = useState({}); // { [category_kind]: menu_item_id[] }
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [finalizeError, setFinalizeError] = useState("");
@@ -712,10 +719,24 @@ export default function App() {
     }
   }
 
-  function openFinalize(booking) {
-    const { rules } = bookingMenuContext(booking);
+  function openFinalize(booking, { editing = false } = {}) {
+    const { rules, kindByItemId } = bookingMenuContext(booking);
+    const picks = Object.fromEntries(rules.map((r) => [r.category_kind, []]));
+    if (editing) {
+      const existing = Array.isArray(booking.booking_menu_selections)
+        ? booking.booking_menu_selections
+        : [];
+      existing.forEach((s) => {
+        const kind = kindByItemId[s.menu_item_id];
+        if (picks[kind]) picks[kind].push(s.menu_item_id);
+      });
+      rules.forEach((r) => {
+        picks[r.category_kind] = picks[r.category_kind].slice(0, r.quota_count);
+      });
+    }
     setFinalizeId(booking.id);
-    setMenuPicks(Object.fromEntries(rules.map((r) => [r.category_kind, []])));
+    setMenuEditing(editing);
+    setMenuPicks(picks);
     setFinalizeError("");
     setReceiptId(null);
     setScreen("finalizeMenu");
@@ -737,6 +758,10 @@ export default function App() {
       (r) => (menuPicks[r.category_kind] || []).length === r.quota_count
     );
     if (!complete) return;
+    if (menuLocked(booking)) {
+      setFinalizeError("Menu changes are locked within 48 hours of your event.");
+      return;
+    }
     setFinalizeBusy(true);
     setFinalizeError("");
     try {
@@ -760,6 +785,7 @@ export default function App() {
         prefer: "return=minimal",
         body: { menu_finalized_at: new Date().toISOString() },
       });
+      setMenuEditing(false);
       await loadMyBookings(session.token);
     } catch (e) {
       setFinalizeError(e.message || "Couldn't save your menu. Please try again.");
@@ -2241,10 +2267,30 @@ export default function App() {
 
                         {stage === 3 && (
                           <div className="mt-3 border border-stone-200 rounded-lg p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">
-                              Your menu
-                            </p>
-                            <MenuSummary booking={b} />
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+                                Your menu
+                              </p>
+                              {!menuLocked(b) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openFinalize(b, { editing: true })}
+                                  className="text-xs font-medium text-amber-700 underline"
+                                >
+                                  Edit Menu
+                                </button>
+                              )}
+                            </div>
+                            {(b.booking_menu_selections || []).length > 0 ? (
+                              <MenuSummary booking={b} />
+                            ) : menuLocked(b) ? null : (
+                              <p className="text-sm text-stone-400">—</p>
+                            )}
+                            {menuLocked(b) && (
+                              <p className="text-xs text-stone-500 mt-2">
+                                Menu changes are locked within 48 hours of your event, so the venue can prepare.
+                              </p>
+                            )}
                           </div>
                         )}
 
@@ -2511,7 +2557,7 @@ export default function App() {
             const b = myBookings.find((x) => x.id === finalizeId);
             if (!b) return <p className="text-stone-400 text-sm">Booking not found.</p>;
             const ctx = bookingMenuContext(b);
-            const finalized = !!b.menu_finalized_at;
+            const showForm = !b.menu_finalized_at || menuEditing;
             const complete = ctx.rules.every(
               (r) => (menuPicks[r.category_kind] || []).length === r.quota_count
             );
@@ -2522,16 +2568,19 @@ export default function App() {
                   onClick={() => {
                     setScreen("myBookings");
                     setFinalizeId(null);
+                    setMenuEditing(false);
                   }}
                 >
                   ← Back to bookings
                 </button>
-                <h1 className="font-serif text-3xl mb-1">Finalize Your Menu</h1>
+                <h1 className="font-serif text-3xl mb-1">
+                  {menuEditing ? "Edit Your Menu" : "Finalize Your Menu"}
+                </h1>
                 <p className="text-stone-500 text-sm mb-5">
                   {b.venue_packages?.name} at {b.venues?.name} · {b.booking_ref}
                 </p>
 
-                {finalized ? (
+                {!showForm ? (
                   <div className="bg-white border border-stone-200 rounded-lg p-4">
                     <p className="text-sm font-medium text-emerald-700 mb-2">✓ Your menu is confirmed</p>
                     <MenuSummary booking={b} />
@@ -2594,8 +2643,21 @@ export default function App() {
                       onClick={() => submitMenu(b)}
                       className="bg-amber-500 text-slate-900 text-sm font-semibold px-4 py-2 rounded disabled:opacity-50 self-start"
                     >
-                      {finalizeBusy ? "Saving…" : "Submit menu"}
+                      {finalizeBusy ? "Saving…" : menuEditing ? "Save changes" : "Submit menu"}
                     </button>
+                    {menuEditing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuEditing(false);
+                          setScreen("myBookings");
+                          setFinalizeId(null);
+                        }}
+                        className="text-sm text-stone-500 self-start"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
