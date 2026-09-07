@@ -270,6 +270,8 @@ const STAGE_MESSAGES = [
   "All set! Your booking is fully confirmed.",
 ];
 
+const tierPercent = (tier) => (tier === "20pct" ? 20 : tier === "50pct" ? 50 : 100);
+
 function bookingStage(b) {
   if (b.status === "pending") return 0;
   if (b.status === "accepted") return 1;
@@ -357,7 +359,10 @@ export default function App() {
   const [myBookings, setMyBookings] = useState([]);
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
+  const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
   const [menuNoticeId, setMenuNoticeId] = useState(null); // booking id whose "Finalize Your Menu" note is shown
+  const [otpBusyId, setOtpBusyId] = useState(null);
+  const [otpError, setOtpError] = useState({}); // keyed by booking id
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [heroIndex, setHeroIndex] = useState(0);
@@ -433,9 +438,10 @@ export default function App() {
     }
   }, []);
 
-  // Deposit payment via Razorpay Checkout. Amount is computed server-side by
-  // the create-razorpay-order function — never sent from here.
-  async function payDeposit(booking) {
+  // Razorpay Checkout. `paymentType` is "deposit" or "full"; the amount is
+  // computed server-side by create-razorpay-order — never sent from here.
+  async function startPayment(booking, paymentType) {
+    setPayAckId(null);
     setPayError((m) => ({ ...m, [booking.id]: "" }));
     setPayingBookingId(booking.id);
     try {
@@ -444,7 +450,7 @@ export default function App() {
       }
       const order = await callFn("create-razorpay-order", session.token, {
         booking_id: booking.id,
-        payment_type: "deposit",
+        payment_type: paymentType,
       });
 
       const rzp = new window.Razorpay({
@@ -453,7 +459,9 @@ export default function App() {
         currency: order.currency,
         order_id: order.order_id,
         name: "PAXO",
-        description: `Deposit — ${booking.venues?.name || "venue booking"}`,
+        description: `${paymentType === "full" ? "Full payment" : "Deposit"} — ${
+          booking.venues?.name || "venue booking"
+        }`,
         prefill: {
           name: booking.contact_name || profile?.full_name || "",
           email: booking.contact_email || session.email || "",
@@ -506,6 +514,30 @@ export default function App() {
         [booking.id]: err.message || "Couldn't start the payment. Please try again.",
       }));
       setPayingBookingId(null);
+    }
+  }
+
+  // Generate (or regenerate) a 6-digit check-in code for a confirmed booking.
+  // The DB lets the customer set this freely until event_started_at is stamped.
+  async function generateCheckinOtp(booking) {
+    setOtpError((m) => ({ ...m, [booking.id]: "" }));
+    setOtpBusyId(booking.id);
+    try {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
+        method: "PATCH",
+        token: session.token,
+        prefer: "return=minimal",
+        body: { checkin_otp: code, checkin_otp_generated_at: new Date().toISOString() },
+      });
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setOtpError((m) => ({
+        ...m,
+        [booking.id]: e.message || "Couldn't generate a code. Please try again.",
+      }));
+    } finally {
+      setOtpBusyId(null);
     }
   }
 
@@ -1814,9 +1846,13 @@ export default function App() {
             )}
             <div className="flex flex-col gap-4">
               {myBookings.map((b) => {
-                const depositPaid = b.payments?.some(
-                  (p) => p.payment_type === "deposit" && p.status === "paid"
-                );
+                const paid = (b.payments || []).filter((p) => p.status === "paid");
+                const paidFull = paid.some((p) => p.payment_type === "full");
+                const paidDeposit = paid.some((p) => p.payment_type === "deposit");
+                const anyPaid = paid.length > 0;
+                const partialPaid = paidDeposit && !paidFull; // balance still owed at venue
+                const pct = tierPercent(b.deposit_tier);
+                const canSplit = b.deposit_tier !== "full"; // full-payment tiers have no partial option
                 const stage = bookingStage(b);
                 const rejected = b.status === "rejected";
                 const whenLine = [fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join(" · ");
@@ -1897,22 +1933,55 @@ export default function App() {
                               </div>
                             </dl>
 
-                            {depositPaid ? (
+                            {anyPaid ? (
                               <p className="text-sm font-medium text-emerald-700 mt-3">✓ Payment confirmed</p>
                             ) : (
-                              <>
+                              <div className="mt-3 flex flex-col gap-2 items-start">
+                                {canSplit && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={payingBookingId === b.id}
+                                      onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
+                                      className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                    >
+                                      {`Pay ${pct}% now · ${inr(b.deposit_amount)}`}
+                                    </button>
+                                    {payAckId === b.id && (
+                                      <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 w-full">
+                                        <p className="text-sm text-amber-900">
+                                          The remaining {100 - pct}% is payable directly to the venue at
+                                          the event — please arrive at least 30 minutes early to complete
+                                          this and check in.
+                                        </p>
+                                        <button
+                                          type="button"
+                                          disabled={payingBookingId === b.id}
+                                          onClick={() => startPayment(b, "deposit")}
+                                          className="mt-2 bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                        >
+                                          {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                                 <button
                                   type="button"
                                   disabled={payingBookingId === b.id}
-                                  onClick={() => payDeposit(b)}
-                                  className="mt-3 bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                  onClick={() => startPayment(b, "full")}
+                                  className={`text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50 ${
+                                    canSplit
+                                      ? "border border-stone-300 text-stone-700"
+                                      : "bg-amber-500 text-slate-900"
+                                  }`}
                                 >
-                                  {payingBookingId === b.id ? "Opening…" : `Pay Deposit · ${inr(b.deposit_amount)}`}
+                                  {payingBookingId === b.id ? "Opening…" : `Pay in full now · ${inr(b.total_amount)}`}
                                 </button>
                                 {payError[b.id] && (
-                                  <p className="text-xs text-rose-600 mt-1">{payError[b.id]}</p>
+                                  <p className="text-xs text-rose-600">{payError[b.id]}</p>
                                 )}
-                              </>
+                              </div>
                             )}
 
                             <p className="text-xs text-stone-500 mt-3">
@@ -1920,6 +1989,63 @@ export default function App() {
                               drinks from this package — for example, if a package allows "Choose 3 Veg
                               Starters," you'll see every available option but can only select 3.
                             </p>
+                          </div>
+                        )}
+
+                        {b.status === "confirmed" && (
+                          <div className="mt-3 border border-stone-200 rounded-lg p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">
+                              Check-in code
+                            </p>
+                            {b.event_started_at ? (
+                              <p className="text-sm font-medium text-emerald-700">
+                                ✓ Checked in at {fmtDate(b.event_started_at.slice(0, 10))}, {fmtTime(b.event_started_at.slice(11, 16))}
+                              </p>
+                            ) : (
+                              <>
+                                {b.checkin_otp ? (
+                                  <>
+                                    <p className="text-3xl font-bold tracking-[0.35em] text-slate-900 my-1">
+                                      {b.checkin_otp}
+                                    </p>
+                                    <p className="text-xs text-stone-500">
+                                      Show this code to venue staff when you arrive.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      disabled={otpBusyId === b.id}
+                                      onClick={() => generateCheckinOtp(b)}
+                                      className="mt-2 text-sm font-medium text-amber-700 underline disabled:opacity-50"
+                                    >
+                                      {otpBusyId === b.id ? "Generating…" : "Regenerate code"}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-sm text-stone-600 mb-2">
+                                      Generate a code to show venue staff at check-in.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      disabled={otpBusyId === b.id}
+                                      onClick={() => generateCheckinOtp(b)}
+                                      className="bg-amber-500 text-slate-900 text-sm font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+                                    >
+                                      {otpBusyId === b.id ? "Generating…" : "Generate Check-in OTP"}
+                                    </button>
+                                  </>
+                                )}
+                                {otpError[b.id] && (
+                                  <p className="text-xs text-rose-600 mt-1">{otpError[b.id]}</p>
+                                )}
+                                {partialPaid && (
+                                  <p className="text-xs text-amber-700 mt-2">
+                                    The remaining {100 - pct}% is due directly to the venue at the event —
+                                    please arrive at least 30 minutes early to pay it and check in.
+                                  </p>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
 
