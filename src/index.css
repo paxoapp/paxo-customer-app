@@ -40,9 +40,22 @@
 /* Receipt "Download" = browser print-to-PDF. Hide everything except the
    receipt content, and drop interactive chrome inside it. */
 @media print {
+  html,
   body {
+    height: auto !important;
+    overflow: visible !important;
     background: #fff;
   }
+
+  /* Take the whole app shell out of the printed flow. If any of it stays laid
+     out, the print engine paginates over it — which is what produced the
+     repeated / blank receipt pages. Only the modal holding the receipt stays. */
+  header,
+  main,
+  nav {
+    display: none !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -50,12 +63,28 @@
   .receipt-print * {
     visibility: visible;
   }
+
+  /* Every ancestor between .receipt-print and <html> — the modal backdrop,
+     card, and its scroll area — must stop being fixed / clipped / height-capped
+     so the receipt lays out once, at its natural height. */
+  .modal-backdrop,
+  .modal-card,
+  .modal-scroll {
+    position: static !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+  }
+
   .receipt-print {
-    position: fixed;
-    inset: 0;
+    position: static !important;
     margin: 0;
-    max-height: none;
-    overflow: visible;
+    max-height: none !important;
+    overflow: visible !important;
     padding: 28px;
     box-shadow: none;
     border: 0;

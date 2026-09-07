@@ -137,17 +137,17 @@ function Modal({ title, onClose, children }) {
   }, [onClose]);
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      className="modal-backdrop fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       <div
-        className="bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-white/10"
+        className="modal-card bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="no-print flex items-center justify-between px-4 py-3 border-b border-white/10">
           <p className="font-display font-semibold">{title}</p>
           <button
             onClick={onClose}
@@ -157,7 +157,7 @@ function Modal({ title, onClose, children }) {
             ✕
           </button>
         </div>
-        <div className="flex-1 overflow-auto p-4">{children}</div>
+        <div className="modal-scroll flex-1 overflow-auto p-4">{children}</div>
       </div>
     </div>
   );
@@ -386,6 +386,7 @@ const SOFT_DRINK_INCLUSION_RE = /cocktail|mocktail|soft/i;
 
 function VenueFullMenu({ venue }) {
   const [tab, setTab] = useState("food");
+  const [expanded, setExpanded] = useState(false);
   const cats = venue?.menu_categories || [];
   const packages = venue?.venue_packages || [];
 
@@ -421,14 +422,7 @@ function VenueFullMenu({ venue }) {
     ),
   ];
 
-  if (packages.length === 0) {
-    return (
-      <div className="rounded-2xl p-4 bg-surface border border-white/10 text-sm text-haze/70">
-        Menu details coming soon.
-      </div>
-    );
-  }
-
+  const hasPackages = packages.length > 0;
   const foodSections = FOOD_MENU_SECTIONS.map((s) => ({
     ...s,
     items: foodNames(s.kind),
@@ -451,52 +445,79 @@ function VenueFullMenu({ venue }) {
 
   return (
     <div className="rounded-2xl bg-surface border border-white/10 shadow-card overflow-hidden">
-      <div className="flex border-b border-white/10">
-        {[
-          ["food", "Food Menu"],
-          ["beverages", "Beverages"],
-        ].map(([k, label]) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setTab(k)}
-            className={`flex-1 text-sm font-medium py-2.5 transition-colors ${
-              tab === k
-                ? "text-amber border-b-2 border-amber"
-                : "text-haze hover:text-ink border-b-2 border-transparent"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="p-4">
-        {tab === "food" &&
-          (foodSections.length ? (
-            <div className="flex flex-col gap-4">
-              {foodSections.map((s) => (
-                <Section key={s.kind} label={s.label} items={s.items} />
-              ))}
-            </div>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="font-display text-base font-semibold text-ink">View full menu</span>
+        <span aria-hidden className="text-lg leading-none text-haze w-5 text-center shrink-0">
+          {expanded ? "−" : "+"}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-white/10">
+          <p className="text-sm text-haze px-4 pt-3">
+            Everything this venue serves. Package-specific choices and quotas are shown on each
+            package's “Review menu”.
+          </p>
+
+          {!hasPackages ? (
+            <p className="text-sm text-haze/70 p-4">Menu details coming soon.</p>
           ) : (
-            <p className="text-sm text-haze/70">Food menu coming soon.</p>
-          ))}
-        {tab === "beverages" &&
-          (bevSections.length || alsoAvailable.length ? (
-            <div className="flex flex-col gap-4">
-              {bevSections.map((s) => (
-                <Section key={s.kind} label={s.label} items={s.items} />
-              ))}
-              {alsoAvailable.length > 0 && (
-                <div className="border-t border-white/10 pt-3">
-                  <Section label="Also available" items={alsoAvailable} />
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-haze/70">Beverage details coming soon.</p>
-          ))}
-      </div>
+            <>
+              <div className="flex border-b border-white/10 mt-3">
+                {[
+                  ["food", "Food Menu"],
+                  ["beverages", "Beverages"],
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setTab(k)}
+                    className={`flex-1 text-sm font-medium py-2.5 transition-colors ${
+                      tab === k
+                        ? "text-amber border-b-2 border-amber"
+                        : "text-haze hover:text-ink border-b-2 border-transparent"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="p-4">
+                {tab === "food" &&
+                  (foodSections.length ? (
+                    <div className="flex flex-col gap-4">
+                      {foodSections.map((s) => (
+                        <Section key={s.kind} label={s.label} items={s.items} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-haze/70">Food menu coming soon.</p>
+                  ))}
+                {tab === "beverages" &&
+                  (bevSections.length || alsoAvailable.length ? (
+                    <div className="flex flex-col gap-4">
+                      {bevSections.map((s) => (
+                        <Section key={s.kind} label={s.label} items={s.items} />
+                      ))}
+                      {alsoAvailable.length > 0 && (
+                        <div className="border-t border-white/10 pt-3">
+                          <Section label="Also available" items={alsoAvailable} />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-haze/70">Beverage details coming soon.</p>
+                  ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -615,7 +636,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
         <button
           type="button"
           onClick={() => window.print()}
-          className="border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-stone-50"
+          className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition"
         >
           Download
         </button>
@@ -623,7 +644,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
           <button
             type="button"
             onClick={onFinalize}
-            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg"
+            className="border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-stone-50"
           >
             Finalize your menu
           </button>
@@ -793,6 +814,7 @@ export default function App() {
   const [cancelReason, setCancelReason] = useState(""); // editable reason text sent to the DB
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [menuSummaryCollapsed, setMenuSummaryCollapsed] = useState({}); // { [bookingId]: true } — "Your menu" summary hidden; expanded by default
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [selectedCity, setSelectedCity] = useState(null);
@@ -2121,11 +2143,6 @@ export default function App() {
             <p className="text-ink/90 mb-6">{selectedVenue.description}</p>
             <h2 className="font-display text-xl font-semibold mb-3">Unlimited packages</h2>
 
-            <p className="font-display text-base font-semibold text-ink mb-1">View full menu</p>
-            <p className="text-sm text-haze mb-3">
-              Everything this venue serves. Package-specific choices and quotas are shown on each
-              package's “Review menu”.
-            </p>
             <VenueFullMenu venue={selectedVenue} />
 
             <div className="flex flex-col gap-3 mt-8">
@@ -2687,30 +2704,47 @@ export default function App() {
                           </button>
                         )}
 
-                        {stage === 3 && (
-                          <div className="mt-3 border border-white/10 rounded-xl p-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-semibold text-haze">
-                                Your menu
-                              </p>
-                              {!menuLocked(b) && (
+                        {stage === 3 && (() => {
+                          const menuShown = !menuSummaryCollapsed[b.id];
+                          return (
+                            <div className="mt-3 border border-white/10 rounded-xl p-3">
+                              <div className="flex items-center justify-between mb-1 gap-3">
                                 <button
                                   type="button"
-                                  onClick={() => openFinalize(b, { editing: true })}
-                                  className="text-xs font-medium text-amber hover:brightness-110"
+                                  aria-expanded={menuShown}
+                                  onClick={() =>
+                                    setMenuSummaryCollapsed((m) => ({ ...m, [b.id]: menuShown }))
+                                  }
+                                  className="flex items-center gap-1.5 text-xs font-semibold text-haze hover:text-ink"
                                 >
-                                  Edit menu
+                                  <span aria-hidden className="w-3 text-center text-sm leading-none">
+                                    {menuShown ? "−" : "+"}
+                                  </span>
+                                  Your menu
                                 </button>
+                                {!menuLocked(b) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openFinalize(b, { editing: true })}
+                                    className="text-xs font-medium text-amber hover:brightness-110"
+                                  >
+                                    Edit menu
+                                  </button>
+                                )}
+                              </div>
+                              {menuShown && (
+                                <>
+                                  <MenuSummary booking={b} />
+                                  {menuLocked(b) && (
+                                    <p className="text-xs text-haze/80 mt-2">
+                                      Menu changes are locked within 48 hours of your event, so the venue can prepare.
+                                    </p>
+                                  )}
+                                </>
                               )}
                             </div>
-                            <MenuSummary booking={b} />
-                            {menuLocked(b) && (
-                              <p className="text-xs text-haze/80 mt-2">
-                                Menu changes are locked within 48 hours of your event, so the venue can prepare.
-                              </p>
-                            )}
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {b.status === "confirmed" && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3">
