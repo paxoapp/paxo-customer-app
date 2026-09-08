@@ -678,63 +678,80 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   );
   return (
     <div className="receipt-print bg-white text-stone-900 rounded-xl">
-      <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
-      <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
+      {/* Short on-screen preview: five data points + a download button, no
+          scrolling needed. Hidden when printing — the full receipt below takes
+          over for the PDF. */}
+      <div className="print:hidden">
+        <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
+        <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
 
-      <Row k="Venue" v={b.venues?.name} />
-      <Row k="Package" v={b.venue_packages?.name} />
-      <Row
-        k="Event"
-        v={[fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join("   ")}
-      />
-      <Row k="Guests" v={b.headcount} />
+        <Row k="Venue" v={b.venues?.name} />
+        <Row k="Package" v={b.venue_packages?.name} />
+        <Row k="Event date" v={fmtDate(b.event_date)} />
+        <Row k="Amount paid" v={inr(amountPaid)} />
 
-      <div className="h-3" />
-      <Row k="Deposit tier" v={tierLabel} />
-      <Row k="Amount paid" v={inr(amountPaid)} />
-      <Row k="Total package amount" v={inr(total)} />
-      {total > 0 && b.venue_packages && (
-        b.venue_packages.gst_mode === "excluded" ? (
-          <p className="text-xs text-stone-500 py-1.5">
-            Amounts are exclusive of GST; the total payable is unchanged.
-          </p>
-        ) : (
-          (() => {
-            const { pct, base, gst } = gstSplit(total, b.venue_packages);
-            return (
-              <>
-                <Row k="— Base (excl. GST)" v={inr(base)} />
-                <Row k={`— GST (${pct}%)`} v={inr(gst)} />
-              </>
-            );
-          })()
-        )
-      )}
-      <Row k="Remaining balance (payable at venue)" v={inr(remaining)} />
-      <Row k="Payment reference" v={paymentRef} />
-
-      <div className="h-3" />
-      <Row k="Name" v={b.contact_name} />
-      <Row k="Mobile" v={b.contact_mobile} />
-      <Row k="Email" v={b.contact_email} />
-
-      <div className="no-print flex flex-wrap gap-2 mt-5">
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition"
-        >
-          Download
-        </button>
-        {b.status === "confirmed" && !b.menu_finalized_at && (
+        <div className="flex flex-wrap gap-2 mt-5">
           <button
             type="button"
-            onClick={onFinalize}
-            className="border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-stone-50"
+            onClick={() => window.print()}
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition"
           >
-            Finalize your menu
+            Download for full details
           </button>
+          {b.status === "confirmed" && !b.menu_finalized_at && (
+            <button
+              type="button"
+              onClick={onFinalize}
+              className="border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-stone-50"
+            >
+              Finalize your menu
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Full receipt: present in the DOM but only rendered when printing /
+          downloading. The @media print rules format this into a single page. */}
+      <div className="hidden print:block">
+        <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
+        <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
+
+        <Row k="Venue" v={b.venues?.name} />
+        <Row k="Package" v={b.venue_packages?.name} />
+        <Row
+          k="Event"
+          v={[fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join("   ")}
+        />
+        <Row k="Guests" v={b.headcount} />
+
+        <div className="h-3" />
+        <Row k="Deposit tier" v={tierLabel} />
+        <Row k="Amount paid" v={inr(amountPaid)} />
+        <Row k="Total package amount" v={inr(total)} />
+        {total > 0 && b.venue_packages && (
+          b.venue_packages.gst_mode === "excluded" ? (
+            <p className="text-xs text-stone-500 py-1.5">
+              Amounts are exclusive of GST; the total payable is unchanged.
+            </p>
+          ) : (
+            (() => {
+              const { pct, base, gst } = gstSplit(total, b.venue_packages);
+              return (
+                <>
+                  <Row k="— Base (excl. GST)" v={inr(base)} />
+                  <Row k={`— GST (${pct}%)`} v={inr(gst)} />
+                </>
+              );
+            })()
+          )
         )}
+        <Row k="Remaining balance (payable at venue)" v={inr(remaining)} />
+        <Row k="Payment reference" v={paymentRef} />
+
+        <div className="h-3" />
+        <Row k="Name" v={b.contact_name} />
+        <Row k="Mobile" v={b.contact_mobile} />
+        <Row k="Email" v={b.contact_email} />
       </div>
     </div>
   );
