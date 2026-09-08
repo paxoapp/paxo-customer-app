@@ -2655,6 +2655,13 @@ export default function App() {
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
+                        {stage === 1 && b.partner_disclosure_note && (
+                          <div className="mt-3 border border-amber/40 bg-amber/10 rounded-xl p-3">
+                            <p className="text-xs font-semibold text-amber mb-1">Note from the venue</p>
+                            <p className="text-sm text-ink whitespace-pre-wrap">{b.partner_disclosure_note}</p>
+                          </div>
+                        )}
+
                         {b.status === "pending" && (
                           cancelId === b.id ? (
                             <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03] flex flex-col gap-2">
