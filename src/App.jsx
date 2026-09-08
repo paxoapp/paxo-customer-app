@@ -697,6 +697,11 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
       clone.style.display = "block";
       clone.style.width = "540px";
       clone.style.padding = "24px";
+      // The clone is reparented onto <body>, which sets a near-white theme text
+      // color; without this the heading (which has no explicit color) renders
+      // invisibly on the white PDF page.
+      clone.style.color = "#1c1917";
+      clone.style.background = "#ffffff";
       holder = document.createElement("div");
       holder.style.cssText = "position:fixed;left:-10000px;top:0;background:#ffffff";
       holder.appendChild(clone);
@@ -770,8 +775,8 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
       {/* Full receipt: present in the DOM but hidden on screen. "View Full
           Receipt" clones this block and renders it to a PDF; the @media print
           rules still format it for a direct browser print. */}
-      <div ref={fullRef} className="hidden print:block">
-        <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
+      <div ref={fullRef} className="hidden print:block text-stone-900">
+        <h2 className="font-display text-xl font-semibold text-stone-900">Booking confirmation receipt</h2>
         <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
 
         <Row k="Venue" v={b.venues?.name} />
