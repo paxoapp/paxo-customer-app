@@ -980,6 +980,8 @@ export default function App() {
   const [cancelReason, setCancelReason] = useState(""); // editable reason text sent to the DB
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [disclosureBusy, setDisclosureBusy] = useState(null); // `${bookingId}:${response}` while saving
+  const [disclosureError, setDisclosureError] = useState({}); // { [bookingId]: message }
   const [menuSummaryCollapsed, setMenuSummaryCollapsed] = useState({}); // { [bookingId]: true } — "Your menu" summary hidden; expanded by default
   const [bookingsTab, setBookingsTab] = useState("all"); // My requests status filter
 
@@ -1240,6 +1242,30 @@ export default function App() {
       setCancelError(e.message || "Couldn't cancel the request. Please try again.");
     } finally {
       setCancelBusy(false);
+    }
+  }
+
+  // Customer's response to a partner-disclosed venue conflict. "approved" keeps
+  // the booking accepted and unlocks payment; "declined" is turned into a
+  // rejection by a DB trigger (with a clear rejection_reason).
+  async function respondToDisclosure(booking, response) {
+    setDisclosureBusy(`${booking.id}:${response}`);
+    setDisclosureError((m) => ({ ...m, [booking.id]: "" }));
+    try {
+      await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
+        method: "PATCH",
+        token: session.token,
+        prefer: "return=minimal",
+        body: { disclosure_response: response },
+      });
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setDisclosureError((m) => ({
+        ...m,
+        [booking.id]: e.message || "Couldn't save your response. Please try again.",
+      }));
+    } finally {
+      setDisclosureBusy(null);
     }
   }
 
@@ -2694,6 +2720,10 @@ export default function App() {
                   : b.booking_feedback || null;
                 const draft = fbDraft[b.id] || { rating: 0, comment: "" };
                 const whenLine = [fmtDate(b.event_date), b.slot, fmtTime(b.event_time)].filter(Boolean).join("   ");
+                // Partner disclosed a same-date venue conflict and the customer
+                // hasn't approved/declined yet — hold payment until they do.
+                const needsDisclosureResponse =
+                  stage === 1 && !!b.partner_disclosure_note && !b.disclosure_response;
 
                 return (
                   <div key={b.id} className="rounded-2xl p-4 bg-surface border border-white/10 shadow-card">
@@ -2739,6 +2769,38 @@ export default function App() {
                           <div className="mt-3 border border-amber/40 bg-amber/10 rounded-xl p-3">
                             <p className="text-xs font-semibold text-amber mb-1">Note from the venue</p>
                             <p className="text-sm text-ink whitespace-pre-wrap">{b.partner_disclosure_note}</p>
+                            {needsDisclosureResponse && (
+                              <div className="mt-3 flex flex-col gap-2 items-start">
+                                <p className="text-xs text-haze">
+                                  Let the venue know before you pay:
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={!!disclosureBusy}
+                                    onClick={() => respondToDisclosure(b, "approved")}
+                                    className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                  >
+                                    {disclosureBusy === `${b.id}:approved`
+                                      ? "Saving…"
+                                      : "Approve — proceed to pay"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!!disclosureBusy}
+                                    onClick={() => respondToDisclosure(b, "declined")}
+                                    className="border border-white/15 text-haze text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:text-ink transition"
+                                  >
+                                    {disclosureBusy === `${b.id}:declined`
+                                      ? "Saving…"
+                                      : "Decline — this doesn't work for me"}
+                                  </button>
+                                </div>
+                                {disclosureError[b.id] && (
+                                  <p className="text-xs text-red-300">{disclosureError[b.id]}</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -2794,7 +2856,7 @@ export default function App() {
                           )
                         )}
 
-                        {stage === 1 && (
+                        {stage === 1 && !needsDisclosureResponse && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
                             <p className="text-xs font-semibold text-haze mb-2">
                               Booking summary
