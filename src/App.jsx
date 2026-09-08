@@ -670,6 +670,61 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   const remaining = Math.max(0, total - amountPaid);
   const tierLabel =
     b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50%" : "20%";
+  const fullRef = useRef(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
+  // Render the full receipt DOM to a real PDF and open it in a new tab so the
+  // browser's native viewer handles zoom / scroll / print / download. The tab
+  // is opened synchronously on the click (before the async work) so mobile
+  // browsers and popup blockers keep it associated with the user gesture.
+  async function viewFullReceipt() {
+    if (pdfBusy) return;
+    setPdfError("");
+    setPdfBusy(true);
+    const tab = window.open("", "_blank");
+    if (tab) {
+      tab.document.write(
+        "<title>Generating receipt…</title><body style='font:14px system-ui;padding:24px;color:#444'>Generating your receipt…</body>"
+      );
+    }
+    let holder;
+    try {
+      const { default: html2pdf } = await import("html2pdf.js");
+      // Work off a clone so nothing in the live modal shifts during capture.
+      const clone = fullRef.current.cloneNode(true);
+      clone.classList.remove("hidden");
+      clone.style.display = "block";
+      clone.style.width = "540px";
+      clone.style.padding = "24px";
+      holder = document.createElement("div");
+      holder.style.cssText = "position:fixed;left:-10000px;top:0;background:#ffffff";
+      holder.appendChild(clone);
+      document.body.appendChild(holder);
+
+      const blobUrl = await html2pdf()
+        .set({
+          margin: 10,
+          filename: `receipt-${b.booking_ref || "paxo"}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(clone)
+        .output("bloburl");
+
+      if (tab) tab.location.href = blobUrl;
+      else window.open(blobUrl, "_blank");
+    } catch (e) {
+      console.error(e);
+      if (tab) tab.close();
+      setPdfError("Couldn't generate the receipt. Please try again.");
+    } finally {
+      if (holder) document.body.removeChild(holder);
+      setPdfBusy(false);
+    }
+  }
+
   const Row = ({ k, v }) => (
     <div className="flex justify-between gap-4 py-1.5 border-b border-stone-100 text-sm">
       <span className="text-stone-500">{k}</span>
@@ -690,13 +745,15 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
         <Row k="Event date" v={fmtDate(b.event_date)} />
         <Row k="Amount paid" v={inr(amountPaid)} />
 
+        {pdfError && <p className="text-xs text-red-600 mt-3">{pdfError}</p>}
         <div className="flex flex-wrap gap-2 mt-5">
           <button
             type="button"
-            onClick={() => window.print()}
-            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition"
+            onClick={viewFullReceipt}
+            disabled={pdfBusy}
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition disabled:opacity-60"
           >
-            Download for full details
+            {pdfBusy ? "Generating…" : "View Full Receipt"}
           </button>
           {b.status === "confirmed" && !b.menu_finalized_at && (
             <button
@@ -710,9 +767,10 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
         </div>
       </div>
 
-      {/* Full receipt: present in the DOM but only rendered when printing /
-          downloading. The @media print rules format this into a single page. */}
-      <div className="hidden print:block">
+      {/* Full receipt: present in the DOM but hidden on screen. "View Full
+          Receipt" clones this block and renders it to a PDF; the @media print
+          rules still format it for a direct browser print. */}
+      <div ref={fullRef} className="hidden print:block">
         <h2 className="font-display text-xl font-semibold">Booking confirmation receipt</h2>
         <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
 
