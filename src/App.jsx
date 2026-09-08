@@ -168,7 +168,7 @@ function minPackagePrice(venue) {
 
 // Shared modal shell — same close affordances as the admin doc viewer:
 // the X button, the Esc key, and a click on the backdrop.
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, className = "" }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -183,7 +183,7 @@ function Modal({ title, onClose, children }) {
       aria-label={title}
     >
       <div
-        className="modal-card bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-white/10"
+        className={`modal-card bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-white/10 ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="no-print flex items-center justify-between px-4 py-3 border-b border-white/10">
@@ -791,9 +791,9 @@ function BookingStepper({ stage }) {
   return (
     <ol className="flex items-start mt-4">
       {BOOKING_STAGES.map((label, i) => {
-        // Stage 3 is terminal ("fully confirmed"), so every step reads as done.
-        const complete = stage === BOOKING_STAGES.length - 1;
-        const state = complete || i < stage ? "done" : i === stage ? "current" : "todo";
+        // The step the customer is on now reads as "current" (amber) — including
+        // the terminal "Confirmed" step once the booking is fully confirmed.
+        const state = i === stage ? "current" : i < stage ? "done" : "todo";
         // Gold = the step you're on now. Lavender = done or not yet reached.
         const ring =
           state === "current"
@@ -801,7 +801,7 @@ function BookingStepper({ stage }) {
             : state === "done"
             ? "bg-haze/25 text-ink border-haze/40"
             : "bg-transparent text-haze/60 border-white/15";
-        const line = complete || i < stage ? "bg-haze/40" : "bg-white/10";
+        const line = i < stage ? "bg-haze/40" : "bg-white/10";
         const text =
           state === "current" ? "text-amber font-semibold" : state === "done" ? "text-haze" : "text-haze/50";
         return (
@@ -2830,9 +2830,12 @@ export default function App() {
                                   onClick={() =>
                                     setMenuSummaryCollapsed((m) => ({ ...m, [b.id]: menuShown }))
                                   }
-                                  className="flex items-center gap-1.5 text-xs font-semibold text-haze hover:text-ink"
+                                  className="flex items-center gap-2 text-xs font-semibold text-haze hover:text-ink"
                                 >
-                                  <span aria-hidden className="w-3 text-center text-sm leading-none">
+                                  <span
+                                    aria-hidden
+                                    className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-white/15 bg-white/10 text-sm leading-none text-ink transition-colors hover:bg-amber hover:text-[#170D0B] hover:border-amber active:scale-95"
+                                  >
                                     {menuShown ? "−" : "+"}
                                   </span>
                                   Your menu
@@ -3287,7 +3290,7 @@ export default function App() {
           const amountPaid = paid.reduce((s, p) => s + Number(p.amount || 0), 0);
           const paymentRef = paid.find((p) => p.razorpay_payment_id)?.razorpay_payment_id || null;
           return (
-            <Modal title="Receipt" onClose={() => setReceiptId(null)}>
+            <Modal title="Receipt" className="receipt-modal" onClose={() => setReceiptId(null)}>
               <ReceiptBody
                 booking={b}
                 amountPaid={amountPaid}
