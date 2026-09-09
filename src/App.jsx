@@ -1048,6 +1048,8 @@ export default function App() {
   const [cancelError, setCancelError] = useState("");
   const [disclosureBusy, setDisclosureBusy] = useState(null); // `${bookingId}:${response}` while saving
   const [disclosureError, setDisclosureError] = useState({}); // { [bookingId]: message }
+  const [addonOfferBusy, setAddonOfferBusy] = useState(null); // `${addonRequestId}:${decision}` while saving
+  const [addonOfferError, setAddonOfferError] = useState({}); // { [addonRequestId]: message }
   const [menuSummaryCollapsed, setMenuSummaryCollapsed] = useState({}); // { [bookingId]: true } — "Your menu" summary hidden; expanded by default
   const [bookingsTab, setBookingsTab] = useState("all"); // My requests status filter
 
@@ -1122,7 +1124,7 @@ export default function App() {
           "payments(payment_type,status,amount,paid_at,razorpay_payment_id)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
-          "booking_addon_requests(id,addon_name,addon_description,status,price)" +
+          "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
           "&order=created_at.desc",
         { token }
       );
@@ -1334,6 +1336,31 @@ export default function App() {
       }));
     } finally {
       setDisclosureBusy(null);
+    }
+  }
+
+  // Customer's response to a venue's add-on availability/price offer.
+  // "confirmed" locks it in (paid at the venue, alongside the package);
+  // "customer_declined" removes it from the request — the rest of the
+  // booking is unaffected.
+  async function reviewAddonOffer(addonRequestId, decision) {
+    setAddonOfferBusy(`${addonRequestId}:${decision}`);
+    setAddonOfferError((m) => ({ ...m, [addonRequestId]: "" }));
+    try {
+      await sb(`/rest/v1/booking_addon_requests?id=eq.${addonRequestId}`, {
+        method: "PATCH",
+        token: session.token,
+        prefer: "return=minimal",
+        body: { status: decision },
+      });
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setAddonOfferError((m) => ({
+        ...m,
+        [addonRequestId]: e.message || "Couldn't save your response. Please try again.",
+      }));
+    } finally {
+      setAddonOfferBusy(null);
     }
   }
 
@@ -2694,41 +2721,57 @@ export default function App() {
 
               {(selectedVenue?.venue_addons || []).filter((a) => a.is_active).length > 0 && (
                 <div>
-                  <label className="text-sm font-medium block mb-2">Add-Ons (optional)</label>
+                  <label className="text-sm font-medium block mb-2">
+                    Add-Ons (optional) — choose up to 3
+                  </label>
                   <div className="flex flex-col gap-2">
                     {selectedVenue.venue_addons
                       .filter((a) => a.is_active)
-                      .map((a) => (
-                        <label
-                          key={a.id}
-                          className="flex items-start gap-2 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-0.5 accent-amber"
-                            checked={form.addon_ids.includes(a.id)}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                addon_ids: e.target.checked
-                                  ? [...form.addon_ids, a.id]
-                                  : form.addon_ids.filter((id) => id !== a.id),
-                              })
-                            }
-                          />
-                          <span>
-                            <span className="block font-medium text-ink">{a.name}</span>
-                            {a.description && (
-                              <span className="block text-xs text-haze mt-0.5">{a.description}</span>
-                            )}
-                          </span>
-                        </label>
-                      ))}
+                      .map((a) => {
+                        const isChecked = form.addon_ids.includes(a.id);
+                        const atLimit = form.addon_ids.length >= 3 && !isChecked;
+                        return (
+                          <label
+                            key={a.id}
+                            className={`flex items-start gap-2 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm ${
+                              atLimit ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 accent-amber"
+                              checked={isChecked}
+                              disabled={atLimit}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  addon_ids: e.target.checked
+                                    ? [...form.addon_ids, a.id].slice(0, 3)
+                                    : form.addon_ids.filter((id) => id !== a.id),
+                                })
+                              }
+                            />
+                            <span>
+                              <span className="block font-medium text-ink">{a.name}</span>
+                              {a.description && (
+                                <span className="block text-xs text-haze mt-0.5">{a.description}</span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
                   </div>
+                  {form.addon_ids.length >= 3 && (
+                    <p className="text-xs text-amber mt-2">
+                      You've selected the maximum of 3 add-ons. Please contact our team for proper
+                      guidance, or for anything that fits your event more professionally.
+                    </p>
+                  )}
                   <p className="text-xs text-haze/80 mt-2">
-                    Add-ons are requests, not confirmed inclusions. After your booking is finalized, our
-                    team will review each request and confirm availability and final pricing separately.
-                    Confirmed add-ons are chargeable in addition to your package price.
+                    Add-ons are requests, not confirmed inclusions. The venue will review each request and
+                    respond with availability and pricing; you'll then be asked to accept or decline before
+                    it's added. Confirmed add-ons are paid directly at the venue, in addition to your
+                    package price.
                   </p>
                 </div>
               )}
@@ -2932,22 +2975,57 @@ export default function App() {
                         {Array.isArray(b.booking_addon_requests) && b.booking_addon_requests.length > 0 && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
                             <p className="text-xs font-semibold text-haze mb-2">Add-ons requested</p>
-                            <ul className="flex flex-col gap-1.5">
+                            <ul className="flex flex-col gap-2">
                               {b.booking_addon_requests.map((a) => (
-                                <li key={a.id} className="flex justify-between items-center text-sm gap-2">
-                                  <span className="text-ink">{a.addon_name}</span>
-                                  {a.status === "confirmed" ? (
-                                    <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                                      Confirmed{a.price != null ? ` — ${inr(a.price)}` : ""}
-                                    </span>
-                                  ) : a.status === "declined" ? (
-                                    <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-red-500/15 text-red-300 border border-red-400/30">
-                                      Not available
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-amber/15 text-amber border border-amber/30">
-                                      Requested
-                                    </span>
+                                <li key={a.id} className="flex flex-col gap-1.5">
+                                  <div className="flex justify-between items-center text-sm gap-2">
+                                    <span className="text-ink">{a.addon_name}</span>
+                                    {a.status === "confirmed" ? (
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                        Confirmed{a.price != null ? ` — ${inr(a.price)}` : ""}
+                                      </span>
+                                    ) : a.status === "not_available" ? (
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-red-500/15 text-red-300 border border-red-400/30">
+                                        Not available
+                                      </span>
+                                    ) : a.status === "customer_declined" ? (
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-white/10 text-haze border border-white/15">
+                                        Declined
+                                      </span>
+                                    ) : a.status === "partner_available" ? (
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-sky-500/15 text-sky-300 border border-sky-400/30">
+                                        Available{a.price != null ? ` — ${inr(a.price)}` : ""}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-amber/15 text-amber border border-amber/30">
+                                        Requested
+                                      </span>
+                                    )}
+                                  </div>
+                                  {a.status === "partner_available" && (
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={!!addonOfferBusy}
+                                          onClick={() => reviewAddonOffer(a.id, "confirmed")}
+                                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 disabled:opacity-50"
+                                        >
+                                          {addonOfferBusy === `${a.id}:confirmed` ? "Accepting…" : "Accept — pay at venue"}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={!!addonOfferBusy}
+                                          onClick={() => reviewAddonOffer(a.id, "customer_declined")}
+                                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/5 text-haze border border-white/15 disabled:opacity-50"
+                                        >
+                                          {addonOfferBusy === `${a.id}:customer_declined` ? "Declining…" : "Decline"}
+                                        </button>
+                                      </div>
+                                      {addonOfferError[a.id] && (
+                                        <p className="text-xs text-red-300">{addonOfferError[a.id]}</p>
+                                      )}
+                                    </div>
                                   )}
                                 </li>
                               ))}
