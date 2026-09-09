@@ -129,6 +129,15 @@ function depositPreview(headcount, hrsToEvent) {
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
+// The actual per-head price a customer pays, after any partner-set offer.
+// This mirrors the server-side compute_booking_total() trigger exactly, so
+// what's shown here always matches what the booking total ends up being.
+const effectivePricePerHead = (pkg) => {
+  const price = Number(pkg?.price_per_head || 0);
+  const pct = Number(pkg?.discount_percent || 0);
+  return pct > 0 ? Math.round(price * (1 - pct / 100) * 100) / 100 : price;
+};
+
 // Label-only GST view. `price_per_head` is authoritative and never changes — for
 // "included" packages we just break the amount into base + GST for transparency
 // (18% when the package has alcohol, 5% for food-only, CA-confirmed). "excluded"
@@ -142,7 +151,7 @@ function gstSplit(amount, pkg) {
 
 // Compact GST breakdown line for a per-head package price.
 function GstLine({ pkg, className = "text-xs text-haze/80" }) {
-  const price = Number(pkg?.price_per_head || 0);
+  const price = effectivePricePerHead(pkg);
   if (!price) return null;
   if (pkg?.gst_mode === "excluded") {
     return (
@@ -203,7 +212,7 @@ const POOL_QUOTA_KINDS = ["single_malt", "whisky", "vodka", "gin", "rum", "beer"
 // Lowest price among a venue's published packages (RLS only returns published
 // packages to customers), or null if it has none.
 function minPackagePrice(venue) {
-  const prices = (venue?.venue_packages || []).map((p) => Number(p.price_per_head));
+  const prices = (venue?.venue_packages || []).map((p) => effectivePricePerHead(p));
   return prices.length ? Math.min(...prices) : null;
 }
 
@@ -412,10 +421,26 @@ function ReviewMenuBody({ pkg, venue }) {
       {Number(pkg?.price_per_head) > 0 && (
         <div className="mb-5">
           <h3 className="font-display text-base font-semibold text-ink mb-2">Pricing</h3>
-          <p className="text-sm text-ink font-medium">{inr(pkg.price_per_head)} / head</p>
+          {pkg.discount_percent > 0 ? (
+            <p className="text-sm font-medium">
+              <span className="line-through text-haze/60 mr-2">{inr(pkg.price_per_head)}</span>
+              <span className="text-ink">{inr(effectivePricePerHead(pkg))} / head</span>{" "}
+              <span className="text-emerald-600 font-semibold text-xs">({pkg.discount_percent}% off)</span>
+            </p>
+          ) : (
+            <p className="text-sm text-ink font-medium">{inr(pkg.price_per_head)} / head</p>
+          )}
           <GstLine pkg={pkg} className="text-xs text-haze/80 mt-1" />
         </div>
       )}
+
+      <div className="mb-5">
+        <h3 className="font-display text-base font-semibold text-ink mb-2">DJ</h3>
+        <p className="text-sm text-ink">
+          {pkg.includes_dj ? "DJ & sound system included with this package." : "DJ not included with this package."}
+        </p>
+        {pkg.dj_notes && <p className="text-sm text-haze/80 mt-1">{pkg.dj_notes}</p>}
+      </div>
 
       {foodKinds.length > 0 && (
         <div className="mb-5">
@@ -1092,7 +1117,7 @@ export default function App() {
       const data = await sb(
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
-          "venue_packages(name,price_per_head,includes_alcohol,gst_mode,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
+          "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
           "payments(payment_type,status,amount,paid_at,razorpay_payment_id)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)" +
@@ -1780,7 +1805,8 @@ export default function App() {
   const headcountNum = maleNum + femaleNum;
   const preview = headcountNum > 0 ? depositPreview(headcountNum, hrs) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
-  const totalPreview = selectedPackage && headcountNum ? selectedPackage.price_per_head * headcountNum : 0;
+  const totalPreview =
+    selectedPackage && headcountNum ? effectivePricePerHead(selectedPackage) * headcountNum : 0;
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
@@ -1795,7 +1821,7 @@ export default function App() {
   };
 
   const cheapestPrice = (v) =>
-    v.venue_packages?.length ? Math.min(...v.venue_packages.map((p) => p.price_per_head)) : Infinity;
+    v.venue_packages?.length ? Math.min(...v.venue_packages.map((p) => effectivePricePerHead(p))) : Infinity;
 
   const visibleVenues = venues
     .filter((v) => !selectedCity || v.city === selectedCity)
@@ -2432,7 +2458,26 @@ export default function App() {
                     <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                    <p className="font-semibold text-amber">{inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span></p>
+                    {p.discount_percent > 0 ? (
+                      <p className="font-semibold text-amber text-right">
+                        <span className="line-through text-haze/50 font-normal text-xs block">
+                          {inr(p.price_per_head)}
+                        </span>
+                        {inr(effectivePricePerHead(p))} <span className="text-haze font-normal text-xs">/ head</span>
+                        <span className="block text-emerald-500 font-semibold text-xs">
+                          {p.discount_percent}% off
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="font-semibold text-amber">
+                        {inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span>
+                      </p>
+                    )}
+                    {p.includes_dj && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300">
+                        DJ included
+                      </span>
+                    )}
                     <button
                       className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                       onClick={() => selectPackage(p)}
@@ -2468,7 +2513,9 @@ export default function App() {
               </p>
               <div className="flex justify-between text-xs text-haze pt-2 border-t border-white/10">
                 <span>{selectedPackage?.name}</span>
-                <span className="text-amber font-semibold">{inr(selectedPackage?.price_per_head || 0)} / person</span>
+                <span className="text-amber font-semibold">
+                  {inr(effectivePricePerHead(selectedPackage))} / person
+                </span>
               </div>
             </div>
 
@@ -2628,7 +2675,19 @@ export default function App() {
                   <h3 className="font-display font-semibold text-ink mb-2">Booking summary</h3>
                   <div className="flex justify-between mb-1">
                     <span className="text-haze">{selectedPackage?.name} × {headcountNum} guests</span>
-                    <span className="text-haze">{inr(selectedPackage?.price_per_head || 0)} / head</span>
+                    <span className="text-haze">
+                      {selectedPackage?.discount_percent > 0 && (
+                        <span className="line-through text-haze/50 mr-1">
+                          {inr(selectedPackage.price_per_head)}
+                        </span>
+                      )}
+                      {inr(effectivePricePerHead(selectedPackage))} / head
+                      {selectedPackage?.discount_percent > 0 && (
+                        <span className="text-emerald-500 font-semibold ml-1">
+                          ({selectedPackage.discount_percent}% off)
+                        </span>
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
