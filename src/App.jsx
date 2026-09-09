@@ -129,6 +129,18 @@ function depositPreview(headcount, hrsToEvent) {
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
+// Google Maps directions link for a venue. Prefers stored coordinates (exact);
+// falls back to the address/area/city text when coordinates aren't set yet.
+// Google Maps handles the customer's current location and the real distance
+// itself once they open it — we don't need to ask for location permission here.
+const directionsUrl = (v) => {
+  const destination =
+    v.latitude != null && v.longitude != null
+      ? `${v.latitude},${v.longitude}`
+      : [v.address, v.area, v.city].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+};
+
 // The actual per-head price a customer pays, after any partner-set offer.
 // This mirrors the server-side compute_booking_total() trigger exactly, so
 // what's shown here always matches what the booking total ends up being.
@@ -2363,10 +2375,21 @@ export default function App() {
                       )}
                       <div className="absolute bottom-0 left-0 right-0 p-3">
                         <h3 className="font-display text-lg font-semibold text-ink leading-tight">{v.name}</h3>
-                        <p className="text-xs text-haze">
-                          {v.area ? `${v.area}, ` : ""}
-                          {v.city}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs text-haze">
+                            {v.area ? `${v.area}, ` : ""}
+                            {v.city}
+                          </p>
+                          <a
+                            href={directionsUrl(v)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[11px] font-medium text-amber hover:underline shrink-0"
+                          >
+                            📍 Directions
+                          </a>
+                        </div>
                         {minPackagePrice(v) != null && (
                           <p className="text-sm font-semibold text-amber mt-0.5">
                             From {inr(minPackagePrice(v))} / head
