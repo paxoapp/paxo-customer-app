@@ -2719,62 +2719,75 @@ export default function App() {
                 />
               </div>
 
-              {(selectedVenue?.venue_addons || []).filter((a) => a.is_active).length > 0 && (
-                <div>
-                  <label className="text-sm font-medium block mb-2">
-                    Add-Ons (optional) — choose up to 3
-                  </label>
-                  <div className="flex flex-col gap-2">
-                    {selectedVenue.venue_addons
-                      .filter((a) => a.is_active)
-                      .map((a) => {
-                        const isChecked = form.addon_ids.includes(a.id);
-                        const atLimit = form.addon_ids.length >= 3 && !isChecked;
-                        return (
-                          <label
+              {(selectedVenue?.venue_addons || []).filter((a) => a.is_active).length > 0 && (() => {
+                const activeAddons = selectedVenue.venue_addons.filter((a) => a.is_active);
+                const selectedAddons = form.addon_ids
+                  .map((id) => activeAddons.find((a) => a.id === id))
+                  .filter(Boolean);
+                const remainingOptions = activeAddons.filter((a) => !form.addon_ids.includes(a.id));
+                const atLimit = form.addon_ids.length >= 3;
+                return (
+                  <div>
+                    <label className="text-sm font-medium block mb-2">
+                      Add-Ons (optional) — choose up to 3
+                    </label>
+                    {!atLimit && remainingOptions.length > 0 && (
+                      <Select
+                        ariaLabel="Add an add-on"
+                        className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
+                        value=""
+                        onChange={(v) => {
+                          if (!v) return;
+                          setForm({
+                            ...form,
+                            addon_ids: [...form.addon_ids, v].slice(0, 3),
+                          });
+                        }}
+                        options={[
+                          { value: "", label: "Select an add-on to include" },
+                          ...remainingOptions.map((a) => ({ value: a.id, label: a.name })),
+                        ]}
+                      />
+                    )}
+                    {selectedAddons.length > 0 && (
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        {selectedAddons.map((a) => (
+                          <div
                             key={a.id}
-                            className={`flex items-start gap-2 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm ${
-                              atLimit ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
-                            }`}
+                            className="flex justify-between items-center gap-2 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm"
                           >
-                            <input
-                              type="checkbox"
-                              className="mt-0.5 accent-amber"
-                              checked={isChecked}
-                              disabled={atLimit}
-                              onChange={(e) =>
+                            <span className="text-ink">{a.name}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
                                 setForm({
                                   ...form,
-                                  addon_ids: e.target.checked
-                                    ? [...form.addon_ids, a.id].slice(0, 3)
-                                    : form.addon_ids.filter((id) => id !== a.id),
+                                  addon_ids: form.addon_ids.filter((id) => id !== a.id),
                                 })
                               }
-                            />
-                            <span>
-                              <span className="block font-medium text-ink">{a.name}</span>
-                              {a.description && (
-                                <span className="block text-xs text-haze mt-0.5">{a.description}</span>
-                              )}
-                            </span>
-                          </label>
-                        );
-                      })}
-                  </div>
-                  {form.addon_ids.length >= 3 && (
-                    <p className="text-xs text-amber mt-2">
-                      You've selected the maximum of 3 add-ons. Please contact our team for proper
-                      guidance, or for anything that fits your event more professionally.
+                              className="text-xs font-medium text-haze hover:text-ink shrink-0"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {atLimit && (
+                      <p className="text-xs text-amber mt-2">
+                        You've selected the maximum of 3 add-ons. Please contact our team for proper
+                        guidance, or for anything that fits your event more professionally.
+                      </p>
+                    )}
+                    <p className="text-xs text-haze/80 mt-2">
+                      Add-ons are requests, not confirmed inclusions. The venue will review each request and
+                      respond with availability and pricing; you'll then be asked to accept or decline before
+                      it's added. Confirmed add-ons are paid directly at the venue, in addition to your
+                      package price.
                     </p>
-                  )}
-                  <p className="text-xs text-haze/80 mt-2">
-                    Add-ons are requests, not confirmed inclusions. The venue will review each request and
-                    respond with availability and pricing; you'll then be asked to accept or decline before
-                    it's added. Confirmed add-ons are paid directly at the venue, in addition to your
-                    package price.
-                  </p>
-                </div>
-              )}
+                  </div>
+                );
+              })()}
 
               {headcountNum > 0 && (
                 <div className="bg-surface border border-white/10 rounded-2xl p-4 text-sm">
