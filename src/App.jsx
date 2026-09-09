@@ -1082,6 +1082,7 @@ export default function App() {
     male_count: "",
     female_count: "",
     special_request: "",
+    addon_ids: [],
     ack: false,
     tc_agree: false,
   });
@@ -1093,7 +1094,7 @@ export default function App() {
     setVenuesLoading(true);
     try {
       const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available))&status=eq.approved&order=created_at.desc"
+        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active)&status=eq.approved&order=created_at.desc"
       );
       setVenues(data);
     } catch (e) {
@@ -1120,7 +1121,8 @@ export default function App() {
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
           "payments(payment_type,status,amount,paid_at,razorpay_payment_id)," +
           "booking_feedback(id,rating,comment,status)," +
-          "booking_menu_selections(menu_item_id)" +
+          "booking_menu_selections(menu_item_id)," +
+          "booking_addon_requests(id,addon_name,addon_description,status,price)" +
           "&order=created_at.desc",
         { token }
       );
@@ -1708,6 +1710,7 @@ export default function App() {
       male_count: "",
       female_count: "",
       special_request: "",
+      addon_ids: [],
       ack: false,
       tc_agree: false,
     });
@@ -1791,6 +1794,25 @@ export default function App() {
           special_request: form.special_request.trim() || null,
         },
       });
+      if (form.addon_ids.length > 0) {
+        const chosenAddons = (selectedVenue.venue_addons || []).filter((a) =>
+          form.addon_ids.includes(a.id)
+        );
+        if (chosenAddons.length > 0) {
+          // Add-on requests are best-effort: never block the booking itself if this fails.
+          await sb("/rest/v1/booking_addon_requests", {
+            method: "POST",
+            token: session.token,
+            prefer: "return=minimal",
+            body: chosenAddons.map((a) => ({
+              booking_id: row.id,
+              venue_addon_id: a.id,
+              addon_name: a.name,
+              addon_description: a.description || null,
+            })),
+          }).catch((err) => console.error("Add-on request failed:", err));
+        }
+      }
       setSubmitted(row);
     } catch (e) {
       setSubmitError(e.message);
@@ -2670,6 +2692,47 @@ export default function App() {
                 />
               </div>
 
+              {(selectedVenue?.venue_addons || []).filter((a) => a.is_active).length > 0 && (
+                <div>
+                  <label className="text-sm font-medium block mb-2">Add-Ons (optional)</label>
+                  <div className="flex flex-col gap-2">
+                    {selectedVenue.venue_addons
+                      .filter((a) => a.is_active)
+                      .map((a) => (
+                        <label
+                          key={a.id}
+                          className="flex items-start gap-2 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 accent-amber"
+                            checked={form.addon_ids.includes(a.id)}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                addon_ids: e.target.checked
+                                  ? [...form.addon_ids, a.id]
+                                  : form.addon_ids.filter((id) => id !== a.id),
+                              })
+                            }
+                          />
+                          <span>
+                            <span className="block font-medium text-ink">{a.name}</span>
+                            {a.description && (
+                              <span className="block text-xs text-haze mt-0.5">{a.description}</span>
+                            )}
+                          </span>
+                        </label>
+                      ))}
+                  </div>
+                  <p className="text-xs text-haze/80 mt-2">
+                    Add-ons are requests, not confirmed inclusions. After your booking is finalized, our
+                    team will review each request and confirm availability and final pricing separately.
+                    Confirmed add-ons are chargeable in addition to your package price.
+                  </p>
+                </div>
+              )}
+
               {headcountNum > 0 && (
                 <div className="bg-surface border border-white/10 rounded-2xl p-4 text-sm">
                   <h3 className="font-display font-semibold text-ink mb-2">Booking summary</h3>
@@ -2728,6 +2791,7 @@ export default function App() {
                   <li>The remaining balance is paid directly to the venue at the event.</li>
                   <li>Express Bookings (made under 72 hours before the event) require full payment and cannot be cancelled.</li>
                   <li>Cancellations 72+ hours before the event are refunded minus a flat ₹2,000 admin fee; later cancellations forfeit more of the deposit to the venue.</li>
+                  <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
                 </ul>
               </div>
               <label className="flex items-start gap-2 text-sm text-ink">
@@ -2864,6 +2928,32 @@ export default function App() {
                       <>
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
+
+                        {Array.isArray(b.booking_addon_requests) && b.booking_addon_requests.length > 0 && (
+                          <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
+                            <p className="text-xs font-semibold text-haze mb-2">Add-ons requested</p>
+                            <ul className="flex flex-col gap-1.5">
+                              {b.booking_addon_requests.map((a) => (
+                                <li key={a.id} className="flex justify-between items-center text-sm gap-2">
+                                  <span className="text-ink">{a.addon_name}</span>
+                                  {a.status === "confirmed" ? (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                      Confirmed{a.price != null ? ` — ${inr(a.price)}` : ""}
+                                    </span>
+                                  ) : a.status === "declined" ? (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-red-500/15 text-red-300 border border-red-400/30">
+                                      Not available
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-amber/15 text-amber border border-amber/30">
+                                      Requested
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
                         {stage === 1 && b.partner_disclosure_note && (
                           <div className="mt-3 border border-amber/40 bg-amber/10 rounded-xl p-3">
