@@ -2197,7 +2197,8 @@ export default function App() {
     <div className="min-h-screen bg-base text-ink pb-20 sm:pb-0">
       <header className="bg-base/90 backdrop-blur border-b border-white/10 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-baseline gap-2 cursor-pointer" onClick={() => setScreen("browse")}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setScreen("browse")}>
+            <img src="/paxo-icon.png" alt="" className="h-8 w-8 rounded-lg" />
             <span className="font-display text-2xl font-bold tracking-tight text-ink">Paxo</span>
             <span className="text-xs text-haze hidden sm:inline">venue bookings</span>
           </div>
