@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MapPin, CalendarCheck, User } from "lucide-react";
+import { MapPin, CalendarCheck, User, Sparkles } from "lucide-react";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -226,6 +226,235 @@ const POOL_QUOTA_KINDS = ["single_malt", "whisky", "vodka", "gin", "rum", "beer"
 function minPackagePrice(venue) {
   const prices = (venue?.venue_packages || []).map((p) => effectivePricePerHead(p));
   return prices.length ? Math.min(...prices) : null;
+}
+
+// --- "Find my venue" quiz -------------------------------------------------
+// Rough occasion → venue-type affinity, used only to nudge quiz ranking
+// (partner-set venue_type is free text, so this is a soft hint, never a
+// hard filter — a venue with no matching type can still be a top result).
+const OCCASION_VENUE_HINTS = {
+  Birthday: ["Nightclub", "Lounge", "Bar", "Rooftop"],
+  "Bachelor / Bachelorette": ["Nightclub", "Lounge", "Bar"],
+  Anniversary: ["Lounge", "Rooftop", "Courtyard", "Resort"],
+  "Corporate Event": ["Banquet Hall", "Cafe", "Restaurant"],
+  "Engagement / Pre-Wedding": ["Banquet Hall", "Resort", "Courtyard", "Lawn"],
+  Farewell: ["Cafe", "Restaurant", "Lounge"],
+  "Get Together": ["Cafe", "Lounge", "Restaurant", "Bar"],
+  "Kitty Party": ["Cafe", "Lounge", "Restaurant"],
+  "Private Party": ["Lounge", "Nightclub", "Bar", "Resort"],
+  Other: [],
+};
+
+const QUIZ_GUEST_BANDS = [
+  { label: "Up to 50", min: 1, max: 50 },
+  { label: "50 – 150", min: 50, max: 150 },
+  { label: "150 – 300", min: 150, max: 300 },
+  { label: "300+", min: 300, max: 5000 },
+];
+
+const QUIZ_BUDGET_BANDS = [
+  { label: "Under ₹1,000/head", min: 0, max: 1000 },
+  { label: "₹1,000 – ₹2,000/head", min: 1000, max: 2000 },
+  { label: "₹2,000 – ₹3,500/head", min: 2000, max: 3500 },
+  { label: "₹3,500+/head", min: 3500, max: 1000000 },
+  { label: "No budget limit", min: 0, max: Infinity },
+];
+
+const QUIZ_STEPS = ["occasion", "city", "guests", "budget"];
+
+// Pure ranking function — runs entirely client-side against the venues
+// already loaded for browsing, no server round-trip and nothing to pay for.
+function matchVenuesToQuiz(venues, answers) {
+  const { occasion, city, guestBand, budgetBand } = answers;
+  const hints = OCCASION_VENUE_HINTS[occasion] || [];
+  const guests = QUIZ_GUEST_BANDS.find((b) => b.label === guestBand);
+  const budget = QUIZ_BUDGET_BANDS.find((b) => b.label === budgetBand);
+
+  const candidates = [];
+  for (const v of venues || []) {
+    if (city && v.city !== city) continue;
+    const pkgs = v.venue_packages || [];
+    if (!pkgs.length) continue;
+
+    let best = null;
+    for (const p of pkgs) {
+      const price = effectivePricePerHead(p);
+      let score = 50;
+      const reasons = [];
+
+      if (guests) {
+        const min = p.min_headcount || 1;
+        const max = p.max_headcount || 99999;
+        if (guests.min >= min && guests.max <= max) {
+          score += 25;
+          reasons.push(`fits ${guests.label.toLowerCase()} guests`);
+        } else if (guests.min <= max && guests.max >= min) {
+          score += 10;
+        } else {
+          score -= 20;
+        }
+      }
+
+      if (budget) {
+        if (price <= budget.max && price >= budget.min) {
+          score += 25;
+          reasons.push("within your budget");
+        } else if (price < budget.min) {
+          score += 15;
+          reasons.push("under your budget");
+        } else if (Number.isFinite(budget.max)) {
+          const overPct = (price - budget.max) / Math.max(budget.max, 1);
+          score -= Math.min(35, Math.round(overPct * 40));
+        }
+      }
+
+      if (hints.length && v.venue_type) {
+        const vt = v.venue_type.toLowerCase();
+        if (hints.some((h) => vt.includes(h.toLowerCase()))) {
+          score += 15;
+          reasons.push(`popular for ${occasion.toLowerCase()}`);
+        }
+      }
+
+      if (v.is_verified) score += 5;
+
+      if (!best || score > best.score) best = { pkg: p, score, price, reasons };
+    }
+    if (best) candidates.push({ venue: v, ...best });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, 3);
+}
+
+function VenueQuiz({ venues, bookingTypes, cities, onClose, onViewVenue }) {
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState({ occasion: "", city: "", guestBand: "", budgetBand: "" });
+  const [results, setResults] = useState(null);
+
+  const occasionOptions = bookingTypes?.length ? bookingTypes.map((t) => t.name) : Object.keys(OCCASION_VENUE_HINTS);
+
+  function choose(key, value) {
+    const next = { ...answers, [key]: value };
+    setAnswers(next);
+    if (step < QUIZ_STEPS.length - 1) {
+      setStep(step + 1);
+    } else {
+      setResults(matchVenuesToQuiz(venues, next));
+    }
+  }
+
+  function restart() {
+    setAnswers({ occasion: "", city: "", guestBand: "", budgetBand: "" });
+    setStep(0);
+    setResults(null);
+  }
+
+  const chip =
+    "text-sm px-3 py-1.5 rounded-full border border-white/15 text-haze hover:text-ink hover:border-amber/50 transition-colors";
+
+  return (
+    <Modal title="Find my venue" onClose={onClose}>
+      <div className="p-5 flex flex-col gap-4">
+        {results ? (
+          <>
+            <p className="text-sm text-haze">
+              {results.length ? "Here's what fits best:" : "Couldn't find a close match — try different answers."}
+            </p>
+            <div className="flex flex-col gap-3">
+              {results.map(({ venue, pkg, price, reasons }) => (
+                <button
+                  key={venue.id}
+                  type="button"
+                  onClick={() => onViewVenue(venue)}
+                  className="text-left rounded-2xl border border-white/10 bg-white/5 hover:border-amber/50 transition-colors p-4"
+                >
+                  <p className="font-display font-semibold text-ink">{venue.name}</p>
+                  <p className="text-xs text-haze mb-1">{[venue.area, venue.city].filter(Boolean).join(", ")}</p>
+                  <p className="text-sm text-amber font-semibold">
+                    {pkg.name} — {inr(price)}/head
+                  </p>
+                  {reasons.length > 0 && <p className="text-xs text-haze/80 mt-1">{reasons.join(" • ")}</p>}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="text-sm text-haze hover:text-ink self-start" onClick={restart}>
+              ← Start over
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5 mb-1">
+              {QUIZ_STEPS.map((s, i) => (
+                <span key={s} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-amber" : "bg-white/10"}`} />
+              ))}
+            </div>
+
+            {step === 0 && (
+              <>
+                <p className="font-display text-lg font-semibold">What's the occasion?</p>
+                <div className="flex flex-wrap gap-2">
+                  {occasionOptions.map((o) => (
+                    <button key={o} type="button" className={chip} onClick={() => choose("occasion", o)}>
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step === 1 && (
+              <>
+                <p className="font-display text-lg font-semibold">Which city?</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={chip} onClick={() => choose("city", "")}>
+                    Any city
+                  </button>
+                  {(cities || []).map((c) => (
+                    <button key={c} type="button" className={chip} onClick={() => choose("city", c)}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step === 2 && (
+              <>
+                <p className="font-display text-lg font-semibold">How many guests?</p>
+                <div className="flex flex-wrap gap-2">
+                  {QUIZ_GUEST_BANDS.map((b) => (
+                    <button key={b.label} type="button" className={chip} onClick={() => choose("guestBand", b.label)}>
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step === 3 && (
+              <>
+                <p className="font-display text-lg font-semibold">What's your budget?</p>
+                <div className="flex flex-wrap gap-2">
+                  {QUIZ_BUDGET_BANDS.map((b) => (
+                    <button key={b.label} type="button" className={chip} onClick={() => choose("budgetBand", b.label)}>
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step > 0 && (
+              <button type="button" className="text-sm text-haze hover:text-ink self-start" onClick={() => setStep(step - 1)}>
+                ← Back
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
 }
 
 // Shared modal shell — same close affordances as the admin doc viewer:
@@ -1069,6 +1298,7 @@ export default function App() {
   const [selectedCity, setSelectedCity] = useState(null);
   const [priceSort, setPriceSort] = useState(""); // '' | 'asc' | 'desc'
   const CITIES = ["Delhi", "Gurugram", "Noida", "Dehradun", "Punjab"];
+  const [quizOpen, setQuizOpen] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -3759,6 +3989,30 @@ export default function App() {
             </Modal>
           );
         })()}
+
+      {screen !== "auth" && screen !== "setNewPassword" && venues.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setQuizOpen(true)}
+          className="fixed z-30 right-5 bottom-24 sm:bottom-6 bg-amber text-[#170D0B] rounded-full pl-4 pr-5 py-3 text-sm font-semibold shadow-hero flex items-center gap-2"
+        >
+          <Sparkles size={16} strokeWidth={2.5} />
+          Find my venue
+        </button>
+      )}
+
+      {quizOpen && (
+        <VenueQuiz
+          venues={venues}
+          bookingTypes={bookingTypes}
+          cities={CITIES}
+          onClose={() => setQuizOpen(false)}
+          onViewVenue={(v) => {
+            setQuizOpen(false);
+            openVenue(v);
+          }}
+        />
+      )}
 
       {session && (
         <nav
