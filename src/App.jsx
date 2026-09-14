@@ -89,31 +89,40 @@ function hoursUntil(dateStr, timeStr) {
   return (target.getTime() - Date.now()) / (1000 * 60 * 60);
 }
 
-// Deposit tier is headcount-only — timing no longer plays any part. Up to 200
-// guests the customer picks 20% or 50% (`chosenTier`); above 200, 50% is
-// mandatory. Mirrors the server's compute_booking_financials trigger exactly.
-function depositPreview(headcount, chosenTier) {
-  if (headcount > 200) {
-    return {
-      tier: "50% deposit",
-      pct: 0.5,
-      locked: true,
-      reason: "Bookings over 200 guests require a 50% deposit — this isn't optional at this size.",
-    };
-  }
-  if (chosenTier === "50pct") {
-    return {
-      tier: "50% deposit",
-      pct: 0.5,
-      locked: false,
-      reason: "You've chosen a 50% deposit now — the remaining balance is paid directly to the venue at the event.",
-    };
-  }
+// Same style as the partner app's own response-window countdown.
+function minutesLeft(deadline) {
+  if (!deadline) return null;
+  return Math.round((new Date(deadline).getTime() - Date.now()) / 60000);
+}
+
+// Booking Type is computed once from hours-to-event at request time and
+// locked permanently server-side (compute_booking_financials) — no customer
+// choice anywhere. This mirrors that same computation for the client preview.
+const BOOKING_TYPE_LABELS = { standard: "Standard", secure: "Secure", instant: "Instant" };
+const BOOKING_TYPE_DEPOSIT_TIER = { standard: "20pct", secure: "50pct", instant: "50pct" };
+
+function bookingTypeFor(hrsToEvent) {
+  if (hrsToEvent === null || hrsToEvent === undefined) return null;
+  if (hrsToEvent > 168) return "standard";
+  if (hrsToEvent > 48) return "secure";
+  return "instant";
+}
+
+function depositPreview(hrsToEvent) {
+  const bookingType = bookingTypeFor(hrsToEvent);
+  if (!bookingType) return null;
+  const tier = BOOKING_TYPE_DEPOSIT_TIER[bookingType];
+  const reasons = {
+    standard: "More than 7 days before the event — booked as Standard, a 20% deposit secures it now.",
+    secure: "Between 2 and 7 days before the event — booked as Secure, a 50% deposit secures it now.",
+    instant: "48 hours or less before the event — booked as Instant, a 50% deposit secures it now.",
+  };
   return {
-    tier: "20% deposit",
-    pct: 0.2,
-    locked: false,
-    reason: "You've chosen a 20% deposit now — the remaining balance is paid directly to the venue at the event.",
+    bookingType,
+    bookingTypeLabel: BOOKING_TYPE_LABELS[bookingType],
+    tier: tier === "50pct" ? "50% deposit" : "20% deposit",
+    pct: tier === "50pct" ? 0.5 : 0.2,
+    reason: reasons[bookingType],
   };
 }
 
@@ -1243,7 +1252,6 @@ export default function App() {
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
-  const [payTierChoice, setPayTierChoice] = useState({}); // { [bookingId]: '20pct' | '50pct' } — payment-time override of deposit_tier
   const [otpBusyId, setOtpBusyId] = useState(null);
   const [otpError, setOtpError] = useState({}); // keyed by booking id
   const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
@@ -1303,7 +1311,6 @@ export default function App() {
     female_count: "",
     special_request: "",
     addon_ids: [],
-    deposit_tier: "20pct", // customer's choice; ignored server-side above 200 guests
     tc_agree: false,
   });
   const [submitError, setSubmitError] = useState("");
@@ -1354,7 +1361,7 @@ export default function App() {
 
   // Razorpay Checkout. `paymentType` is "deposit" or "full"; the amount is
   // computed server-side by create-razorpay-order — never sent from here.
-  async function startPayment(booking, paymentType, depositTier) {
+  async function startPayment(booking, paymentType) {
     setPayAckId(null);
     setPayError((m) => ({ ...m, [booking.id]: "" }));
     setPayingBookingId(booking.id);
@@ -1365,7 +1372,6 @@ export default function App() {
       const order = await callFn("create-razorpay-order", session.token, {
         booking_id: booking.id,
         payment_type: paymentType,
-        ...(paymentType === "deposit" && depositTier ? { deposit_tier: depositTier } : {}),
       });
 
       const rzp = new window.Razorpay({
@@ -1967,7 +1973,6 @@ export default function App() {
       female_count: "",
       special_request: "",
       addon_ids: [],
-      deposit_tier: "20pct",
       tc_agree: false,
     });
     setSubmitError("");
@@ -2044,7 +2049,6 @@ export default function App() {
           contact_mobile: form.contact_mobile.trim(),
           contact_email: form.contact_email.trim(),
           special_request: form.special_request.trim() || null,
-          deposit_tier: headcount > 200 ? "50pct" : form.deposit_tier,
         },
       });
       if (form.addon_ids.length > 0) {
@@ -2078,7 +2082,7 @@ export default function App() {
   const maleNum = parseInt(form.male_count, 10) || 0;
   const femaleNum = parseInt(form.female_count, 10) || 0;
   const headcountNum = maleNum + femaleNum;
-  const preview = headcountNum > 0 ? depositPreview(headcountNum, form.deposit_tier) : null;
+  const preview = headcountNum > 0 && hrs !== null ? depositPreview(hrs) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
   const totalPreview =
     selectedPackage && headcountNum ? effectivePricePerHead(selectedPackage) * headcountNum : 0;
@@ -2660,6 +2664,27 @@ export default function App() {
                 👋 A friend thought you'd like {selectedVenue.name}.
               </p>
             )}
+            {selectedVenue.on_hold && (
+              <div className="border border-red-400/40 bg-red-500/10 rounded-xl px-4 py-3 mb-4">
+                <p className="text-sm font-semibold text-red-200">
+                  This venue isn't currently accepting new booking requests
+                </p>
+                <p className="text-xs text-red-200/80 mt-1">
+                  You can still browse its packages and menu below. Check back later, or explore
+                  other venues in the meantime.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCity(selectedVenue.city || "");
+                    setScreen("browse");
+                  }}
+                  className="text-xs font-medium text-red-200 underline mt-2"
+                >
+                  Browse other venues in {selectedVenue.city || "your area"}
+                </button>
+              </div>
+            )}
             <div className="h-60 mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512]">
               <img
                 src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
@@ -2776,7 +2801,8 @@ export default function App() {
                       </p>
                     )}
                     <button
-                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
+                      disabled={selectedVenue.on_hold}
+                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
                       onClick={() => selectPackage(p)}
                     >
                       Select package
@@ -3037,7 +3063,7 @@ export default function App() {
                 );
               })()}
 
-              {headcountNum > 0 && (
+              {headcountNum > 0 && preview && (
                 <div className="bg-surface border border-white/10 rounded-2xl p-4 text-sm">
                   <h3 className="font-display font-semibold text-ink mb-2">Booking summary</h3>
                   <div className="flex justify-between mb-1">
@@ -3057,35 +3083,6 @@ export default function App() {
                     </span>
                   </div>
 
-                  {headcountNum <= 200 ? (
-                    <div className="mb-3 pb-3 border-b border-white/10">
-                      <p className="text-xs text-haze mb-1.5">Choose your deposit</p>
-                      <div className="flex gap-2">
-                        {[
-                          ["20pct", "20% now"],
-                          ["50pct", "50% now"],
-                        ].map(([val, label]) => (
-                          <button
-                            key={val}
-                            type="button"
-                            onClick={() => setForm({ ...form, deposit_tier: val })}
-                            className={`flex-1 text-xs font-medium rounded-xl px-3 py-2 border transition ${
-                              form.deposit_tier === val
-                                ? "bg-amber text-[#170D0B] border-amber"
-                                : "border-white/15 text-haze hover:text-ink"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber mb-3 pb-3 border-b border-white/10">
-                      Bookings over 200 guests require a 50% deposit.
-                    </p>
-                  )}
-
                   <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
                     <span className="text-amber">{inr(totalPreview)}</span>
@@ -3101,16 +3098,25 @@ export default function App() {
               <div className="border border-white/10 bg-white/[0.03] rounded-2xl p-4 text-xs text-haze max-h-32 overflow-y-auto">
                 <p className="font-semibold text-ink mb-1">Booking terms &amp; conditions</p>
                 <ul className="list-disc pl-4 flex flex-col gap-1">
-                  <li>The venue has up to 2 hours to accept or reject your request.</li>
                   <li>
-                    Deposit payment window: 4 hours after acceptance normally, 30 minutes if the
-                    event is within 48 hours.
+                    Your booking type depends on how far out the event is: Standard (7+ days) —
+                    20% deposit; Secure (2–7 days) — 50% deposit; Instant (48 hours or less) — 50%
+                    deposit.
+                  </li>
+                  <li>
+                    The venue has up to 4 hours to accept or reject a Standard request, 2 hours
+                    for Secure, or 30 minutes for Instant.
+                  </li>
+                  <li>
+                    Deposit payment window after acceptance: 4 hours for Standard and Secure, 2
+                    hours for Instant. Missing it releases the booking at no penalty to you.
                   </li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
                   <li>
-                    Cancellation refunds (on the PAXO-collected deposit only): more than 72 hours
-                    before the event — 100% refund. 48–72 hours before — 50% refund. Less than 48
-                    hours before, or no-show — 0% refund.
+                    Cancellation refunds (on the PAXO-collected deposit only) — Standard: 100% if
+                    72+ hours before the event, 50% if 48–72 hours, 0% under 48 hours or no-show.
+                    Secure: 100% if 96+ hours before, 50% if 72–96 hours, 0% under 72 hours or
+                    no-show. Instant: always 0% refund.
                   </li>
                   <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
                 </ul>
@@ -3196,15 +3202,9 @@ export default function App() {
                 const paidDeposit = paid.some((p) => p.payment_type === "deposit");
                 const anyPaid = paid.length > 0;
                 const partialPaid = paidDeposit && !paidFull; // balance still owed at venue
-                // Deposit-only now — there's no full-payment-upfront path. `full` can only be a
-                // pre-policy-change legacy value (guarded defensively; none live as of 2026-09-14).
-                // Above 200 guests the 50% tier is mandatory (server-enforced) — no choice to offer.
-                const canChooseTier = b.deposit_tier !== "full" && Number(b.headcount) <= 200;
-                const chosenTier = canChooseTier ? payTierChoice[b.id] || b.deposit_tier : b.deposit_tier;
-                const pct = tierPercent(chosenTier);
-                const chosenDepositAmount = canChooseTier
-                  ? Math.round(Number(b.total_amount) * (pct / 100) * 100) / 100
-                  : Number(b.deposit_amount);
+                // deposit_tier is fixed by booking_type at request creation — no customer
+                // choice, no payment-time switching.
+                const pct = tierPercent(b.deposit_tier);
                 const stage = bookingStage(b);
                 const rejected = b.status === "rejected";
                 const fb = Array.isArray(b.booking_feedback)
@@ -3440,9 +3440,9 @@ export default function App() {
                               </div>
                               <div className="flex justify-between gap-4 border-t border-white/10 pt-1 mt-1">
                                 <dt className="text-haze">
-                                  {chosenTier === "full" ? "Full payment" : chosenTier === "50pct" ? "50% deposit" : "20% deposit"} due now
+                                  {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
                                 </dt>
-                                <dd className="font-semibold text-amber">{inr(anyPaid ? b.deposit_amount : chosenDepositAmount)}</dd>
+                                <dd className="font-semibold text-amber">{inr(b.deposit_amount)}</dd>
                               </div>
                             </dl>
 
@@ -3456,37 +3456,24 @@ export default function App() {
                               </button>
                             ) : (
                               <div className="mt-3 flex flex-col gap-2 items-start">
-                                {canChooseTier && (
-                                  <div className="flex gap-2 w-full">
-                                    {[
-                                      ["20pct", "20%"],
-                                      ["50pct", "50%"],
-                                    ].map(([val, label]) => (
-                                      <button
-                                        key={val}
-                                        type="button"
-                                        onClick={() => {
-                                          setPayTierChoice((m) => ({ ...m, [b.id]: val }));
-                                          setPayAckId(null);
-                                        }}
-                                        className={`flex-1 text-xs font-medium rounded-xl px-3 py-2 border transition ${
-                                          chosenTier === val
-                                            ? "bg-amber text-[#170D0B] border-amber"
-                                            : "border-white/15 text-haze hover:text-ink"
-                                        }`}
-                                      >
-                                        Pay {label} now
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
+                                {(() => {
+                                  const payMins = minutesLeft(b.payment_deadline);
+                                  if (payMins === null) return null;
+                                  return (
+                                    <p className={`text-xs ${payMins < 30 ? "text-red-300 font-medium" : "text-haze"}`}>
+                                      {payMins > 0
+                                        ? `Pay within ${payMins} min or this booking is released`
+                                        : "Payment window passed — this booking has been released"}
+                                    </p>
+                                  );
+                                })()}
                                 <button
                                   type="button"
                                   disabled={payingBookingId === b.id}
                                   onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
                                   className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                 >
-                                  {`Pay ${pct}% now — ${inr(chosenDepositAmount)}`}
+                                  {`Pay ${pct}% now — ${inr(b.deposit_amount)}`}
                                 </button>
                                 {payAckId === b.id && (
                                   <div className="border border-amber/30 bg-amber/10 rounded-xl p-3 w-full">
@@ -3498,7 +3485,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       disabled={payingBookingId === b.id}
-                                      onClick={() => startPayment(b, "deposit", canChooseTier ? chosenTier : undefined)}
+                                      onClick={() => startPayment(b, "deposit")}
                                       className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
                                       {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
