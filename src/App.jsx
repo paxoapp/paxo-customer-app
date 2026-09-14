@@ -2711,6 +2711,7 @@ export default function App() {
                       const quotas = [...(p.menu_quota_rules || [])].sort((a, b) =>
                         a.category_kind.localeCompare(b.category_kind)
                       );
+                      const food = quotas.filter((q) => FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const bev = quotas.filter((q) => !FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const line = (q) => (
                         <>
@@ -2719,19 +2720,31 @@ export default function App() {
                         </>
                       );
                       return (
-                        (bev.length > 0 || p.inclusions?.length > 0) && (
-                          <div className="mt-3">
-                            <p className="text-xs font-semibold text-ink mb-0.5">Beverages</p>
-                            <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
-                              {bev.map((q) => (
-                                <li key={q.id}>{line(q)}</li>
-                              ))}
-                              {(p.inclusions || []).map((inc, i) => (
-                                <li key={`inc-${i}`}>{inc}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )
+                        <>
+                          {food.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-ink mb-0.5">Food</p>
+                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
+                                {food.map((q) => (
+                                  <li key={q.id}>{line(q)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {(bev.length > 0 || p.inclusions?.length > 0) && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-ink mb-0.5">Beverages</p>
+                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
+                                {bev.map((q) => (
+                                  <li key={q.id}>{line(q)}</li>
+                                ))}
+                                {(p.inclusions || []).map((inc, i) => (
+                                  <li key={`inc-${i}`}>{inc}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
                     <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
