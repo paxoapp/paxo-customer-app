@@ -1243,6 +1243,7 @@ export default function App() {
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
+  const [payTierChoice, setPayTierChoice] = useState({}); // { [bookingId]: '20pct' | '50pct' } — payment-time override of deposit_tier
   const [otpBusyId, setOtpBusyId] = useState(null);
   const [otpError, setOtpError] = useState({}); // keyed by booking id
   const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
@@ -1353,7 +1354,7 @@ export default function App() {
 
   // Razorpay Checkout. `paymentType` is "deposit" or "full"; the amount is
   // computed server-side by create-razorpay-order — never sent from here.
-  async function startPayment(booking, paymentType) {
+  async function startPayment(booking, paymentType, depositTier) {
     setPayAckId(null);
     setPayError((m) => ({ ...m, [booking.id]: "" }));
     setPayingBookingId(booking.id);
@@ -1364,6 +1365,7 @@ export default function App() {
       const order = await callFn("create-razorpay-order", session.token, {
         booking_id: booking.id,
         payment_type: paymentType,
+        ...(paymentType === "deposit" && depositTier ? { deposit_tier: depositTier } : {}),
       });
 
       const rzp = new window.Razorpay({
@@ -2709,7 +2711,6 @@ export default function App() {
                       const quotas = [...(p.menu_quota_rules || [])].sort((a, b) =>
                         a.category_kind.localeCompare(b.category_kind)
                       );
-                      const food = quotas.filter((q) => FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const bev = quotas.filter((q) => !FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const line = (q) => (
                         <>
@@ -2718,31 +2719,19 @@ export default function App() {
                         </>
                       );
                       return (
-                        <>
-                          {food.length > 0 && (
-                            <div className="mt-3">
-                              <p className="text-xs font-semibold text-ink mb-0.5">Food</p>
-                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
-                                {food.map((q) => (
-                                  <li key={q.id}>{line(q)}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {(bev.length > 0 || p.inclusions?.length > 0) && (
-                            <div className="mt-3">
-                              <p className="text-xs font-semibold text-ink mb-0.5">Beverages</p>
-                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
-                                {bev.map((q) => (
-                                  <li key={q.id}>{line(q)}</li>
-                                ))}
-                                {(p.inclusions || []).map((inc, i) => (
-                                  <li key={`inc-${i}`}>{inc}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </>
+                        (bev.length > 0 || p.inclusions?.length > 0) && (
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold text-ink mb-0.5">Beverages</p>
+                            <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
+                              {bev.map((q) => (
+                                <li key={q.id}>{line(q)}</li>
+                              ))}
+                              {(p.inclusions || []).map((inc, i) => (
+                                <li key={`inc-${i}`}>{inc}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )
                       );
                     })()}
                     <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
@@ -3189,8 +3178,14 @@ export default function App() {
                 const paidDeposit = paid.some((p) => p.payment_type === "deposit");
                 const anyPaid = paid.length > 0;
                 const partialPaid = paidDeposit && !paidFull; // balance still owed at venue
-                const pct = tierPercent(b.deposit_tier);
                 const canSplit = b.deposit_tier !== "full"; // full-payment tiers have no partial option
+                // Above 200 guests the 50% tier is mandatory (server-enforced) — no choice to offer.
+                const canChooseTier = canSplit && Number(b.headcount) <= 200;
+                const chosenTier = canChooseTier ? payTierChoice[b.id] || b.deposit_tier : b.deposit_tier;
+                const pct = tierPercent(chosenTier);
+                const chosenDepositAmount = canChooseTier
+                  ? Math.round(Number(b.total_amount) * (pct / 100) * 100) / 100
+                  : Number(b.deposit_amount);
                 const stage = bookingStage(b);
                 const rejected = b.status === "rejected";
                 const fb = Array.isArray(b.booking_feedback)
@@ -3426,9 +3421,9 @@ export default function App() {
                               </div>
                               <div className="flex justify-between gap-4 border-t border-white/10 pt-1 mt-1">
                                 <dt className="text-haze">
-                                  {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
+                                  {chosenTier === "full" ? "Full payment" : chosenTier === "50pct" ? "50% deposit" : "20% deposit"} due now
                                 </dt>
-                                <dd className="font-semibold text-amber">{inr(b.deposit_amount)}</dd>
+                                <dd className="font-semibold text-amber">{inr(anyPaid ? b.deposit_amount : chosenDepositAmount)}</dd>
                               </div>
                             </dl>
 
@@ -3442,6 +3437,30 @@ export default function App() {
                               </button>
                             ) : (
                               <div className="mt-3 flex flex-col gap-2 items-start">
+                                {canChooseTier && (
+                                  <div className="flex gap-2 w-full">
+                                    {[
+                                      ["20pct", "20%"],
+                                      ["50pct", "50%"],
+                                    ].map(([val, label]) => (
+                                      <button
+                                        key={val}
+                                        type="button"
+                                        onClick={() => {
+                                          setPayTierChoice((m) => ({ ...m, [b.id]: val }));
+                                          setPayAckId(null);
+                                        }}
+                                        className={`flex-1 text-xs font-medium rounded-xl px-3 py-2 border transition ${
+                                          chosenTier === val
+                                            ? "bg-amber text-[#170D0B] border-amber"
+                                            : "border-white/15 text-haze hover:text-ink"
+                                        }`}
+                                      >
+                                        Pay {label} now
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 {canSplit && (
                                   <>
                                     <button
@@ -3450,7 +3469,7 @@ export default function App() {
                                       onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
                                       className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
-                                      {`Pay ${pct}% now — ${inr(b.deposit_amount)}`}
+                                      {`Pay ${pct}% now — ${inr(chosenDepositAmount)}`}
                                     </button>
                                     {payAckId === b.id && (
                                       <div className="border border-amber/30 bg-amber/10 rounded-xl p-3 w-full">
@@ -3462,7 +3481,7 @@ export default function App() {
                                         <button
                                           type="button"
                                           disabled={payingBookingId === b.id}
-                                          onClick={() => startPayment(b, "deposit")}
+                                          onClick={() => startPayment(b, "deposit", canChooseTier ? chosenTier : undefined)}
                                           className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                         >
                                           {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
