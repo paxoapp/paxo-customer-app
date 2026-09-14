@@ -3178,9 +3178,10 @@ export default function App() {
                 const paidDeposit = paid.some((p) => p.payment_type === "deposit");
                 const anyPaid = paid.length > 0;
                 const partialPaid = paidDeposit && !paidFull; // balance still owed at venue
-                const canSplit = b.deposit_tier !== "full"; // full-payment tiers have no partial option
+                // Deposit-only now — there's no full-payment-upfront path. `full` can only be a
+                // pre-policy-change legacy value (guarded defensively; none live as of 2026-09-14).
                 // Above 200 guests the 50% tier is mandatory (server-enforced) — no choice to offer.
-                const canChooseTier = canSplit && Number(b.headcount) <= 200;
+                const canChooseTier = b.deposit_tier !== "full" && Number(b.headcount) <= 200;
                 const chosenTier = canChooseTier ? payTierChoice[b.id] || b.deposit_tier : b.deposit_tier;
                 const pct = tierPercent(chosenTier);
                 const chosenDepositAmount = canChooseTier
@@ -3461,47 +3462,31 @@ export default function App() {
                                     ))}
                                   </div>
                                 )}
-                                {canSplit && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={payingBookingId === b.id}
-                                      onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
-                                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
-                                    >
-                                      {`Pay ${pct}% now — ${inr(chosenDepositAmount)}`}
-                                    </button>
-                                    {payAckId === b.id && (
-                                      <div className="border border-amber/30 bg-amber/10 rounded-xl p-3 w-full">
-                                        <p className="text-sm text-ink">
-                                          The remaining {100 - pct}% is payable directly to the venue at
-                                          the event — please arrive at least 30 minutes early to complete
-                                          this and check in.
-                                        </p>
-                                        <button
-                                          type="button"
-                                          disabled={payingBookingId === b.id}
-                                          onClick={() => startPayment(b, "deposit", canChooseTier ? chosenTier : undefined)}
-                                          className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
-                                        >
-                                          {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
-                                        </button>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
                                 <button
                                   type="button"
                                   disabled={payingBookingId === b.id}
-                                  onClick={() => startPayment(b, "full")}
-                                  className={`text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 transition ${
-                                    canSplit
-                                      ? "border border-white/15 text-haze hover:text-ink"
-                                      : "bg-amber text-[#170D0B] hover:brightness-110"
-                                  }`}
+                                  onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
+                                  className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                 >
-                                  {payingBookingId === b.id ? "Opening…" : `Pay in full now — ${inr(b.total_amount)}`}
+                                  {`Pay ${pct}% now — ${inr(chosenDepositAmount)}`}
                                 </button>
+                                {payAckId === b.id && (
+                                  <div className="border border-amber/30 bg-amber/10 rounded-xl p-3 w-full">
+                                    <p className="text-sm text-ink">
+                                      The remaining {100 - pct}% is payable directly to the venue at
+                                      the event — please arrive at least 30 minutes early to complete
+                                      this and check in.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      disabled={payingBookingId === b.id}
+                                      onClick={() => startPayment(b, "deposit", canChooseTier ? chosenTier : undefined)}
+                                      className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+                                    >
+                                      {payingBookingId === b.id ? "Opening…" : `I understand — pay ${pct}% now`}
+                                    </button>
+                                  </div>
+                                )}
                                 {payError[b.id] && (
                                   <p className="text-xs text-red-300">{payError[b.id]}</p>
                                 )}
