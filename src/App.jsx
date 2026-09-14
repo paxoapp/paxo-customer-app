@@ -626,7 +626,6 @@ function ReviewMenuBody({ pkg, venue }) {
     pkg.menu_quota_rules?.find((q) => q.category_kind === kind)?.quota_count;
   const poolIds = new Set((pkg.package_item_pool || []).map((r) => r.menu_item_id));
 
-  const foodKinds = FOOD_QUOTA_KINDS.filter((k) => quotaFor(k));
   const drinkKinds = POOL_QUOTA_KINDS.filter((k) => quotaFor(k));
   const terms = (venue?.terms_and_conditions || "").trim();
 
@@ -654,8 +653,7 @@ function ReviewMenuBody({ pkg, venue }) {
     </div>
   );
 
-  const nothing =
-    foodKinds.length === 0 && drinkKinds.length === 0 && !pkg.inclusions?.length;
+  const nothing = drinkKinds.length === 0 && !pkg.inclusions?.length;
 
   return (
     <div>
@@ -672,31 +670,6 @@ function ReviewMenuBody({ pkg, venue }) {
             <p className="text-sm text-ink font-medium">{inr(pkg.price_per_head)} / head</p>
           )}
           <GstLine pkg={pkg} className="text-xs text-haze/80 mt-1" />
-        </div>
-      )}
-
-      <div className="mb-5">
-        <h3 className="font-display text-base font-semibold text-ink mb-2">DJ</h3>
-        <p className="text-sm text-ink">
-          {pkg.includes_dj ? "DJ & sound system included with this package." : "DJ not included with this package."}
-        </p>
-        {pkg.dj_notes && <p className="text-sm text-haze/80 mt-1">{pkg.dj_notes}</p>}
-      </div>
-
-      {foodKinds.length > 0 && (
-        <div className="mb-5">
-          <h3 className="font-display text-base font-semibold text-ink mb-2">Food</h3>
-          <ul className="flex flex-col gap-1 text-sm text-ink">
-            {foodKinds.map((k) => (
-              <li key={k}>
-                Choose <span className="text-amber font-semibold">{quotaFor(k)}</span>{" "}
-                {quotaLabel(k, quotaFor(k))}
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-haze/80 mt-2">
-            You'll pick your exact dishes after booking, in Finalize Your Menu.
-          </p>
         </div>
       )}
 
@@ -2759,6 +2732,11 @@ export default function App() {
                       );
                     })()}
                     <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
+                    <p
+                      className={`text-xs mt-2 ${p.includes_dj ? "text-indigo-300" : "text-haze/60"}`}
+                    >
+                      {p.includes_dj ? "🎧 DJ & sound system included" : "DJ not included with this package"}
+                    </p>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
                     {p.discount_percent > 0 ? (
@@ -2776,11 +2754,6 @@ export default function App() {
                         {inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span>
                       </p>
                     )}
-                    {p.includes_dj && (
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300">
-                        DJ included
-                      </span>
-                    )}
                     <button
                       className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                       onClick={() => selectPackage(p)}
@@ -2789,7 +2762,7 @@ export default function App() {
                     </button>
                     <button
                       type="button"
-                      className="border border-white/15 text-haze hover:text-ink text-sm px-4 py-2 rounded-xl"
+                      className="border border-amber/50 text-amber font-medium hover:bg-amber/10 text-sm px-4 py-2 rounded-xl transition"
                       onClick={() => setReviewPkg(p)}
                     >
                       Review menu
@@ -3079,7 +3052,7 @@ export default function App() {
                   <p className="font-semibold text-red-200 mb-1">This is an express booking</p>
                   <p className="text-red-200/80 mb-3">
                     Your event is less than 72 hours away. If accepted, full payment is required
-                    immediately and this booking cannot be cancelled once confirmed.
+                    immediately. Cancellation refunds follow the standard policy below.
                   </p>
                   <label className="flex items-start gap-2 text-red-200">
                     <input
@@ -3088,7 +3061,7 @@ export default function App() {
                       checked={form.ack}
                       onChange={(e) => setForm({ ...form, ack: e.target.checked })}
                     />
-                    <span>I understand this booking is non-cancellable and requires full payment upfront.</span>
+                    <span>I understand this booking requires full payment upfront.</span>
                   </label>
                 </div>
               )}
@@ -3097,10 +3070,16 @@ export default function App() {
                 <p className="font-semibold text-ink mb-1">Booking terms &amp; conditions</p>
                 <ul className="list-disc pl-4 flex flex-col gap-1">
                   <li>The venue has up to 2 hours to accept or reject your request.</li>
-                  <li>Your deposit is due immediately once the venue accepts.</li>
+                  <li>
+                    Deposit payment window: 4 hours after acceptance normally, 30 minutes if the
+                    event is within 48 hours.
+                  </li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
-                  <li>Express Bookings (made under 72 hours before the event) require full payment and cannot be cancelled.</li>
-                  <li>Cancellations 72+ hours before the event are refunded minus a flat ₹2,000 admin fee; later cancellations forfeit more of the deposit to the venue.</li>
+                  <li>
+                    Cancellation refunds (on the PAXO-collected deposit only): more than 72 hours
+                    before the event — 100% refund. 48–72 hours before — 50% refund. Less than 48
+                    hours before, or no-show — 0% refund.
+                  </li>
                   <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
                 </ul>
               </div>
@@ -3302,7 +3281,7 @@ export default function App() {
 
                         {stage === 1 && b.partner_disclosure_note && (
                           <div className="mt-3 border border-amber/40 bg-amber/10 rounded-xl p-3">
-                            <p className="text-xs font-semibold text-amber mb-1">Note from the venue</p>
+                            <p className="text-xs font-semibold text-amber mb-1">Before you pay: heads up from the venue</p>
                             <p className="text-sm text-ink whitespace-pre-wrap">{b.partner_disclosure_note}</p>
                             {needsDisclosureResponse && (
                               <div className="mt-3 flex flex-col gap-2 items-start">
