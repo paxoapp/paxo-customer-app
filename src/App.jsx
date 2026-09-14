@@ -89,40 +89,31 @@ function hoursUntil(dateStr, timeStr) {
   return (target.getTime() - Date.now()) / (1000 * 60 * 60);
 }
 
-function depositPreview(headcount, hrsToEvent) {
-  if (hrsToEvent !== null && hrsToEvent < 72) {
-    return {
-      tier: "Full payment",
-      pct: 1,
-      bookingCategory: "Express Booking",
-      reason:
-        "Your event is less than 72 hours away, so this is booked as an Express Booking — full payment is required upfront because the venue has very little lead time to prepare.",
-    };
-  }
-  if (headcount <= 100) {
-    return {
-      tier: "20% deposit",
-      pct: 0.2,
-      bookingCategory: "Advance Booking",
-      reason:
-        "This is an Advance Booking for up to 100 guests, so only a 20% deposit is needed now to secure the venue — the remaining balance is paid directly to the venue at the event.",
-    };
-  }
-  if (headcount <= 300) {
+// Deposit tier is headcount-only — timing no longer plays any part. Up to 200
+// guests the customer picks 20% or 50% (`chosenTier`); above 200, 50% is
+// mandatory. Mirrors the server's compute_booking_financials trigger exactly.
+function depositPreview(headcount, chosenTier) {
+  if (headcount > 200) {
     return {
       tier: "50% deposit",
       pct: 0.5,
-      bookingCategory: "Advance Booking",
-      reason:
-        "This is an Advance Booking for 101–300 guests, so a 50% deposit is needed now to secure the venue — the remaining balance is paid directly to the venue at the event.",
+      locked: true,
+      reason: "Bookings over 200 guests require a 50% deposit — this isn't optional at this size.",
+    };
+  }
+  if (chosenTier === "50pct") {
+    return {
+      tier: "50% deposit",
+      pct: 0.5,
+      locked: false,
+      reason: "You've chosen a 50% deposit now — the remaining balance is paid directly to the venue at the event.",
     };
   }
   return {
-    tier: "Full payment",
-    pct: 1,
-    bookingCategory: "Advance Booking",
-    reason:
-      "This is an Advance Booking for 300+ guests, so full payment is required upfront given the size of the event.",
+    tier: "20% deposit",
+    pct: 0.2,
+    locked: false,
+    reason: "You've chosen a 20% deposit now — the remaining balance is paid directly to the venue at the event.",
   };
 }
 
@@ -626,7 +617,6 @@ function ReviewMenuBody({ pkg, venue }) {
     pkg.menu_quota_rules?.find((q) => q.category_kind === kind)?.quota_count;
   const poolIds = new Set((pkg.package_item_pool || []).map((r) => r.menu_item_id));
 
-  const foodKinds = FOOD_QUOTA_KINDS.filter((k) => quotaFor(k));
   const drinkKinds = POOL_QUOTA_KINDS.filter((k) => quotaFor(k));
   const terms = (venue?.terms_and_conditions || "").trim();
 
@@ -654,8 +644,7 @@ function ReviewMenuBody({ pkg, venue }) {
     </div>
   );
 
-  const nothing =
-    foodKinds.length === 0 && drinkKinds.length === 0 && !pkg.inclusions?.length;
+  const nothing = drinkKinds.length === 0 && !pkg.inclusions?.length;
 
   return (
     <div>
@@ -672,31 +661,6 @@ function ReviewMenuBody({ pkg, venue }) {
             <p className="text-sm text-ink font-medium">{inr(pkg.price_per_head)} / head</p>
           )}
           <GstLine pkg={pkg} className="text-xs text-haze/80 mt-1" />
-        </div>
-      )}
-
-      <div className="mb-5">
-        <h3 className="font-display text-base font-semibold text-ink mb-2">DJ</h3>
-        <p className="text-sm text-ink">
-          {pkg.includes_dj ? "DJ & sound system included with this package." : "DJ not included with this package."}
-        </p>
-        {pkg.dj_notes && <p className="text-sm text-haze/80 mt-1">{pkg.dj_notes}</p>}
-      </div>
-
-      {foodKinds.length > 0 && (
-        <div className="mb-5">
-          <h3 className="font-display text-base font-semibold text-ink mb-2">Food</h3>
-          <ul className="flex flex-col gap-1 text-sm text-ink">
-            {foodKinds.map((k) => (
-              <li key={k}>
-                Choose <span className="text-amber font-semibold">{quotaFor(k)}</span>{" "}
-                {quotaLabel(k, quotaFor(k))}
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-haze/80 mt-2">
-            You'll pick your exact dishes after booking, in Finalize Your Menu.
-          </p>
         </div>
       )}
 
@@ -1262,6 +1226,17 @@ export default function App() {
   const [venues, setVenues] = useState([]);
   const [venuesLoading, setVenuesLoading] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState(null);
+  // QR/share deep links — /v/<venue_view_code> and /invite/friend/<invite_friend_code>,
+  // parsed once on load and resolved against `venues` once it's fetched.
+  const [pendingDeepLink, setPendingDeepLink] = useState(() => {
+    const path = window.location.pathname;
+    const view = path.match(/^\/v\/([A-Za-z0-9]+)$/);
+    if (view) return { field: "venue_view_code", code: view[1], viaFriend: false };
+    const friend = path.match(/^\/invite\/friend\/([A-Za-z0-9]+)$/);
+    if (friend) return { field: "invite_friend_code", code: friend[1], viaFriend: true };
+    return null;
+  });
+  const [viaFriendInvite, setViaFriendInvite] = useState(false);
   const [reviewPkg, setReviewPkg] = useState(null); // package whose "Review Menu" modal is open
   const [bookingTypes, setBookingTypes] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
@@ -1327,7 +1302,7 @@ export default function App() {
     female_count: "",
     special_request: "",
     addon_ids: [],
-    ack: false,
+    deposit_tier: "20pct", // customer's choice; ignored server-side above 200 guests
     tc_agree: false,
   });
   const [submitError, setSubmitError] = useState("");
@@ -1692,6 +1667,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!pendingDeepLink || venues.length === 0) return;
+    const match = venues.find((v) => v[pendingDeepLink.field] === pendingDeepLink.code);
+    if (match) openVenue(match, pendingDeepLink.viaFriend);
+    setPendingDeepLink(null);
+    // Clean the URL so refresh/back doesn't keep re-triggering the deep link.
+    window.history.replaceState(null, "", "/");
+  }, [venues, pendingDeepLink]);
+
+  useEffect(() => {
     if (screen === "browse") loadVenues();
     if (screen === "request") loadBookingTypes();
     if (screen === "myBookings" && session) loadMyBookings(session.token);
@@ -1941,8 +1925,9 @@ export default function App() {
     }
   }
 
-  function openVenue(v) {
+  function openVenue(v, viaFriend = false) {
     setSelectedVenue(v);
+    setViaFriendInvite(viaFriend);
     setScreen("venue");
   }
 
@@ -1980,7 +1965,7 @@ export default function App() {
       female_count: "",
       special_request: "",
       addon_ids: [],
-      ack: false,
+      deposit_tier: "20pct",
       tc_agree: false,
     });
     setSubmitError("");
@@ -2020,10 +2005,6 @@ export default function App() {
       return;
     }
     const hrs = hoursUntil(form.event_date, form.event_time);
-    if (hrs !== null && hrs < 72 && !form.ack) {
-      setSubmitError("Please acknowledge the Express Booking terms before submitting.");
-      return;
-    }
     if (hrs !== null && hrs < 0) {
       setSubmitError("That date and time has already passed.");
       return;
@@ -2061,6 +2042,7 @@ export default function App() {
           contact_mobile: form.contact_mobile.trim(),
           contact_email: form.contact_email.trim(),
           special_request: form.special_request.trim() || null,
+          deposit_tier: headcount > 200 ? "50pct" : form.deposit_tier,
         },
       });
       if (form.addon_ids.length > 0) {
@@ -2094,7 +2076,7 @@ export default function App() {
   const maleNum = parseInt(form.male_count, 10) || 0;
   const femaleNum = parseInt(form.female_count, 10) || 0;
   const headcountNum = maleNum + femaleNum;
-  const preview = headcountNum > 0 ? depositPreview(headcountNum, hrs) : null;
+  const preview = headcountNum > 0 ? depositPreview(headcountNum, form.deposit_tier) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
   const totalPreview =
     selectedPackage && headcountNum ? effectivePricePerHead(selectedPackage) * headcountNum : 0;
@@ -2671,6 +2653,11 @@ export default function App() {
             <button className="text-sm text-haze hover:text-ink mb-4" onClick={() => setScreen("browse")}>
               ← Back to venues
             </button>
+            {viaFriendInvite && (
+              <p className="text-sm text-amber bg-amber/10 border border-amber/30 rounded-xl px-4 py-2.5 mb-4">
+                👋 A friend thought you'd like {selectedVenue.name}.
+              </p>
+            )}
             <div className="h-60 mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512]">
               <img
                 src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
@@ -2759,6 +2746,11 @@ export default function App() {
                       );
                     })()}
                     <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
+                    <p
+                      className={`text-xs mt-2 ${p.includes_dj ? "text-indigo-300" : "text-haze/60"}`}
+                    >
+                      {p.includes_dj ? "🎧 DJ & sound system included" : "DJ not included with this package"}
+                    </p>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
                     {p.discount_percent > 0 ? (
@@ -2776,11 +2768,6 @@ export default function App() {
                         {inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span>
                       </p>
                     )}
-                    {p.includes_dj && (
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300">
-                        DJ included
-                      </span>
-                    )}
                     <button
                       className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                       onClick={() => selectPackage(p)}
@@ -2789,7 +2776,7 @@ export default function App() {
                     </button>
                     <button
                       type="button"
-                      className="border border-white/15 text-haze hover:text-ink text-sm px-4 py-2 rounded-xl"
+                      className="border border-amber/50 text-amber font-medium hover:bg-amber/10 text-sm px-4 py-2 rounded-xl transition"
                       onClick={() => setReviewPkg(p)}
                     >
                       Review menu
@@ -3062,34 +3049,45 @@ export default function App() {
                       )}
                     </span>
                   </div>
+
+                  {headcountNum <= 200 ? (
+                    <div className="mb-3 pb-3 border-b border-white/10">
+                      <p className="text-xs text-haze mb-1.5">Choose your deposit</p>
+                      <div className="flex gap-2">
+                        {[
+                          ["20pct", "20% now"],
+                          ["50pct", "50% now"],
+                        ].map(([val, label]) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setForm({ ...form, deposit_tier: val })}
+                            className={`flex-1 text-xs font-medium rounded-xl px-3 py-2 border transition ${
+                              form.deposit_tier === val
+                                ? "bg-amber text-[#170D0B] border-amber"
+                                : "border-white/15 text-haze hover:text-ink"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber mb-3 pb-3 border-b border-white/10">
+                      Bookings over 200 guests require a 50% deposit.
+                    </p>
+                  )}
+
                   <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
                     <span className="text-amber">{inr(totalPreview)}</span>
                   </div>
                   <div className="flex justify-between mb-1">
-                    <span className="text-haze">{preview.bookingCategory}</span>
+                    <span className="text-haze">Deposit due now</span>
                     <span className="font-medium text-ink">{preview.tier}</span>
                   </div>
                   <p className="text-xs text-haze/80">{preview.reason}</p>
-                </div>
-              )}
-
-              {hrs !== null && hrs >= 0 && hrs < 72 && (
-                <div className="border border-red-400/40 bg-red-500/10 rounded-2xl p-4 text-sm">
-                  <p className="font-semibold text-red-200 mb-1">This is an express booking</p>
-                  <p className="text-red-200/80 mb-3">
-                    Your event is less than 72 hours away. If accepted, full payment is required
-                    immediately and this booking cannot be cancelled once confirmed.
-                  </p>
-                  <label className="flex items-start gap-2 text-red-200">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 accent-amber"
-                      checked={form.ack}
-                      onChange={(e) => setForm({ ...form, ack: e.target.checked })}
-                    />
-                    <span>I understand this booking is non-cancellable and requires full payment upfront.</span>
-                  </label>
                 </div>
               )}
 
@@ -3097,10 +3095,16 @@ export default function App() {
                 <p className="font-semibold text-ink mb-1">Booking terms &amp; conditions</p>
                 <ul className="list-disc pl-4 flex flex-col gap-1">
                   <li>The venue has up to 2 hours to accept or reject your request.</li>
-                  <li>Your deposit is due immediately once the venue accepts.</li>
+                  <li>
+                    Deposit payment window: 4 hours after acceptance normally, 30 minutes if the
+                    event is within 48 hours.
+                  </li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
-                  <li>Express Bookings (made under 72 hours before the event) require full payment and cannot be cancelled.</li>
-                  <li>Cancellations 72+ hours before the event are refunded minus a flat ₹2,000 admin fee; later cancellations forfeit more of the deposit to the venue.</li>
+                  <li>
+                    Cancellation refunds (on the PAXO-collected deposit only): more than 72 hours
+                    before the event — 100% refund. 48–72 hours before — 50% refund. Less than 48
+                    hours before, or no-show — 0% refund.
+                  </li>
                   <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
                 </ul>
               </div>
@@ -3302,7 +3306,7 @@ export default function App() {
 
                         {stage === 1 && b.partner_disclosure_note && (
                           <div className="mt-3 border border-amber/40 bg-amber/10 rounded-xl p-3">
-                            <p className="text-xs font-semibold text-amber mb-1">Note from the venue</p>
+                            <p className="text-xs font-semibold text-amber mb-1">Before you pay: heads up from the venue</p>
                             <p className="text-sm text-ink whitespace-pre-wrap">{b.partner_disclosure_note}</p>
                             {needsDisclosureResponse && (
                               <div className="mt-3 flex flex-col gap-2 items-start">
@@ -3951,7 +3955,7 @@ export default function App() {
                 <ul className="text-sm text-haze list-disc pl-4 flex flex-col gap-1">
                   <li>How long does a venue have to respond to my request? Up to 2 hours.</li>
                   <li>When do I pay the rest of the bill? Directly at the venue, unless you paid in full.</li>
-                  <li>Can I cancel an express booking? No — bookings under 72 hours are final once confirmed.</li>
+                  <li>Can I cancel a confirmed booking? Yes — refunds on your deposit follow the policy above based on how close it is to the event.</li>
                 </ul>
               </div>
             </div>
