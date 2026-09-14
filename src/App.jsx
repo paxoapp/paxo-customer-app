@@ -1306,7 +1306,6 @@ export default function App() {
     occasion_other: "",
     event_date: "",
     event_time: "",
-    slot: "Evening",
     male_count: "",
     female_count: "",
     special_request: "",
@@ -1968,7 +1967,6 @@ export default function App() {
       occasion_other: "",
       event_date: "",
       event_time: "",
-      slot: "Evening",
       male_count: "",
       female_count: "",
       special_request: "",
@@ -2042,7 +2040,6 @@ export default function App() {
           occasion_other: selectedBookingType?.name === "Other" ? form.occasion_other.trim() : null,
           event_date: form.event_date,
           event_time: form.event_time,
-          slot: form.slot,
           male_count: maleNum || null,
           female_count: femaleNum || null,
           contact_name: form.customer_name.trim(),
@@ -2936,22 +2933,6 @@ export default function App() {
                     onChange={(e) => setForm({ ...form, event_time: e.target.value })}
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium block mb-1">Slot</label>
-                <Select
-                  ariaLabel="Slot"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
-                  value={form.slot}
-                  onChange={(v) => setForm({ ...form, slot: v })}
-                  options={[
-                    { value: "Morning", label: "Morning" },
-                    { value: "Afternoon", label: "Afternoon" },
-                    { value: "Evening", label: "Evening" },
-                    { value: "Night", label: "Night" },
-                  ]}
-                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
