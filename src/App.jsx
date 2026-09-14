@@ -2078,14 +2078,8 @@ export default function App() {
   const headcountNum = maleNum + femaleNum;
   const preview = headcountNum > 0 ? depositPreview(headcountNum, form.deposit_tier) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
-  const totalPreviewBase =
+  const totalPreview =
     selectedPackage && headcountNum ? effectivePricePerHead(selectedPackage) * headcountNum : 0;
-  const deposit50Discount = Number(selectedPackage?.deposit_50_discount_percent || 0);
-  const totalPreviewDiscounted =
-    preview?.pct === 0.5 && deposit50Discount > 0
-      ? Math.round(totalPreviewBase * (1 - deposit50Discount / 100) * 100) / 100
-      : totalPreviewBase;
-  const totalPreview = totalPreviewDiscounted;
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
@@ -3075,11 +3069,6 @@ export default function App() {
                             }`}
                           >
                             {label}
-                            {val === "50pct" && deposit50Discount > 0 && (
-                              <span className="block text-[10px] opacity-80">
-                                {deposit50Discount}% off package price
-                              </span>
-                            )}
                           </button>
                         ))}
                       </div>
@@ -3090,12 +3079,6 @@ export default function App() {
                     </p>
                   )}
 
-                  {totalPreviewDiscounted < totalPreviewBase && (
-                    <div className="flex justify-between mb-1 text-xs text-emerald-500">
-                      <span>50% deposit discount ({deposit50Discount}% off)</span>
-                      <span>−{inr(totalPreviewBase - totalPreviewDiscounted)}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
                     <span className="text-amber">{inr(totalPreview)}</span>
