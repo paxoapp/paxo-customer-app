@@ -2711,7 +2711,12 @@ export default function App() {
                       const quotas = [...(p.menu_quota_rules || [])].sort((a, b) =>
                         a.category_kind.localeCompare(b.category_kind)
                       );
-                      const food = quotas.filter((q) => FOOD_QUOTA_KINDS.includes(q.category_kind));
+                      const food = quotas
+                        .filter((q) => FOOD_QUOTA_KINDS.includes(q.category_kind))
+                        .sort(
+                          (a, b) =>
+                            FOOD_QUOTA_KINDS.indexOf(a.category_kind) - FOOD_QUOTA_KINDS.indexOf(b.category_kind)
+                        );
                       const bev = quotas.filter((q) => !FOOD_QUOTA_KINDS.includes(q.category_kind));
                       const line = (q) => (
                         <>
