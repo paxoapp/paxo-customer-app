@@ -126,6 +126,23 @@ function depositPreview(hrsToEvent) {
   };
 }
 
+// Mirrors process-booking-refund's customer-initiated slab logic exactly (kept in
+// sync by hand — the edge function is the actual source of truth, this is only a
+// pre-confirmation preview): instant is always 0%; standard/secure each have their
+// own >X h / Y-X h / <Y h slab.
+function refundPercentPreview(bookingType, hrsToEvent) {
+  if (bookingType === "instant") return 0;
+  if (bookingType === "secure") {
+    if (hrsToEvent > 96) return 100;
+    if (hrsToEvent >= 72) return 50;
+    return 0;
+  }
+  // standard
+  if (hrsToEvent > 72) return 100;
+  if (hrsToEvent >= 48) return 50;
+  return 0;
+}
+
 const inr = (n) =>
   n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
@@ -1265,8 +1282,8 @@ export default function App() {
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [finalizeError, setFinalizeError] = useState("");
 
-  // Post-confirmation edit (guest count + menu swap) — Standard/Secure only, >24h
-  // to event. Separate from the original finalize/edit-before-48h flow above.
+  // Post-confirmation edit (guest count + menu swap + cancel) — the single edit
+  // path for a confirmed booking: Standard/Secure only, >24h to event.
   const [editBookingId, setEditBookingId] = useState(null); // booking id with the edit panel open
   const [editHeadcountInput, setEditHeadcountInput] = useState("");
   const [editGuestBusy, setEditGuestBusy] = useState(false);
@@ -1277,6 +1294,9 @@ export default function App() {
   const [editMenuError, setEditMenuError] = useState("");
   const [editMenuSuccess, setEditMenuSuccess] = useState("");
   const [editMenuConfirmKinds, setEditMenuConfirmKinds] = useState(null); // under-filled category_kinds awaiting soft confirm, or null
+  const [confirmedCancelConfirming, setConfirmedCancelConfirming] = useState(false); // showing the irreversible-cancel confirmation
+  const [confirmedCancelBusy, setConfirmedCancelBusy] = useState(false);
+  const [confirmedCancelError, setConfirmedCancelError] = useState("");
 
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
@@ -1701,12 +1721,15 @@ export default function App() {
     setEditMenuError("");
     setEditMenuSuccess("");
     setEditMenuConfirmKinds(null);
+    setConfirmedCancelConfirming(false);
+    setConfirmedCancelError("");
     setEditBookingId(b.id);
   }
 
   function closeEditBooking() {
     setEditBookingId(null);
     setEditMenuConfirmKinds(null);
+    setConfirmedCancelConfirming(false);
   }
 
   async function saveGuestCount(booking) {
@@ -1773,6 +1796,24 @@ export default function App() {
       setEditMenuError(e.message || "Couldn't update your menu. Please try again.");
     } finally {
       setEditMenuBusy(false);
+    }
+  }
+
+  async function cancelConfirmedBooking(booking) {
+    setConfirmedCancelBusy(true);
+    setConfirmedCancelError("");
+    try {
+      await callFn("process-booking-refund", session.token, {
+        booking_id: booking.id,
+        initiated_by: "customer",
+      });
+      setConfirmedCancelConfirming(false);
+      closeEditBooking();
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setConfirmedCancelError(e.message || "Couldn't cancel your booking. Please try again.");
+    } finally {
+      setConfirmedCancelBusy(false);
     }
   }
 
@@ -3654,26 +3695,8 @@ export default function App() {
                                   </span>
                                   Your menu
                                 </button>
-                                {!menuLocked(b) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openFinalize(b, { editing: true })}
-                                    className="text-xs font-medium text-amber hover:brightness-110"
-                                  >
-                                    Edit menu
-                                  </button>
-                                )}
                               </div>
-                              {menuShown && (
-                                <>
-                                  <MenuSummary booking={b} />
-                                  {menuLocked(b) && (
-                                    <p className="text-xs text-haze/80 mt-2">
-                                      Menu changes are locked within 48 hours of your event, so the venue can prepare.
-                                    </p>
-                                  )}
-                                </>
-                              )}
+                              {menuShown && <MenuSummary booking={b} />}
                             </div>
                           );
                         })()}
@@ -3828,6 +3851,56 @@ export default function App() {
                                         {editMenuError && <p className="text-xs text-red-300">{editMenuError}</p>}
                                         {editMenuSuccess && <p className="text-xs text-emerald-400">{editMenuSuccess}</p>}
                                       </div>
+                                    )}
+                                  </div>
+
+                                  <div className="border-t border-white/10 pt-3">
+                                    <p className="text-xs font-semibold text-haze mb-2">Cancel booking</p>
+                                    {!confirmedCancelConfirming ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmedCancelConfirming(true)}
+                                        className="text-xs font-medium text-red-300 hover:brightness-110"
+                                      >
+                                        Cancel this booking
+                                      </button>
+                                    ) : (
+                                      (() => {
+                                        const cancelHrs = hoursUntil(b.event_date, b.event_time);
+                                        const cancelPct = refundPercentPreview(b.booking_type, cancelHrs);
+                                        const cancelRefund = Math.round(Number(b.deposit_amount) * (cancelPct / 100) * 100) / 100;
+                                        return (
+                                          <div className="border border-red-400/30 bg-red-500/10 rounded-lg p-2.5">
+                                            <p className="text-xs text-ink">
+                                              This cannot be undone. Based on your {BOOKING_TYPE_LABELS[b.booking_type]} booking
+                                              and the time left before your event, you'll get a{" "}
+                                              <span className="font-semibold">{cancelPct}% refund</span> of your deposit —{" "}
+                                              <span className="font-semibold">{inr(cancelRefund)}</span> of {inr(b.deposit_amount)} paid.
+                                            </p>
+                                            {confirmedCancelError && (
+                                              <p className="text-xs text-red-300 mt-1.5">{confirmedCancelError}</p>
+                                            )}
+                                            <div className="flex gap-2 mt-2">
+                                              <button
+                                                type="button"
+                                                disabled={confirmedCancelBusy}
+                                                onClick={() => cancelConfirmedBooking(b)}
+                                                className="text-xs font-semibold bg-red-500/90 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
+                                              >
+                                                {confirmedCancelBusy ? "Cancelling…" : "Yes, cancel booking"}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={confirmedCancelBusy}
+                                                onClick={() => setConfirmedCancelConfirming(false)}
+                                                className="text-xs text-haze hover:text-ink"
+                                              >
+                                                Never mind
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()
                                     )}
                                   </div>
                                 </div>
