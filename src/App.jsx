@@ -1264,6 +1264,20 @@ export default function App() {
   const [menuPicks, setMenuPicks] = useState({}); // { [category_kind]: menu_item_id[] }
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [finalizeError, setFinalizeError] = useState("");
+
+  // Post-confirmation edit (guest count + menu swap) — Standard/Secure only, >24h
+  // to event. Separate from the original finalize/edit-before-48h flow above.
+  const [editBookingId, setEditBookingId] = useState(null); // booking id with the edit panel open
+  const [editHeadcountInput, setEditHeadcountInput] = useState("");
+  const [editGuestBusy, setEditGuestBusy] = useState(false);
+  const [editGuestError, setEditGuestError] = useState("");
+  const [editGuestSuccess, setEditGuestSuccess] = useState("");
+  const [editMenuPicks, setEditMenuPicks] = useState({}); // { [category_kind]: menu_item_id[] }
+  const [editMenuBusy, setEditMenuBusy] = useState(false);
+  const [editMenuError, setEditMenuError] = useState("");
+  const [editMenuSuccess, setEditMenuSuccess] = useState("");
+  const [editMenuConfirmKinds, setEditMenuConfirmKinds] = useState(null); // under-filled category_kinds awaiting soft confirm, or null
+
   const [pendingPackage, setPendingPackage] = useState(null); // { venue, pkg } saved when booking is requested before login
 
   const [cancelId, setCancelId] = useState(null); // pending booking whose cancel form is open
@@ -1660,6 +1674,105 @@ export default function App() {
       setFinalizeError(e.message || "Couldn't save your menu. Please try again.");
     } finally {
       setFinalizeBusy(false);
+    }
+  }
+
+  // Standard/Secure confirmed bookings only, more than 24h out — mirrors the
+  // update-booking-guests / update-booking-menu edge functions' own precondition.
+  function canEditConfirmedBooking(b) {
+    if (b.status !== "confirmed") return false;
+    if (b.booking_type !== "standard" && b.booking_type !== "secure") return false;
+    const h = hoursUntil(b.event_date, b.event_time);
+    return h !== null && h > 24;
+  }
+
+  function openEditBooking(b) {
+    const { rules, kindByItemId } = bookingMenuContext(b);
+    const picks = Object.fromEntries(rules.map((r) => [r.category_kind, []]));
+    const existing = Array.isArray(b.booking_menu_selections) ? b.booking_menu_selections : [];
+    existing.forEach((s) => {
+      const kind = kindByItemId[s.menu_item_id];
+      if (picks[kind]) picks[kind].push(s.menu_item_id);
+    });
+    setEditMenuPicks(picks);
+    setEditHeadcountInput(String(b.headcount));
+    setEditGuestError("");
+    setEditGuestSuccess("");
+    setEditMenuError("");
+    setEditMenuSuccess("");
+    setEditMenuConfirmKinds(null);
+    setEditBookingId(b.id);
+  }
+
+  function closeEditBooking() {
+    setEditBookingId(null);
+    setEditMenuConfirmKinds(null);
+  }
+
+  async function saveGuestCount(booking) {
+    const newHeadcount = parseInt(editHeadcountInput, 10);
+    setEditGuestError("");
+    setEditGuestSuccess("");
+    if (!newHeadcount || newHeadcount <= 0) {
+      setEditGuestError("Enter a valid guest count.");
+      return;
+    }
+    if (newHeadcount < booking.headcount) {
+      setEditGuestError("Guest count can only be increased.");
+      return;
+    }
+    if (newHeadcount === booking.headcount) {
+      setEditGuestError("That's already the current guest count.");
+      return;
+    }
+    setEditGuestBusy(true);
+    try {
+      await callFn("update-booking-guests", session.token, {
+        booking_id: booking.id,
+        new_headcount: newHeadcount,
+      });
+      setEditGuestSuccess("Guest count updated.");
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setEditGuestError(e.message || "Couldn't update guest count. Please try again.");
+    } finally {
+      setEditGuestBusy(false);
+    }
+  }
+
+  // Disable-at-max, not auto-evict-oldest — the moment any item in a maxed-out
+  // category is unchecked, the rest of that category becomes checkable again.
+  function toggleEditMenuPick(kind, itemId, quota) {
+    setEditMenuPicks((m) => {
+      const cur = m[kind] || [];
+      if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
+      if (cur.length >= quota) return m;
+      return { ...m, [kind]: [...cur, itemId] };
+    });
+  }
+
+  async function saveMenuEdit(booking, { skipConfirm = false } = {}) {
+    const { rules } = bookingMenuContext(booking);
+    if (!skipConfirm) {
+      const underfilled = rules.filter((r) => (editMenuPicks[r.category_kind] || []).length < r.quota_count);
+      if (underfilled.length > 0) {
+        setEditMenuConfirmKinds(underfilled.map((r) => r.category_kind));
+        return;
+      }
+    }
+    setEditMenuConfirmKinds(null);
+    setEditMenuBusy(true);
+    setEditMenuError("");
+    setEditMenuSuccess("");
+    try {
+      const selections = rules.flatMap((r) => editMenuPicks[r.category_kind] || []);
+      await callFn("update-booking-menu", session.token, { booking_id: booking.id, selections });
+      setEditMenuSuccess("Menu updated.");
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setEditMenuError(e.message || "Couldn't update your menu. Please try again.");
+    } finally {
+      setEditMenuBusy(false);
     }
   }
 
@@ -3560,6 +3673,164 @@ export default function App() {
                                     </p>
                                   )}
                                 </>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {b.status === "confirmed" && b.booking_type !== "instant" && (() => {
+                          const editable = canEditConfirmedBooking(b);
+                          const open = editBookingId === b.id;
+                          const ctx = bookingMenuContext(b);
+                          return (
+                            <div className="mt-3 border border-white/10 rounded-xl p-3">
+                              {!editable ? (
+                                <p className="text-xs text-haze/70">
+                                  Changes are no longer available this close to your event — please
+                                  contact PAXO support for any assistance.
+                                </p>
+                              ) : !open ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditBooking(b)}
+                                  className="text-xs font-medium text-amber hover:brightness-110"
+                                >
+                                  Edit booking (guests / menu)
+                                </button>
+                              ) : (
+                                <div className="flex flex-col gap-4">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-semibold text-ink">Edit booking</p>
+                                    <button
+                                      type="button"
+                                      onClick={closeEditBooking}
+                                      className="text-xs text-haze hover:text-ink"
+                                    >
+                                      Close
+                                    </button>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-xs font-semibold text-haze mb-1.5">
+                                      Guest count (increase only)
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="number"
+                                        min={b.headcount}
+                                        className="bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-sm w-24 text-ink focus:outline-none focus:border-amber/60"
+                                        value={editHeadcountInput}
+                                        onChange={(e) => setEditHeadcountInput(e.target.value)}
+                                      />
+                                      <span className="text-xs text-haze/70">currently {b.headcount}</span>
+                                      <button
+                                        type="button"
+                                        disabled={editGuestBusy}
+                                        onClick={() => saveGuestCount(b)}
+                                        className="ml-auto bg-amber text-[#170D0B] text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 hover:brightness-110 transition"
+                                      >
+                                        {editGuestBusy ? "Saving…" : "Save guest count"}
+                                      </button>
+                                    </div>
+                                    {(() => {
+                                      const n = parseInt(editHeadcountInput, 10);
+                                      if (!n || n <= b.headcount || !b.venue_packages) return null;
+                                      const newTotal = effectivePricePerHead(b.venue_packages) * n;
+                                      const newBalance = newTotal - Number(b.deposit_amount);
+                                      return (
+                                        <p className="text-xs text-haze/70 mt-1.5">
+                                          New estimated total {inr(newTotal)} — balance due at the venue
+                                          becomes {inr(newBalance)}. Your deposit ({inr(b.deposit_amount)}) doesn't change.
+                                        </p>
+                                      );
+                                    })()}
+                                    {editGuestError && <p className="text-xs text-red-300 mt-1">{editGuestError}</p>}
+                                    {editGuestSuccess && <p className="text-xs text-emerald-400 mt-1">{editGuestSuccess}</p>}
+                                  </div>
+
+                                  <div className="border-t border-white/10 pt-3">
+                                    <p className="text-xs font-semibold text-haze mb-2">
+                                      Swap menu items (same category only, no extra items)
+                                    </p>
+                                    {ctx.rules.length === 0 ? (
+                                      <p className="text-xs text-haze/70">This package has no menu choices to swap.</p>
+                                    ) : (
+                                      <div className="flex flex-col gap-3">
+                                        {ctx.rules.map((r) => {
+                                          const opts = ctx.optionsForKind(r.category_kind);
+                                          const picked = editMenuPicks[r.category_kind] || [];
+                                          const maxed = picked.length >= r.quota_count;
+                                          return (
+                                            <div key={r.category_kind}>
+                                              <p className="text-xs font-medium text-ink mb-1">
+                                                {quotaLabel(r.category_kind, r.quota_count)}
+                                                <span className={`ml-2 ${maxed ? "text-amber" : "text-haze/60"}`}>
+                                                  ({picked.length}/{r.quota_count})
+                                                </span>
+                                              </p>
+                                              <div className="flex flex-col gap-1">
+                                                {opts.map((it) => {
+                                                  const on = picked.includes(it.id);
+                                                  const disabled = !it.is_available || (!on && maxed);
+                                                  return (
+                                                    <label
+                                                      key={it.id}
+                                                      className={`flex items-center gap-2 text-xs ${disabled ? "text-haze/40" : "text-ink"}`}
+                                                    >
+                                                      <input
+                                                        type="checkbox"
+                                                        className="accent-amber"
+                                                        checked={on}
+                                                        disabled={disabled}
+                                                        onChange={() => toggleEditMenuPick(r.category_kind, it.id, r.quota_count)}
+                                                      />
+                                                      <span>{it.name}</span>
+                                                    </label>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                        <button
+                                          type="button"
+                                          disabled={editMenuBusy}
+                                          onClick={() => saveMenuEdit(b)}
+                                          className="bg-amber text-[#170D0B] text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 self-start hover:brightness-110 transition"
+                                        >
+                                          {editMenuBusy ? "Saving…" : "Save menu changes"}
+                                        </button>
+                                        {editMenuConfirmKinds && (
+                                          <div className="border border-amber/30 bg-amber/10 rounded-lg p-2.5">
+                                            <p className="text-xs text-ink">
+                                              You've selected fewer than your full allowance in{" "}
+                                              {editMenuConfirmKinds.map((k) => quotaLabel(k, 2)).join(", ")} — submit
+                                              anyway, or go back and add more?
+                                            </p>
+                                            <div className="flex gap-2 mt-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => saveMenuEdit(b, { skipConfirm: true })}
+                                                className="text-xs font-semibold bg-amber text-[#170D0B] px-3 py-1 rounded-lg"
+                                              >
+                                                Submit anyway
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditMenuConfirmKinds(null)}
+                                                className="text-xs text-haze hover:text-ink"
+                                              >
+                                                Go back
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {editMenuError && <p className="text-xs text-red-300">{editMenuError}</p>}
+                                        {editMenuSuccess && <p className="text-xs text-emerald-400">{editMenuSuccess}</p>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
                           );
