@@ -888,12 +888,6 @@ function VenueFullMenu({ venue }) {
   );
 }
 
-// The DB locks menu edits within 48h of the event; mirror that in the UI.
-function menuLocked(booking) {
-  const h = hoursUntil(booking?.event_date, booking?.event_time);
-  return h !== null && h <= 48;
-}
-
 // Per-booking menu context: the quota rules and which items can satisfy each.
 function bookingMenuContext(booking) {
   const pkg = booking?.venue_packages || null;
@@ -925,38 +919,144 @@ function bookingMenuContext(booking) {
 }
 
 // Read-only list of the items a customer selected, grouped by quota category.
-function MenuSummary({ booking }) {
-  const { rules, itemById, kindByItemId } = bookingMenuContext(booking);
-  const selected = Array.isArray(booking?.booking_menu_selections)
-    ? booking.booking_menu_selections
-    : booking?.booking_menu_selections
-    ? [booking.booking_menu_selections]
-    : [];
+// One "Your Menu" sub-section (Food or Beverage) — either the editable
+// disable-at-max checkbox picker, or (once locked) a read-only list of
+// whatever's currently selected.
+function MenuGroupSection({
+  title,
+  rules,
+  ctx,
+  picks,
+  onToggle,
+  locked,
+  busy,
+  error,
+  success,
+  confirmKinds,
+  onSave,
+  onConfirmSubmit,
+  onGoBack,
+}) {
+  if (rules.length === 0) {
+    return (
+      <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-ink mb-1">{title}</h2>
+        <p className="text-sm text-haze/70">This package has no {title.toLowerCase()} choices.</p>
+      </div>
+    );
+  }
   return (
-    <div className="flex flex-col gap-2">
-      {rules.map((r) => {
-        const names = selected
-          .filter((s) => kindByItemId[s.menu_item_id] === r.category_kind)
-          .map((s) => itemById[s.menu_item_id]?.name)
-          .filter(Boolean)
-          .sort();
-        return (
-          <div key={r.category_kind}>
-            <p className="text-sm font-medium text-ink">
-              {quotaLabel(r.category_kind, r.quota_count)}
-            </p>
-            {names.length ? (
-              <ul className="list-disc pl-5 text-sm text-haze">
-                {names.map((n, i) => (
-                  <li key={i}>{n}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-haze/60">—</p>
-            )}
-          </div>
-        );
-      })}
+    <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card flex flex-col gap-4">
+      <h2 className="font-display text-lg font-semibold text-ink">{title}</h2>
+      {locked ? (
+        <div className="flex flex-col gap-3">
+          {rules.map((r) => {
+            const names = (picks[r.category_kind] || [])
+              .map((id) => ctx.itemById[id]?.name)
+              .filter(Boolean)
+              .sort();
+            return (
+              <div key={r.category_kind}>
+                <p className="text-sm font-medium text-ink">{quotaLabel(r.category_kind, r.quota_count)}</p>
+                {names.length ? (
+                  <ul className="list-disc pl-5 text-sm text-haze">
+                    {names.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-haze/60">—</p>
+                )}
+              </div>
+            );
+          })}
+          <p className="text-xs text-haze/70">
+            Changes are no longer available this close to your event — please contact PAXO
+            support for any assistance.
+          </p>
+        </div>
+      ) : (
+        <>
+          {rules.map((r) => {
+            const opts = ctx.optionsForKind(r.category_kind);
+            const picked = picks[r.category_kind] || [];
+            const maxed = picked.length >= r.quota_count;
+            return (
+              <div key={r.category_kind}>
+                <p className="text-sm font-medium mb-1 text-ink">
+                  Choose <span className="text-amber font-semibold">{r.quota_count}</span>{" "}
+                  {quotaLabel(r.category_kind, r.quota_count)}
+                  <span className={`ml-2 text-xs ${maxed ? "text-amber" : "text-haze/60"}`}>
+                    ({picked.length}/{r.quota_count})
+                  </span>
+                </p>
+                {opts.length === 0 ? (
+                  <p className="text-sm text-haze/70">No options available for this category.</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    {opts.map((it) => {
+                      const on = picked.includes(it.id);
+                      const disabled = !it.is_available || (!on && maxed);
+                      return (
+                        <label
+                          key={it.id}
+                          className={`flex items-center gap-2 text-sm ${disabled ? "text-haze/50" : "text-ink"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-amber"
+                            checked={on}
+                            disabled={disabled}
+                            onChange={() => onToggle(r.category_kind, it.id, r.quota_count)}
+                          />
+                          <span>
+                            {it.name}
+                            {!it.is_available && " (currently unavailable)"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {error && <p className="text-red-300 text-sm">{error}</p>}
+          {success && <p className="text-emerald-400 text-sm">{success}</p>}
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onSave}
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 self-start hover:brightness-110 transition"
+          >
+            {busy ? "Saving…" : `Save ${title}`}
+          </button>
+
+          {confirmKinds && (
+            <div className="border border-amber/30 bg-amber/10 rounded-lg p-3">
+              <p className="text-sm text-ink">
+                You've selected fewer than your full allowance in{" "}
+                {confirmKinds.map((k) => quotaLabel(k, 2)).join(", ")} — submit anyway, or go back
+                and add more?
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={onConfirmSubmit}
+                  className="text-sm font-semibold bg-amber text-[#170D0B] px-3 py-1.5 rounded-lg"
+                >
+                  Submit anyway
+                </button>
+                <button type="button" onClick={onGoBack} className="text-sm text-haze hover:text-ink">
+                  Go back
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1063,7 +1163,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
               onClick={onFinalize}
               className="border border-stone-300 text-stone-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-stone-50"
             >
-              Finalize your menu
+              Choose your menu
             </button>
           )}
         </div>
@@ -1276,25 +1376,29 @@ export default function App() {
   const [fbError, setFbError] = useState({}); // keyed by booking id
   const [fbOpenId, setFbOpenId] = useState(null); // booking id whose feedback form is expanded after a skip
   const [receiptId, setReceiptId] = useState(null); // booking id whose receipt modal is open
-  const [finalizeId, setFinalizeId] = useState(null); // booking id being finalized on the finalizeMenu screen
-  const [menuEditing, setMenuEditing] = useState(false); // reopened an already-finalized menu to change it
-  const [menuPicks, setMenuPicks] = useState({}); // { [category_kind]: menu_item_id[] }
-  const [finalizeBusy, setFinalizeBusy] = useState(false);
-  const [finalizeError, setFinalizeError] = useState("");
+  // "Your Menu" — a single flow for both first-ever selection and every later
+  // edit, split into two independently-submitted groups, Food and Beverage.
+  const [yourMenuId, setYourMenuId] = useState(null); // booking id whose "Your Menu" screen is open
+  const [foodPicks, setFoodPicks] = useState({}); // { [category_kind]: menu_item_id[] }
+  const [foodBusy, setFoodBusy] = useState(false);
+  const [foodError, setFoodError] = useState("");
+  const [foodSuccess, setFoodSuccess] = useState("");
+  const [foodConfirmKinds, setFoodConfirmKinds] = useState(null); // under-filled category_kinds awaiting soft confirm, or null
+  const [bevPicks, setBevPicks] = useState({});
+  const [bevBusy, setBevBusy] = useState(false);
+  const [bevError, setBevError] = useState("");
+  const [bevSuccess, setBevSuccess] = useState("");
+  const [bevConfirmKinds, setBevConfirmKinds] = useState(null);
 
-  // Post-confirmation edit (guest count + menu swap + cancel) — the single edit
-  // path for a confirmed booking: Standard/Secure only, >24h to event.
-  const [editBookingId, setEditBookingId] = useState(null); // booking id with the edit panel open
-  const [editHeadcountInput, setEditHeadcountInput] = useState("");
-  const [editGuestBusy, setEditGuestBusy] = useState(false);
-  const [editGuestError, setEditGuestError] = useState("");
-  const [editGuestSuccess, setEditGuestSuccess] = useState("");
-  const [editMenuPicks, setEditMenuPicks] = useState({}); // { [category_kind]: menu_item_id[] }
-  const [editMenuBusy, setEditMenuBusy] = useState(false);
-  const [editMenuError, setEditMenuError] = useState("");
-  const [editMenuSuccess, setEditMenuSuccess] = useState("");
-  const [editMenuConfirmKinds, setEditMenuConfirmKinds] = useState(null); // under-filled category_kinds awaiting soft confirm, or null
-  const [confirmedCancelConfirming, setConfirmedCancelConfirming] = useState(false); // showing the irreversible-cancel confirmation
+  // Guest count — its own standalone control, no shared "Edit" wrapper.
+  // "Add extra guests" stepper, keyed by booking id; final total = original + extra.
+  const [extraGuestsByBooking, setExtraGuestsByBooking] = useState({}); // { [bookingId]: number }
+  const [guestBusyId, setGuestBusyId] = useState(null);
+  const [guestErrorByBooking, setGuestErrorByBooking] = useState({});
+  const [guestSuccessByBooking, setGuestSuccessByBooking] = useState({});
+
+  // Cancel booking — its own standalone control.
+  const [confirmedCancelConfirming, setConfirmedCancelConfirming] = useState(null); // booking id showing the irreversible-cancel confirmation
   const [confirmedCancelBusy, setConfirmedCancelBusy] = useState(false);
   const [confirmedCancelError, setConfirmedCancelError] = useState("");
 
@@ -1309,7 +1413,6 @@ export default function App() {
   const [disclosureError, setDisclosureError] = useState({}); // { [bookingId]: message }
   const [addonOfferBusy, setAddonOfferBusy] = useState(null); // `${addonRequestId}:${decision}` while saving
   const [addonOfferError, setAddonOfferError] = useState({}); // { [addonRequestId]: message }
-  const [menuSummaryCollapsed, setMenuSummaryCollapsed] = useState({}); // { [bookingId]: true } — "Your menu" summary hidden; expanded by default
   const [bookingsTab, setBookingsTab] = useState("all"); // My requests status filter
 
   const [heroIndex, setHeroIndex] = useState(0);
@@ -1622,151 +1725,61 @@ export default function App() {
     }
   }
 
-  function openFinalize(booking, { editing = false } = {}) {
+  // Splits a booking's package quota rules into the two "Your Menu" groups.
+  function menuGroupRules(booking) {
+    const { rules } = bookingMenuContext(booking);
+    return {
+      foodRules: rules.filter((r) => FOOD_QUOTA_KINDS.includes(r.category_kind)),
+      bevRules: rules.filter((r) => !FOOD_QUOTA_KINDS.includes(r.category_kind)),
+    };
+  }
+
+  // A group with zero existing selections can always be picked for the first
+  // time (any booking_type, any time). Once it has at least one selection,
+  // further edits follow the same rule as guest count/cancel.
+  function groupEligibility(booking, groupRules) {
+    const existing = Array.isArray(booking.booking_menu_selections) ? booking.booking_menu_selections : [];
+    const { kindByItemId } = bookingMenuContext(booking);
+    const kinds = new Set(groupRules.map((r) => r.category_kind));
+    const hasExisting = existing.some((s) => kinds.has(kindByItemId[s.menu_item_id]));
+    if (!hasExisting) return { locked: false, isFirstTime: true };
+    return { locked: !canEditConfirmedBooking(booking), isFirstTime: false };
+  }
+
+  function openYourMenu(booking) {
     const { rules, kindByItemId } = bookingMenuContext(booking);
     const picks = Object.fromEntries(rules.map((r) => [r.category_kind, []]));
-    if (editing) {
-      const existing = Array.isArray(booking.booking_menu_selections)
-        ? booking.booking_menu_selections
-        : [];
-      existing.forEach((s) => {
-        const kind = kindByItemId[s.menu_item_id];
-        if (picks[kind]) picks[kind].push(s.menu_item_id);
-      });
-      rules.forEach((r) => {
-        picks[r.category_kind] = picks[r.category_kind].slice(0, r.quota_count);
-      });
-    }
-    setFinalizeId(booking.id);
-    setMenuEditing(editing);
-    setMenuPicks(picks);
-    setFinalizeError("");
-    setReceiptId(null);
-    setScreen("finalizeMenu");
-  }
-
-  function togglePick(kind, itemId, quota) {
-    setMenuPicks((m) => {
-      const cur = m[kind] || [];
-      if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
-      const next = [...cur, itemId];
-      while (next.length > quota) next.shift(); // enforce exact count: drop the oldest
-      return { ...m, [kind]: next };
-    });
-  }
-
-  async function submitMenu(booking) {
-    const { rules } = bookingMenuContext(booking);
-    const complete = rules.every(
-      (r) => (menuPicks[r.category_kind] || []).length === r.quota_count
-    );
-    if (!complete) return;
-    if (menuLocked(booking)) {
-      setFinalizeError("Menu changes are locked within 48 hours of your event.");
-      return;
-    }
-    setFinalizeBusy(true);
-    setFinalizeError("");
-    try {
-      const rows = rules.flatMap((r) =>
-        (menuPicks[r.category_kind] || []).map((id) => ({ booking_id: booking.id, menu_item_id: id }))
-      );
-      await sb(`/rest/v1/booking_menu_selections?booking_id=eq.${booking.id}`, {
-        method: "DELETE",
-        token: session.token,
-        prefer: "return=minimal",
-      });
-      await sb("/rest/v1/booking_menu_selections", {
-        method: "POST",
-        token: session.token,
-        prefer: "return=minimal",
-        body: rows,
-      });
-      await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
-        method: "PATCH",
-        token: session.token,
-        prefer: "return=minimal",
-        body: { menu_finalized_at: new Date().toISOString() },
-      });
-      setMenuEditing(false);
-      await loadMyBookings(session.token);
-    } catch (e) {
-      setFinalizeError(e.message || "Couldn't save your menu. Please try again.");
-    } finally {
-      setFinalizeBusy(false);
-    }
-  }
-
-  // Standard/Secure confirmed bookings only, more than 24h out — mirrors the
-  // update-booking-guests / update-booking-menu edge functions' own precondition.
-  function canEditConfirmedBooking(b) {
-    if (b.status !== "confirmed") return false;
-    if (b.booking_type !== "standard" && b.booking_type !== "secure") return false;
-    const h = hoursUntil(b.event_date, b.event_time);
-    return h !== null && h > 24;
-  }
-
-  function openEditBooking(b) {
-    const { rules, kindByItemId } = bookingMenuContext(b);
-    const picks = Object.fromEntries(rules.map((r) => [r.category_kind, []]));
-    const existing = Array.isArray(b.booking_menu_selections) ? b.booking_menu_selections : [];
+    const existing = Array.isArray(booking.booking_menu_selections) ? booking.booking_menu_selections : [];
     existing.forEach((s) => {
       const kind = kindByItemId[s.menu_item_id];
       if (picks[kind]) picks[kind].push(s.menu_item_id);
     });
-    setEditMenuPicks(picks);
-    setEditHeadcountInput(String(b.headcount));
-    setEditGuestError("");
-    setEditGuestSuccess("");
-    setEditMenuError("");
-    setEditMenuSuccess("");
-    setEditMenuConfirmKinds(null);
-    setConfirmedCancelConfirming(false);
-    setConfirmedCancelError("");
-    setEditBookingId(b.id);
-  }
-
-  function closeEditBooking() {
-    setEditBookingId(null);
-    setEditMenuConfirmKinds(null);
-    setConfirmedCancelConfirming(false);
-  }
-
-  async function saveGuestCount(booking) {
-    const newHeadcount = parseInt(editHeadcountInput, 10);
-    setEditGuestError("");
-    setEditGuestSuccess("");
-    if (!newHeadcount || newHeadcount <= 0) {
-      setEditGuestError("Enter a valid guest count.");
-      return;
-    }
-    if (newHeadcount < booking.headcount) {
-      setEditGuestError("Guest count can only be increased.");
-      return;
-    }
-    if (newHeadcount === booking.headcount) {
-      setEditGuestError("That's already the current guest count.");
-      return;
-    }
-    setEditGuestBusy(true);
-    try {
-      await callFn("update-booking-guests", session.token, {
-        booking_id: booking.id,
-        new_headcount: newHeadcount,
-      });
-      setEditGuestSuccess("Guest count updated.");
-      await loadMyBookings(session.token);
-    } catch (e) {
-      setEditGuestError(e.message || "Couldn't update guest count. Please try again.");
-    } finally {
-      setEditGuestBusy(false);
-    }
+    const { foodRules, bevRules } = menuGroupRules(booking);
+    setFoodPicks(Object.fromEntries(foodRules.map((r) => [r.category_kind, picks[r.category_kind] || []])));
+    setBevPicks(Object.fromEntries(bevRules.map((r) => [r.category_kind, picks[r.category_kind] || []])));
+    setFoodError("");
+    setFoodSuccess("");
+    setFoodConfirmKinds(null);
+    setBevError("");
+    setBevSuccess("");
+    setBevConfirmKinds(null);
+    setYourMenuId(booking.id);
+    setReceiptId(null);
+    setScreen("yourMenu");
   }
 
   // Disable-at-max, not auto-evict-oldest — the moment any item in a maxed-out
   // category is unchecked, the rest of that category becomes checkable again.
-  function toggleEditMenuPick(kind, itemId, quota) {
-    setEditMenuPicks((m) => {
+  function toggleFoodPick(kind, itemId, quota) {
+    setFoodPicks((m) => {
+      const cur = m[kind] || [];
+      if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
+      if (cur.length >= quota) return m;
+      return { ...m, [kind]: [...cur, itemId] };
+    });
+  }
+  function toggleBevPick(kind, itemId, quota) {
+    setBevPicks((m) => {
       const cur = m[kind] || [];
       if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
       if (cur.length >= quota) return m;
@@ -1774,28 +1787,77 @@ export default function App() {
     });
   }
 
-  async function saveMenuEdit(booking, { skipConfirm = false } = {}) {
-    const { rules } = bookingMenuContext(booking);
+  async function saveMenuGroup(booking, group, { skipConfirm = false } = {}) {
+    const isFood = group === "food";
+    const { foodRules, bevRules } = menuGroupRules(booking);
+    const rules = isFood ? foodRules : bevRules;
+    const picks = isFood ? foodPicks : bevPicks;
+    const setBusy = isFood ? setFoodBusy : setBevBusy;
+    const setError = isFood ? setFoodError : setBevError;
+    const setSuccess = isFood ? setFoodSuccess : setBevSuccess;
+    const setConfirmKinds = isFood ? setFoodConfirmKinds : setBevConfirmKinds;
+
     if (!skipConfirm) {
-      const underfilled = rules.filter((r) => (editMenuPicks[r.category_kind] || []).length < r.quota_count);
+      const underfilled = rules.filter((r) => (picks[r.category_kind] || []).length < r.quota_count);
       if (underfilled.length > 0) {
-        setEditMenuConfirmKinds(underfilled.map((r) => r.category_kind));
+        setConfirmKinds(underfilled.map((r) => r.category_kind));
         return;
       }
     }
-    setEditMenuConfirmKinds(null);
-    setEditMenuBusy(true);
-    setEditMenuError("");
-    setEditMenuSuccess("");
+    setConfirmKinds(null);
+    setBusy(true);
+    setError("");
+    setSuccess("");
     try {
-      const selections = rules.flatMap((r) => editMenuPicks[r.category_kind] || []);
-      await callFn("update-booking-menu", session.token, { booking_id: booking.id, selections });
-      setEditMenuSuccess("Menu updated.");
+      const selections = rules.flatMap((r) => picks[r.category_kind] || []);
+      await callFn("update-booking-menu", session.token, {
+        booking_id: booking.id,
+        category_group: group,
+        selections,
+      });
+      setSuccess(isFood ? "Food selections updated." : "Beverage selections updated.");
       await loadMyBookings(session.token);
     } catch (e) {
-      setEditMenuError(e.message || "Couldn't update your menu. Please try again.");
+      setError(e.message || "Couldn't save. Please try again.");
     } finally {
-      setEditMenuBusy(false);
+      setBusy(false);
+    }
+  }
+
+  // Standard/Secure confirmed bookings only, more than 24h out — mirrors the
+  // update-booking-guests / update-booking-menu edge functions' own precondition.
+  // Governs guest count, cancel, and menu edits once a group has a first selection.
+  function canEditConfirmedBooking(b) {
+    if (b.status !== "confirmed") return false;
+    if (b.booking_type !== "standard" && b.booking_type !== "secure") return false;
+    const h = hoursUntil(b.event_date, b.event_time);
+    return h !== null && h > 24;
+  }
+
+  async function saveGuestCount(booking) {
+    const extra = extraGuestsByBooking[booking.id] || 0;
+    setGuestErrorByBooking((m) => ({ ...m, [booking.id]: "" }));
+    setGuestSuccessByBooking((m) => ({ ...m, [booking.id]: "" }));
+    if (extra <= 0) {
+      setGuestErrorByBooking((m) => ({ ...m, [booking.id]: "Add at least 1 extra guest first." }));
+      return;
+    }
+    setGuestBusyId(booking.id);
+    try {
+      await callFn("update-booking-guests", session.token, {
+        booking_id: booking.id,
+        new_headcount: booking.headcount + extra,
+      });
+      setGuestSuccessByBooking((m) => ({ ...m, [booking.id]: "Guest count updated." }));
+      setExtraGuestsByBooking((m) => ({ ...m, [booking.id]: 0 }));
+      await loadMyBookings(session.token);
+    } catch (e) {
+      setGuestErrorByBooking((m) => ({
+        ...m,
+        [booking.id]: e.message || "Couldn't update guest count. Please try again.",
+      }));
+    } finally {
+      setGuestBusyId(null);
     }
   }
 
@@ -1807,8 +1869,7 @@ export default function App() {
         booking_id: booking.id,
         initiated_by: "customer",
       });
-      setConfirmedCancelConfirming(false);
-      closeEditBooking();
+      setConfirmedCancelConfirming(null);
       await loadMyBookings(session.token);
     } catch (e) {
       setConfirmedCancelError(e.message || "Couldn't cancel your booking. Please try again.");
@@ -3674,236 +3735,144 @@ export default function App() {
                           </button>
                         )}
 
-                        {stage === 3 && (() => {
-                          const menuShown = !menuSummaryCollapsed[b.id];
+                        {b.status === "confirmed" && (
+                          <button
+                            type="button"
+                            onClick={() => openYourMenu(b)}
+                            className="text-sm font-medium text-amber hover:brightness-110 mt-3 block"
+                          >
+                            Your Menu
+                          </button>
+                        )}
+
+                        {b.status === "confirmed" && b.booking_type !== "instant" && (() => {
+                          const editable = canEditConfirmedBooking(b);
+                          const extra = extraGuestsByBooking[b.id] || 0;
                           return (
                             <div className="mt-3 border border-white/10 rounded-xl p-3">
-                              <div className="flex items-center justify-between mb-1 gap-3">
-                                <button
-                                  type="button"
-                                  aria-expanded={menuShown}
-                                  onClick={() =>
-                                    setMenuSummaryCollapsed((m) => ({ ...m, [b.id]: menuShown }))
-                                  }
-                                  className="flex items-center gap-2 text-xs font-semibold text-haze hover:text-ink"
-                                >
-                                  <span
-                                    aria-hidden
-                                    className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-white/15 bg-white/10 text-sm leading-none text-ink transition-colors hover:bg-amber hover:text-[#170D0B] hover:border-amber active:scale-95"
-                                  >
-                                    {menuShown ? "−" : "+"}
-                                  </span>
-                                  Your menu
-                                </button>
-                              </div>
-                              {menuShown && <MenuSummary booking={b} />}
+                              <p className="text-xs font-semibold text-haze mb-1">Guest count</p>
+                              {!editable ? (
+                                <p className="text-xs text-haze/70">
+                                  Changes are no longer available this close to your event — please
+                                  contact PAXO support for any assistance.
+                                </p>
+                              ) : (
+                                <>
+                                  <p className="text-xs text-haze/70 mb-2">Booked for {b.headcount} guests.</p>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-haze">Add extra guests</span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setExtraGuestsByBooking((m) => ({ ...m, [b.id]: Math.max(0, (m[b.id] || 0) - 1) }))
+                                        }
+                                        className="w-6 h-6 flex items-center justify-center rounded-full border border-white/15 text-ink hover:bg-white/10"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="text-sm font-medium text-ink w-5 text-center">{extra}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setExtraGuestsByBooking((m) => ({ ...m, [b.id]: (m[b.id] || 0) + 1 }))}
+                                        className="w-6 h-6 flex items-center justify-center rounded-full border border-white/15 text-ink hover:bg-white/10"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={guestBusyId === b.id || extra <= 0}
+                                      onClick={() => saveGuestCount(b)}
+                                      className="ml-auto bg-amber text-[#170D0B] text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 hover:brightness-110 transition"
+                                    >
+                                      {guestBusyId === b.id ? "Saving…" : "Save guest count"}
+                                    </button>
+                                  </div>
+                                  {extra > 0 &&
+                                    b.venue_packages &&
+                                    (() => {
+                                      const newTotal = effectivePricePerHead(b.venue_packages) * (b.headcount + extra);
+                                      const newBalance = newTotal - Number(b.deposit_amount);
+                                      return (
+                                        <p className="text-xs text-haze/70 mt-1.5">
+                                          New total: {b.headcount + extra} guests. New estimated total {inr(newTotal)} —
+                                          balance due at the venue becomes {inr(newBalance)}. Your deposit (
+                                          {inr(b.deposit_amount)}) doesn't change.
+                                        </p>
+                                      );
+                                    })()}
+                                  {guestErrorByBooking[b.id] && (
+                                    <p className="text-xs text-red-300 mt-1">{guestErrorByBooking[b.id]}</p>
+                                  )}
+                                  {guestSuccessByBooking[b.id] && (
+                                    <p className="text-xs text-emerald-400 mt-1">{guestSuccessByBooking[b.id]}</p>
+                                  )}
+                                </>
+                              )}
                             </div>
                           );
                         })()}
 
                         {b.status === "confirmed" && b.booking_type !== "instant" && (() => {
                           const editable = canEditConfirmedBooking(b);
-                          const open = editBookingId === b.id;
-                          const ctx = bookingMenuContext(b);
+                          const confirming = confirmedCancelConfirming === b.id;
                           return (
                             <div className="mt-3 border border-white/10 rounded-xl p-3">
+                              <p className="text-xs font-semibold text-haze mb-1">Cancel booking</p>
                               {!editable ? (
                                 <p className="text-xs text-haze/70">
                                   Changes are no longer available this close to your event — please
                                   contact PAXO support for any assistance.
                                 </p>
-                              ) : !open ? (
+                              ) : !confirming ? (
                                 <button
                                   type="button"
-                                  onClick={() => openEditBooking(b)}
-                                  className="text-xs font-medium text-amber hover:brightness-110"
+                                  onClick={() => {
+                                    setConfirmedCancelConfirming(b.id);
+                                    setConfirmedCancelError("");
+                                  }}
+                                  className="text-xs font-medium text-red-300 hover:brightness-110"
                                 >
-                                  Edit booking (guests / menu)
+                                  Cancel this booking
                                 </button>
                               ) : (
-                                <div className="flex flex-col gap-4">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-sm font-semibold text-ink">Edit booking</p>
-                                    <button
-                                      type="button"
-                                      onClick={closeEditBooking}
-                                      className="text-xs text-haze hover:text-ink"
-                                    >
-                                      Close
-                                    </button>
-                                  </div>
-
-                                  <div>
-                                    <p className="text-xs font-semibold text-haze mb-1.5">
-                                      Guest count (increase only)
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="number"
-                                        min={b.headcount}
-                                        className="bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-sm w-24 text-ink focus:outline-none focus:border-amber/60"
-                                        value={editHeadcountInput}
-                                        onChange={(e) => setEditHeadcountInput(e.target.value)}
-                                      />
-                                      <span className="text-xs text-haze/70">currently {b.headcount}</span>
-                                      <button
-                                        type="button"
-                                        disabled={editGuestBusy}
-                                        onClick={() => saveGuestCount(b)}
-                                        className="ml-auto bg-amber text-[#170D0B] text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 hover:brightness-110 transition"
-                                      >
-                                        {editGuestBusy ? "Saving…" : "Save guest count"}
-                                      </button>
-                                    </div>
-                                    {(() => {
-                                      const n = parseInt(editHeadcountInput, 10);
-                                      if (!n || n <= b.headcount || !b.venue_packages) return null;
-                                      const newTotal = effectivePricePerHead(b.venue_packages) * n;
-                                      const newBalance = newTotal - Number(b.deposit_amount);
-                                      return (
-                                        <p className="text-xs text-haze/70 mt-1.5">
-                                          New estimated total {inr(newTotal)} — balance due at the venue
-                                          becomes {inr(newBalance)}. Your deposit ({inr(b.deposit_amount)}) doesn't change.
-                                        </p>
-                                      );
-                                    })()}
-                                    {editGuestError && <p className="text-xs text-red-300 mt-1">{editGuestError}</p>}
-                                    {editGuestSuccess && <p className="text-xs text-emerald-400 mt-1">{editGuestSuccess}</p>}
-                                  </div>
-
-                                  <div className="border-t border-white/10 pt-3">
-                                    <p className="text-xs font-semibold text-haze mb-2">
-                                      Swap menu items (same category only, no extra items)
-                                    </p>
-                                    {ctx.rules.length === 0 ? (
-                                      <p className="text-xs text-haze/70">This package has no menu choices to swap.</p>
-                                    ) : (
-                                      <div className="flex flex-col gap-3">
-                                        {ctx.rules.map((r) => {
-                                          const opts = ctx.optionsForKind(r.category_kind);
-                                          const picked = editMenuPicks[r.category_kind] || [];
-                                          const maxed = picked.length >= r.quota_count;
-                                          return (
-                                            <div key={r.category_kind}>
-                                              <p className="text-xs font-medium text-ink mb-1">
-                                                {quotaLabel(r.category_kind, r.quota_count)}
-                                                <span className={`ml-2 ${maxed ? "text-amber" : "text-haze/60"}`}>
-                                                  ({picked.length}/{r.quota_count})
-                                                </span>
-                                              </p>
-                                              <div className="flex flex-col gap-1">
-                                                {opts.map((it) => {
-                                                  const on = picked.includes(it.id);
-                                                  const disabled = !it.is_available || (!on && maxed);
-                                                  return (
-                                                    <label
-                                                      key={it.id}
-                                                      className={`flex items-center gap-2 text-xs ${disabled ? "text-haze/40" : "text-ink"}`}
-                                                    >
-                                                      <input
-                                                        type="checkbox"
-                                                        className="accent-amber"
-                                                        checked={on}
-                                                        disabled={disabled}
-                                                        onChange={() => toggleEditMenuPick(r.category_kind, it.id, r.quota_count)}
-                                                      />
-                                                      <span>{it.name}</span>
-                                                    </label>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
+                                (() => {
+                                  const cancelHrs = hoursUntil(b.event_date, b.event_time);
+                                  const cancelPct = refundPercentPreview(b.booking_type, cancelHrs);
+                                  const cancelRefund = Math.round(Number(b.deposit_amount) * (cancelPct / 100) * 100) / 100;
+                                  return (
+                                    <div className="border border-red-400/30 bg-red-500/10 rounded-lg p-2.5">
+                                      <p className="text-xs text-ink">
+                                        This cannot be undone. Based on your {BOOKING_TYPE_LABELS[b.booking_type]} booking
+                                        and the time left before your event, you'll get a{" "}
+                                        <span className="font-semibold">{cancelPct}% refund</span> of your deposit —{" "}
+                                        <span className="font-semibold">{inr(cancelRefund)}</span> of {inr(b.deposit_amount)} paid.
+                                      </p>
+                                      {confirmedCancelError && (
+                                        <p className="text-xs text-red-300 mt-1.5">{confirmedCancelError}</p>
+                                      )}
+                                      <div className="flex gap-2 mt-2">
                                         <button
                                           type="button"
-                                          disabled={editMenuBusy}
-                                          onClick={() => saveMenuEdit(b)}
-                                          className="bg-amber text-[#170D0B] text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 self-start hover:brightness-110 transition"
+                                          disabled={confirmedCancelBusy}
+                                          onClick={() => cancelConfirmedBooking(b)}
+                                          className="text-xs font-semibold bg-red-500/90 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
                                         >
-                                          {editMenuBusy ? "Saving…" : "Save menu changes"}
+                                          {confirmedCancelBusy ? "Cancelling…" : "Yes, cancel booking"}
                                         </button>
-                                        {editMenuConfirmKinds && (
-                                          <div className="border border-amber/30 bg-amber/10 rounded-lg p-2.5">
-                                            <p className="text-xs text-ink">
-                                              You've selected fewer than your full allowance in{" "}
-                                              {editMenuConfirmKinds.map((k) => quotaLabel(k, 2)).join(", ")} — submit
-                                              anyway, or go back and add more?
-                                            </p>
-                                            <div className="flex gap-2 mt-2">
-                                              <button
-                                                type="button"
-                                                onClick={() => saveMenuEdit(b, { skipConfirm: true })}
-                                                className="text-xs font-semibold bg-amber text-[#170D0B] px-3 py-1 rounded-lg"
-                                              >
-                                                Submit anyway
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => setEditMenuConfirmKinds(null)}
-                                                className="text-xs text-haze hover:text-ink"
-                                              >
-                                                Go back
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )}
-                                        {editMenuError && <p className="text-xs text-red-300">{editMenuError}</p>}
-                                        {editMenuSuccess && <p className="text-xs text-emerald-400">{editMenuSuccess}</p>}
+                                        <button
+                                          type="button"
+                                          disabled={confirmedCancelBusy}
+                                          onClick={() => setConfirmedCancelConfirming(null)}
+                                          className="text-xs text-haze hover:text-ink"
+                                        >
+                                          Never mind
+                                        </button>
                                       </div>
-                                    )}
-                                  </div>
-
-                                  <div className="border-t border-white/10 pt-3">
-                                    <p className="text-xs font-semibold text-haze mb-2">Cancel booking</p>
-                                    {!confirmedCancelConfirming ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => setConfirmedCancelConfirming(true)}
-                                        className="text-xs font-medium text-red-300 hover:brightness-110"
-                                      >
-                                        Cancel this booking
-                                      </button>
-                                    ) : (
-                                      (() => {
-                                        const cancelHrs = hoursUntil(b.event_date, b.event_time);
-                                        const cancelPct = refundPercentPreview(b.booking_type, cancelHrs);
-                                        const cancelRefund = Math.round(Number(b.deposit_amount) * (cancelPct / 100) * 100) / 100;
-                                        return (
-                                          <div className="border border-red-400/30 bg-red-500/10 rounded-lg p-2.5">
-                                            <p className="text-xs text-ink">
-                                              This cannot be undone. Based on your {BOOKING_TYPE_LABELS[b.booking_type]} booking
-                                              and the time left before your event, you'll get a{" "}
-                                              <span className="font-semibold">{cancelPct}% refund</span> of your deposit —{" "}
-                                              <span className="font-semibold">{inr(cancelRefund)}</span> of {inr(b.deposit_amount)} paid.
-                                            </p>
-                                            {confirmedCancelError && (
-                                              <p className="text-xs text-red-300 mt-1.5">{confirmedCancelError}</p>
-                                            )}
-                                            <div className="flex gap-2 mt-2">
-                                              <button
-                                                type="button"
-                                                disabled={confirmedCancelBusy}
-                                                onClick={() => cancelConfirmedBooking(b)}
-                                                className="text-xs font-semibold bg-red-500/90 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
-                                              >
-                                                {confirmedCancelBusy ? "Cancelling…" : "Yes, cancel booking"}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                disabled={confirmedCancelBusy}
-                                                onClick={() => setConfirmedCancelConfirming(false)}
-                                                className="text-xs text-haze hover:text-ink"
-                                              >
-                                                Never mind
-                                              </button>
-                                            </div>
-                                          </div>
-                                        );
-                                      })()
-                                    )}
-                                  </div>
-                                </div>
+                                    </div>
+                                  );
+                                })()
                               )}
                             </div>
                           );
@@ -3970,10 +3939,10 @@ export default function App() {
                           <div className="mt-3">
                             <button
                               type="button"
-                              onClick={() => openFinalize(b)}
+                              onClick={() => openYourMenu(b)}
                               className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition"
                             >
-                              Finalize your menu
+                              Choose your menu
                             </button>
                             <p className="text-xs text-haze/80 mt-1">
                               Pick your exact dishes and drinks for this package.
@@ -4184,116 +4153,63 @@ export default function App() {
           </div>
         )}
 
-        {screen === "finalizeMenu" &&
+        {screen === "yourMenu" &&
           (() => {
-            const b = myBookings.find((x) => x.id === finalizeId);
+            const b = myBookings.find((x) => x.id === yourMenuId);
             if (!b) return <p className="text-haze/70 text-sm">Booking not found.</p>;
             const ctx = bookingMenuContext(b);
-            const showForm = !b.menu_finalized_at || menuEditing;
-            const complete = ctx.rules.every(
-              (r) => (menuPicks[r.category_kind] || []).length === r.quota_count
-            );
+            const { foodRules, bevRules } = menuGroupRules(b);
+            const foodElig = groupEligibility(b, foodRules);
+            const bevElig = groupEligibility(b, bevRules);
             return (
               <div className="max-w-lg">
                 <button
                   className="text-sm text-haze hover:text-ink mb-4"
                   onClick={() => {
                     setScreen("myBookings");
-                    setFinalizeId(null);
-                    setMenuEditing(false);
+                    setYourMenuId(null);
                   }}
                 >
                   ← Back to bookings
                 </button>
-                <h1 className="font-display text-3xl font-bold mb-1">
-                  {menuEditing ? "Edit your menu" : "Finalize your menu"}
-                </h1>
+                <h1 className="font-display text-3xl font-bold mb-1">Your Menu</h1>
                 <p className="text-haze text-sm mb-5">
                   {b.venue_packages?.name} at {b.venues?.name}
                   <span className="block text-amber font-medium">{b.booking_ref}</span>
                 </p>
 
-                {!showForm ? (
-                  <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
-                    <p className="text-sm font-medium text-amber mb-2">✓ Your menu is confirmed</p>
-                    <MenuSummary booking={b} />
-                  </div>
-                ) : ctx.rules.length === 0 ? (
-                  <p className="text-sm text-haze">This package has no menu choices to make.</p>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    {ctx.rules.map((r) => {
-                      const opts = ctx.optionsForKind(r.category_kind);
-                      const picked = menuPicks[r.category_kind] || [];
-                      return (
-                        <div key={r.category_kind} className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
-                          <p className="text-sm font-medium mb-1 text-ink">
-                            Choose <span className="text-amber font-semibold">{r.quota_count}</span> {quotaLabel(r.category_kind, r.quota_count)}
-                            <span
-                              className={`ml-2 text-xs ${
-                                picked.length === r.quota_count ? "text-amber" : "text-haze/60"
-                              }`}
-                            >
-                              ({picked.length}/{r.quota_count})
-                            </span>
-                          </p>
-                          {opts.length === 0 ? (
-                            <p className="text-sm text-haze/70">No options available for this category.</p>
-                          ) : (
-                            <div className="flex flex-col gap-1.5 mt-1">
-                              {opts.map((it) => {
-                                const on = picked.includes(it.id);
-                                const disabled = !it.is_available;
-                                return (
-                                  <label
-                                    key={it.id}
-                                    className={`flex items-center gap-2 text-sm ${disabled ? "text-haze/50" : "text-ink"}`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="accent-amber"
-                                      checked={on}
-                                      disabled={disabled}
-                                      onChange={() => togglePick(r.category_kind, it.id, r.quota_count)}
-                                    />
-                                    <span>
-                                      {it.name}
-                                      {disabled && " (currently unavailable)"}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {finalizeError && <p className="text-red-300 text-sm">{finalizeError}</p>}
-
-                    <button
-                      type="button"
-                      disabled={!complete || finalizeBusy}
-                      onClick={() => submitMenu(b)}
-                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 self-start hover:brightness-110 transition"
-                    >
-                      {finalizeBusy ? "Saving…" : menuEditing ? "Save changes" : "Submit menu"}
-                    </button>
-                    {menuEditing && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenuEditing(false);
-                          setScreen("myBookings");
-                          setFinalizeId(null);
-                        }}
-                        className="text-sm text-haze hover:text-ink self-start"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div className="flex flex-col gap-6">
+                  <MenuGroupSection
+                    title="Food"
+                    rules={foodRules}
+                    ctx={ctx}
+                    picks={foodPicks}
+                    onToggle={toggleFoodPick}
+                    locked={foodElig.locked}
+                    busy={foodBusy}
+                    error={foodError}
+                    success={foodSuccess}
+                    confirmKinds={foodConfirmKinds}
+                    onSave={() => saveMenuGroup(b, "food")}
+                    onConfirmSubmit={() => saveMenuGroup(b, "food", { skipConfirm: true })}
+                    onGoBack={() => setFoodConfirmKinds(null)}
+                  />
+                  <MenuGroupSection
+                    title="Beverage"
+                    rules={bevRules}
+                    ctx={ctx}
+                    picks={bevPicks}
+                    onToggle={toggleBevPick}
+                    locked={bevElig.locked}
+                    busy={bevBusy}
+                    error={bevError}
+                    success={bevSuccess}
+                    confirmKinds={bevConfirmKinds}
+                    onSave={() => saveMenuGroup(b, "beverage")}
+                    onConfirmSubmit={() => saveMenuGroup(b, "beverage", { skipConfirm: true })}
+                    onGoBack={() => setBevConfirmKinds(null)}
+                  />
+                </div>
               </div>
             );
           })()}
@@ -4345,7 +4261,7 @@ export default function App() {
                 booking={b}
                 amountPaid={amountPaid}
                 paymentRef={paymentRef}
-                onFinalize={() => openFinalize(b)}
+                onFinalize={() => openYourMenu(b)}
               />
             </Modal>
           );
