@@ -1390,12 +1390,6 @@ export default function App() {
   const [bevSuccess, setBevSuccess] = useState("");
   const [bevConfirmKinds, setBevConfirmKinds] = useState(null);
 
-  // Guest count — its own standalone control, no shared "Edit" wrapper.
-  // "Add extra guests" stepper, keyed by booking id; final total = original + extra.
-  const [extraGuestsByBooking, setExtraGuestsByBooking] = useState({}); // { [bookingId]: number }
-  const [guestBusyId, setGuestBusyId] = useState(null);
-  const [guestErrorByBooking, setGuestErrorByBooking] = useState({});
-  const [guestSuccessByBooking, setGuestSuccessByBooking] = useState({});
 
   // Cancel booking — its own standalone control.
   const [confirmedCancelConfirming, setConfirmedCancelConfirming] = useState(null); // booking id showing the irreversible-cancel confirmation
@@ -1832,33 +1826,6 @@ export default function App() {
     if (b.booking_type !== "standard" && b.booking_type !== "secure") return false;
     const h = hoursUntil(b.event_date, b.event_time);
     return h !== null && h > 24;
-  }
-
-  async function saveGuestCount(booking) {
-    const extra = extraGuestsByBooking[booking.id] || 0;
-    setGuestErrorByBooking((m) => ({ ...m, [booking.id]: "" }));
-    setGuestSuccessByBooking((m) => ({ ...m, [booking.id]: "" }));
-    if (extra <= 0) {
-      setGuestErrorByBooking((m) => ({ ...m, [booking.id]: "Add at least 1 extra guest first." }));
-      return;
-    }
-    setGuestBusyId(booking.id);
-    try {
-      await callFn("update-booking-guests", session.token, {
-        booking_id: booking.id,
-        new_headcount: booking.headcount + extra,
-      });
-      setGuestSuccessByBooking((m) => ({ ...m, [booking.id]: "Guest count updated." }));
-      setExtraGuestsByBooking((m) => ({ ...m, [booking.id]: 0 }));
-      await loadMyBookings(session.token);
-    } catch (e) {
-      setGuestErrorByBooking((m) => ({
-        ...m,
-        [booking.id]: e.message || "Couldn't update guest count. Please try again.",
-      }));
-    } finally {
-      setGuestBusyId(null);
-    }
   }
 
   async function cancelConfirmedBooking(booking) {
@@ -3332,6 +3299,10 @@ export default function App() {
                   </li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
                   <li>
+                    If additional guests attend beyond the confirmed headcount, extra charges
+                    may apply as per the venue's policy.
+                  </li>
+                  <li>
                     Cancellation refunds (on the PAXO-collected deposit only) — Standard: 100% if
                     72+ hours before the event, 50% if 48–72 hours, 0% under 48 hours or no-show.
                     Secure: 100% if 96+ hours before, 50% if 72–96 hours, 0% under 72 hours or
@@ -3745,74 +3716,15 @@ export default function App() {
                           </button>
                         )}
 
-                        {b.status === "confirmed" && b.booking_type !== "instant" && (() => {
-                          const editable = canEditConfirmedBooking(b);
-                          const extra = extraGuestsByBooking[b.id] || 0;
-                          return (
-                            <div className="mt-3 border border-white/10 rounded-xl p-3">
-                              <p className="text-xs font-semibold text-haze mb-1">Guest count</p>
-                              {!editable ? (
-                                <p className="text-xs text-haze/70">
-                                  Changes are no longer available this close to your event — please
-                                  contact PAXO support for any assistance.
-                                </p>
-                              ) : (
-                                <>
-                                  <p className="text-xs text-haze/70 mb-2">Booked for {b.headcount} guests.</p>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-xs text-haze">Add extra guests</span>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setExtraGuestsByBooking((m) => ({ ...m, [b.id]: Math.max(0, (m[b.id] || 0) - 1) }))
-                                        }
-                                        className="w-6 h-6 flex items-center justify-center rounded-full border border-white/15 text-ink hover:bg-white/10"
-                                      >
-                                        −
-                                      </button>
-                                      <span className="text-sm font-medium text-ink w-5 text-center">{extra}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => setExtraGuestsByBooking((m) => ({ ...m, [b.id]: (m[b.id] || 0) + 1 }))}
-                                        className="w-6 h-6 flex items-center justify-center rounded-full border border-white/15 text-ink hover:bg-white/10"
-                                      >
-                                        +
-                                      </button>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      disabled={guestBusyId === b.id || extra <= 0}
-                                      onClick={() => saveGuestCount(b)}
-                                      className="ml-auto bg-amber text-[#170D0B] text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50 hover:brightness-110 transition"
-                                    >
-                                      {guestBusyId === b.id ? "Saving…" : "Save guest count"}
-                                    </button>
-                                  </div>
-                                  {extra > 0 &&
-                                    b.venue_packages &&
-                                    (() => {
-                                      const newTotal = effectivePricePerHead(b.venue_packages) * (b.headcount + extra);
-                                      const newBalance = newTotal - Number(b.deposit_amount);
-                                      return (
-                                        <p className="text-xs text-haze/70 mt-1.5">
-                                          New total: {b.headcount + extra} guests. New estimated total {inr(newTotal)} —
-                                          balance due at the venue becomes {inr(newBalance)}. Your deposit (
-                                          {inr(b.deposit_amount)}) doesn't change.
-                                        </p>
-                                      );
-                                    })()}
-                                  {guestErrorByBooking[b.id] && (
-                                    <p className="text-xs text-red-300 mt-1">{guestErrorByBooking[b.id]}</p>
-                                  )}
-                                  {guestSuccessByBooking[b.id] && (
-                                    <p className="text-xs text-emerald-400 mt-1">{guestSuccessByBooking[b.id]}</p>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {b.status === "confirmed" && (
+                          <div className="mt-3 border border-white/10 rounded-xl p-3">
+                            <p className="text-xs font-semibold text-haze mb-1">Guest count</p>
+                            <p className="text-xs text-haze/70">
+                              Booked for {b.headcount} guests. If additional guests attend beyond your
+                              confirmed headcount, extra charges may apply as per the venue's policy.
+                            </p>
+                          </div>
+                        )}
 
                         {b.status === "confirmed" && b.booking_type !== "instant" && (() => {
                           const editable = canEditConfirmedBooking(b);
