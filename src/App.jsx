@@ -2080,6 +2080,9 @@ export default function App() {
   const femaleNum = parseInt(form.female_count, 10) || 0;
   const headcountNum = maleNum + femaleNum;
   const preview = headcountNum > 0 && hrs !== null ? depositPreview(hrs) : null;
+  // Live preview near the date/time fields — updates as soon as both are filled,
+  // independent of guest count (unlike `preview` above, used in the summary panel).
+  const bookingTypePreview = hrs !== null ? depositPreview(hrs) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
   const totalPreview =
     selectedPackage && headcountNum ? effectivePricePerHead(selectedPackage) * headcountNum : 0;
@@ -2934,6 +2937,26 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {bookingTypePreview ? (
+                <div
+                  className={`rounded-xl px-4 py-2.5 text-sm border ${
+                    bookingTypePreview.bookingType === "instant"
+                      ? "border-red-400/40 bg-red-500/10 text-red-200"
+                      : "border-amber/30 bg-amber/10 text-ink"
+                  }`}
+                >
+                  <span className="font-semibold">Booking type: {bookingTypePreview.bookingTypeLabel} Booking</span>
+                  <span className="block text-xs mt-0.5 opacity-90">
+                    {bookingTypePreview.tier},{" "}
+                    {bookingTypePreview.bookingType === "instant" ? "non-refundable" : "refundable per policy"}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-haze/60">
+                  Pick an event date &amp; time above to see your booking type and deposit.
+                </p>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
