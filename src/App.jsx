@@ -1345,6 +1345,15 @@ export default function App() {
   }, []);
 
   const [screen, setScreen] = useState("browse");
+  // Every screen renders in normal document flow (window/document is the
+  // scroll owner, no inner scrollable container) — without this, a screen
+  // change keeps whatever scroll offset the previous screen was at (e.g. the
+  // auth form scrolled down for the on-screen keyboard), so the new screen
+  // renders "shown down" instead of at the top.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
+
   const [session, setSession] = useState(null); // { token, refreshToken, userId, email }
   const [authMode, setAuthMode] = useState("login");
   const [authEmail, setAuthEmail] = useState("");
