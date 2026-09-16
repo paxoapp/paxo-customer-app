@@ -2623,6 +2623,12 @@ export default function App() {
                 >
                   Profile
                 </button>
+                <a
+                  href="https://partner.mypaxo.in"
+                  className="text-xs text-haze/60 hover:text-haze transition-colors"
+                >
+                  Become a Partner
+                </a>
               </div>
               <button
                 className="w-8 h-8 rounded-full bg-white/10 text-ink font-semibold flex items-center justify-center text-xs border border-white/15"
@@ -2652,12 +2658,20 @@ export default function App() {
               )}
             </nav>
           ) : (
-            <button
-              className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-1.5 rounded-full"
-              onClick={() => setScreen("auth")}
-            >
-              Sign in
-            </button>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://partner.mypaxo.in"
+                className="text-xs text-haze/60 hover:text-haze transition-colors"
+              >
+                Become a Partner
+              </a>
+              <button
+                className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-1.5 rounded-full"
+                onClick={() => setScreen("auth")}
+              >
+                Sign in
+              </button>
+            </div>
           )}
         </div>
       </header>
