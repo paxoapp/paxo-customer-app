@@ -95,6 +95,14 @@ function minutesLeft(deadline) {
   return Math.round((new Date(deadline).getTime() - Date.now()) / 60000);
 }
 
+function formatCountdown(totalMinutes) {
+  if (totalMinutes === null || totalMinutes <= 0) return null; // caller handles the "window passed" case
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins} min`;
+}
+
 // Booking Type is computed once from hours-to-event at request time and
 // locked permanently server-side (compute_booking_financials) — no customer
 // choice anywhere. This mirrors that same computation for the client preview.
@@ -1325,6 +1333,16 @@ function VenueCardSkeleton() {
 }
 
 export default function App() {
+  // Forces a re-render every 30s so minutesLeft()-driven countdowns (payment
+  // window, etc.) tick down live instead of freezing until an unrelated
+  // re-render — minutesLeft() already computes fresh off Date.now(), this
+  // just makes sure something asks it to recompute periodically.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const [screen, setScreen] = useState("browse");
   const [session, setSession] = useState(null); // { token, userId, email }
   const [authMode, setAuthMode] = useState("login");
@@ -3666,7 +3684,7 @@ export default function App() {
                                   return (
                                     <p className={`text-xs ${payMins < 30 ? "text-red-300 font-medium" : "text-haze"}`}>
                                       {payMins > 0
-                                        ? `Pay within ${payMins} min or this booking is released`
+                                        ? `Pay within ${formatCountdown(payMins)} or this booking is released`
                                         : "Payment window passed — this booking has been released"}
                                     </p>
                                   );
