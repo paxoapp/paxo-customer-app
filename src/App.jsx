@@ -45,6 +45,7 @@ function SocialLinks({ className = "", linkClass = "" }) {
 const SUPABASE_URL = "https://cjjksssylejwxwbalury.supabase.co";
 const ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqamtzc3N5bGVqd3h3YmFsdXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0OTQ4MzEsImV4cCI6MjEwNDA3MDgzMX0.H2PkT7nkoXFDc2vBOM2lRNlih0xDUZyk9Sft1MqRzTI";
+const SESSION_STORAGE_KEY = "paxo_session";
 
 async function sb(path, { method = "GET", body, token, prefer } = {}) {
   const headers = {
@@ -1344,7 +1345,7 @@ export default function App() {
   }, []);
 
   const [screen, setScreen] = useState("browse");
-  const [session, setSession] = useState(null); // { token, userId, email }
+  const [session, setSession] = useState(null); // { token, refreshToken, userId, email }
   const [authMode, setAuthMode] = useState("login");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -1362,6 +1363,7 @@ export default function App() {
   const [resetLoading, setResetLoading] = useState(false);
 
   const [recoveryToken, setRecoveryToken] = useState(""); // set when returning from an email reset link
+  const [recoveryRefreshToken, setRecoveryRefreshToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [newPasswordError, setNewPasswordError] = useState("");
@@ -1951,11 +1953,60 @@ export default function App() {
     }
   }
 
+  // Persists the session across reloads/tab closes — session state itself is
+  // plain in-memory React state and doesn't survive a real page reload
+  // (mobile back-navigation, hard refresh, reopening the tab/PWA) on its own.
+  function persistSession(s) {
+    setSession(s);
+    try {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(s));
+    } catch {}
+  }
+
   function logOut() {
     setSession(null);
+    try {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch {}
     setMenuOpen(false);
     setScreen("auth");
   }
+
+  // Restore a persisted session on load. Always exchanges the stored
+  // refresh_token for a live access token rather than trusting the stored
+  // access token blindly (it may already be expired — Supabase access
+  // tokens last ~1h). Fails silently into the normal logged-out browse
+  // screen on any error (expired/revoked refresh token, network error,
+  // malformed stored value) — an expired session is routine, not an error
+  // to surface. Never forces screen to "auth" here; the default "browse"
+  // screen already covers both the in-flight and failed cases.
+  useEffect(() => {
+    let stored;
+    try {
+      stored = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || "null");
+    } catch {
+      stored = null;
+    }
+    if (!stored?.refreshToken) return;
+    (async () => {
+      try {
+        const data = await sb("/auth/v1/token?grant_type=refresh_token", {
+          method: "POST",
+          body: { refresh_token: stored.refreshToken },
+        });
+        persistSession({
+          token: data.access_token,
+          refreshToken: data.refresh_token,
+          userId: data.user.id,
+          email: data.user.email,
+        });
+      } catch {
+        try {
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+        } catch {}
+      }
+    })();
+  }, []);
 
   // Handle the redirect back from Google: Supabase appends tokens to the URL fragment
   // (#access_token=...&refresh_token=...) once the OAuth round-trip completes.
@@ -1963,10 +2014,12 @@ export default function App() {
     if (!window.location.hash.includes("access_token")) return;
     const params = new URLSearchParams(window.location.hash.slice(1));
     const token = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
     const type = params.get("type");
     if (!token) return;
     if (type === "recovery") {
       setRecoveryToken(token);
+      setRecoveryRefreshToken(refreshToken || "");
       setScreen("setNewPassword");
       window.history.replaceState(null, "", window.location.pathname);
       return;
@@ -1974,7 +2027,7 @@ export default function App() {
     (async () => {
       try {
         const user = await sb("/auth/v1/user", { token });
-        setSession({ token, userId: user.id, email: user.email });
+        persistSession({ token, refreshToken, userId: user.id, email: user.email });
         afterAuthSuccess();
         window.history.replaceState(null, "", window.location.pathname);
       } catch (e) {
@@ -2046,7 +2099,12 @@ export default function App() {
         token: verifyData.access_token,
         body: { password: resetNewPassword },
       });
-      setSession({ token: verifyData.access_token, userId: verifyData.user.id, email: verifyData.user.email });
+      persistSession({
+        token: verifyData.access_token,
+        refreshToken: verifyData.refresh_token,
+        userId: verifyData.user.id,
+        email: verifyData.user.email,
+      });
       afterAuthSuccess();
     } catch (e) {
       setResetError(e.message);
@@ -2073,7 +2131,7 @@ export default function App() {
         token: recoveryToken,
         body: { password: newPassword },
       });
-      setSession({ token: recoveryToken, userId: user.id, email: user.email });
+      persistSession({ token: recoveryToken, refreshToken: recoveryRefreshToken, userId: user.id, email: user.email });
       afterAuthSuccess();
     } catch (e) {
       setNewPasswordError(e.message);
@@ -2095,7 +2153,12 @@ export default function App() {
         });
         if (signupData.access_token) {
           // Email confirmation is off for this project — we already have a usable session.
-          setSession({ token: signupData.access_token, userId: signupData.user.id, email: signupData.user.email });
+          persistSession({
+            token: signupData.access_token,
+            refreshToken: signupData.refresh_token,
+            userId: signupData.user.id,
+            email: signupData.user.email,
+          });
           afterAuthSuccess();
           return;
         }
@@ -2108,7 +2171,7 @@ export default function App() {
         method: "POST",
         body: { email: authEmail, password: authPassword },
       });
-      setSession({ token: data.access_token, userId: data.user.id, email: data.user.email });
+      persistSession({ token: data.access_token, refreshToken: data.refresh_token, userId: data.user.id, email: data.user.email });
       afterAuthSuccess();
     } catch (e) {
       if (/email not confirmed/i.test(e.message)) {
