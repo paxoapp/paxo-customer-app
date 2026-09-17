@@ -2437,7 +2437,7 @@ export default function App() {
                   key={i}
                   className={`whitespace-nowrap text-sm rounded-full px-4 py-2 ${
                     PROCESS_CHIPS.has(c)
-                      ? "text-amber bg-amber/10 border border-amber/30"
+                      ? "text-amber bg-white/5 border border-white/10"
                       : "text-ink/80 bg-white/5 border border-white/10"
                   }`}
                 >
@@ -2453,7 +2453,7 @@ export default function App() {
                   key={i}
                   className={`whitespace-nowrap text-sm rounded-full px-4 py-2 ${
                     PROCESS_CHIPS.has(c)
-                      ? "text-amber bg-amber/10 border border-amber/30"
+                      ? "text-amber bg-white/5 border border-white/10"
                       : "text-ink/80 bg-white/5 border border-white/10"
                   }`}
                 >
