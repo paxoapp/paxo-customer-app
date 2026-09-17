@@ -2728,24 +2728,27 @@ export default function App() {
                 {(session.email || "?").slice(0, 1).toUpperCase()}
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-10 w-48 bg-surface text-ink rounded-xl border border-white/10 shadow-hero overflow-hidden z-10">
-                  <p className="px-4 py-3 text-xs text-haze border-b border-white/10 truncate">{session.email}</p>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("profile"); setMenuOpen(false); }}>
-                    Profile
-                  </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("myBookings"); setMenuOpen(false); }}>
-                    My bookings
-                  </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("settings"); setMenuOpen(false); }}>
-                    Settings
-                  </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
-                    Help & support
-                  </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm text-red-300 hover:bg-white/5 border-t border-white/10" onClick={logOut}>
-                    Log out
-                  </button>
-                </div>
+                <>
+                  <div className="fixed inset-0 z-[5]" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 top-10 w-48 bg-surface text-ink rounded-xl border border-white/10 shadow-hero overflow-hidden z-10">
+                    <p className="px-4 py-3 text-xs text-haze border-b border-white/10 truncate">{session.email}</p>
+                    <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("profile"); setMenuOpen(false); }}>
+                      Profile
+                    </button>
+                    <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("myBookings"); setMenuOpen(false); }}>
+                      My bookings
+                    </button>
+                    <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("settings"); setMenuOpen(false); }}>
+                      Settings
+                    </button>
+                    <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
+                      Help & support
+                    </button>
+                    <button className="w-full text-left px-4 py-2.5 text-sm text-red-300 hover:bg-white/5 border-t border-white/10" onClick={logOut}>
+                      Log out
+                    </button>
+                  </div>
+                </>
               )}
             </nav>
           ) : (
