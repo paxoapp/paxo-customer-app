@@ -2384,6 +2384,13 @@ export default function App() {
     });
 
   if (screen === "auth") {
+    const PROCESS_CHIPS = new Set([
+      "Book your venue instantly",
+      "Unlimited packages",
+      "Select your menu",
+      "Pay a small deposit, rest at venue",
+      "Live booking status",
+    ]);
     const chipsRow1 = ["Book your venue instantly", "Easy to use", "Unlimited packages", "Select your menu"];
     const chipsRow2 = ["Pay a small deposit, rest at venue", "Use anytime, anywhere", "Live booking status", "Rate your experience"];
     return (
@@ -2426,7 +2433,14 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-left">
               {[...chipsRow1, ...chipsRow1].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-ink/80 bg-white/5 border border-white/10 rounded-full px-4 py-2">
+                <span
+                  key={i}
+                  className={`whitespace-nowrap text-sm rounded-full px-4 py-2 ${
+                    PROCESS_CHIPS.has(c)
+                      ? "text-amber bg-amber/10 border border-amber/30"
+                      : "text-ink/80 bg-white/5 border border-white/10"
+                  }`}
+                >
                   {c}
                 </span>
               ))}
@@ -2435,7 +2449,14 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-right">
               {[...chipsRow2, ...chipsRow2].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-ink/80 bg-white/5 border border-white/10 rounded-full px-4 py-2">
+                <span
+                  key={i}
+                  className={`whitespace-nowrap text-sm rounded-full px-4 py-2 ${
+                    PROCESS_CHIPS.has(c)
+                      ? "text-amber bg-amber/10 border border-amber/30"
+                      : "text-ink/80 bg-white/5 border border-white/10"
+                  }`}
+                >
                   {c}
                 </span>
               ))}
