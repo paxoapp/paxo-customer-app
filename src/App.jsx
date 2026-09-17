@@ -639,6 +639,139 @@ function Select({
   );
 }
 
+// "HH:MM" (24h, from a native time input) <-> 12-hour hour/minute/AM-PM used
+// by TimeField's popover. Kept as plain string/number math (not Date) to
+// dodge timezone parsing entirely.
+function formatTime12(hhmm) {
+  if (!hhmm) return null;
+  const [hStr, m] = hhmm.split(":");
+  const h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  let hour12 = h % 12;
+  if (hour12 === 0) hour12 = 12;
+  return `${hour12}:${m} ${ampm}`;
+}
+
+function parseTime24(hhmm) {
+  if (!hhmm) return { hour12: null, minute: null, ampm: null };
+  const [hStr, m] = hhmm.split(":");
+  const h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  let hour12 = h % 12;
+  if (hour12 === 0) hour12 = 12;
+  const minute = ["00", "15", "30", "45"].includes(m) ? m : null;
+  return { hour12, minute, ampm };
+}
+
+function buildTime24(hour12, minute, ampm) {
+  let h = hour12 % 12;
+  if (ampm === "PM") h += 12;
+  return `${String(h).padStart(2, "0")}:${minute}`;
+}
+
+function TimeField({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [pendingHour, setPendingHour] = useState(null);
+  const [pendingMinute, setPendingMinute] = useState(null);
+  const [pendingAmPm, setPendingAmPm] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const parsed = parseTime24(value);
+    setPendingHour(parsed.hour12);
+    setPendingMinute(parsed.minute);
+    setPendingAmPm(parsed.ampm);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  function commit(h, m, ap) {
+    if (h != null && m != null && ap != null) {
+      onChange(buildTime24(h, m, ap));
+      setOpen(false);
+    }
+  }
+
+  const label = value ? formatTime12(value) : null;
+  const optionClass = (active) =>
+    `text-xs font-medium rounded-lg px-2 py-1.5 border transition-colors ${
+      active ? "bg-amber/10 text-amber border-amber/30" : "border-white/10 text-haze hover:text-ink hover:border-white/20"
+    }`;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-left focus:outline-none focus:border-amber/60 ${
+          label ? "text-ink" : "text-haze/50"
+        }`}
+      >
+        {label || "Select time"}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[5]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-10 mt-1 w-56 bg-surface border border-white/10 rounded-xl shadow-hero p-3">
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => {
+                    setPendingHour(h);
+                    commit(h, pendingMinute, pendingAmPm);
+                  }}
+                  className={optionClass(pendingHour === h)}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              {["00", "15", "30", "45"].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setPendingMinute(m);
+                    commit(pendingHour, m, pendingAmPm);
+                  }}
+                  className={optionClass(pendingMinute === m)}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {["AM", "PM"].map((ap) => (
+                <button
+                  key={ap}
+                  type="button"
+                  onClick={() => {
+                    setPendingAmPm(ap);
+                    commit(pendingHour, pendingMinute, ap);
+                  }}
+                  className={optionClass(pendingAmPm === ap)}
+                >
+                  {ap}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Read-only pre-purchase menu view for one package.
 function ReviewMenuBody({ pkg, venue }) {
   const cats = venue?.menu_categories || [];
@@ -2282,6 +2415,10 @@ export default function App() {
       setSubmitError("Enter at least 1 guest across Male / Female.");
       return;
     }
+    if (!form.event_time) {
+      setSubmitError("Select a party slot timing.");
+      return;
+    }
     const hrs = hoursUntil(form.event_date, form.event_time);
     if (hrs !== null && hrs < 0) {
       setSubmitError("That date and time has already passed.");
@@ -3239,12 +3376,9 @@ export default function App() {
                 </div>
                 <div>
                   <label className="text-sm font-medium block mb-1">Party slot timing</label>
-                  <input
-                    type="time"
-                    required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                  <TimeField
                     value={form.event_time}
-                    onChange={(e) => setForm({ ...form, event_time: e.target.value })}
+                    onChange={(v) => setForm({ ...form, event_time: v })}
                   />
                 </div>
               </div>
