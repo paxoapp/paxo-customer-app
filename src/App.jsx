@@ -2772,46 +2772,48 @@ export default function App() {
             <p className="text-haze text-sm mb-5">Clubs, lounges and banquets ready for your night.</p>
 
             {venues.length > 0 && (
-              <div
-                className="relative rounded-3xl overflow-hidden h-60 mb-7 cursor-pointer shadow-hero bg-gradient-to-br from-surface to-[#2A1512]"
-                onClick={() => openVenue(venues[heroIndex % venues.length])}
-              >
-                <img
-                  key={
-                    venues[heroIndex % venues.length].venue_images?.[0]?.image_url ||
-                    venues[heroIndex % venues.length].cover_image_url ||
-                    heroIndex
-                  }
-                  src={
-                    venues[heroIndex % venues.length].venue_images?.[0]?.image_url ||
-                    venues[heroIndex % venues.length].cover_image_url
-                  }
-                  alt=""
-                  onError={hideBrokenImg}
-                  onLoad={restoreImg}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-base via-base/40 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-5 text-ink">
-                  <p className="font-display text-2xl font-bold">{venues[heroIndex % venues.length].name}</p>
-                  <p className="text-sm text-haze">
-                    {venues[heroIndex % venues.length].area ? `${venues[heroIndex % venues.length].area}, ` : ""}
-                    {venues[heroIndex % venues.length].city}
-                  </p>
-                  {minPackagePrice(venues[heroIndex % venues.length]) != null && (
-                    <p className="text-sm text-amber font-semibold mt-1">
-                      Unlimited packages from{" "}
-                      {inr(minPackagePrice(venues[heroIndex % venues.length]))} / head
+              <div className="rounded-[28px] bg-black p-1.5 mb-7 shadow-hero">
+                <div
+                  className="relative rounded-3xl overflow-hidden h-60 cursor-pointer bg-gradient-to-br from-surface to-[#2A1512]"
+                  onClick={() => openVenue(venues[heroIndex % venues.length])}
+                >
+                  <img
+                    key={
+                      venues[heroIndex % venues.length].venue_images?.[0]?.image_url ||
+                      venues[heroIndex % venues.length].cover_image_url ||
+                      heroIndex
+                    }
+                    src={
+                      venues[heroIndex % venues.length].venue_images?.[0]?.image_url ||
+                      venues[heroIndex % venues.length].cover_image_url
+                    }
+                    alt=""
+                    onError={hideBrokenImg}
+                    onLoad={restoreImg}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
+                  <div className="absolute bottom-0 left-0 p-5 text-ink">
+                    <p className="font-display text-2xl font-bold">{venues[heroIndex % venues.length].name}</p>
+                    <p className="text-sm text-haze">
+                      {venues[heroIndex % venues.length].area ? `${venues[heroIndex % venues.length].area}, ` : ""}
+                      {venues[heroIndex % venues.length].city}
                     </p>
-                  )}
-                </div>
-                <div className="absolute bottom-4 right-5 flex gap-1.5">
-                  {venues.map((_, i) => (
-                    <span
-                      key={i}
-                      className={`w-1.5 h-1.5 rounded-full ${i === heroIndex % venues.length ? "bg-amber" : "bg-white/30"}`}
-                    />
-                  ))}
+                    {minPackagePrice(venues[heroIndex % venues.length]) != null && (
+                      <p className="text-sm text-amber font-semibold mt-1">
+                        Unlimited packages from{" "}
+                        {inr(minPackagePrice(venues[heroIndex % venues.length]))} / head
+                      </p>
+                    )}
+                  </div>
+                  <div className="absolute bottom-4 right-5 flex gap-1.5">
+                    {venues.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`w-1.5 h-1.5 rounded-full ${i === heroIndex % venues.length ? "bg-amber" : "bg-white/30"}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
