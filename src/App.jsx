@@ -4256,9 +4256,11 @@ export default function App() {
         )}
       </main>
 
-      <footer className="max-w-4xl mx-auto px-5 pb-10 pt-2 flex items-center justify-center gap-3">
-        <span className="text-xs text-haze/40">Find us elsewhere</span>
-        <SocialLinks linkClass="text-haze/40 hover:text-amber" />
+      <footer className="bg-black/90 border-t border-white/10">
+        <div className="max-w-4xl mx-auto px-5 pb-10 pt-4 flex items-center justify-center gap-3">
+          <span className="text-xs text-haze/40">Find us elsewhere</span>
+          <SocialLinks linkClass="text-haze/40 hover:text-amber" />
+        </div>
       </footer>
 
       {reviewPkg && screen === "venue" && selectedVenue && (
