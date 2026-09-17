@@ -377,7 +377,7 @@ function VenueQuiz({ venues, bookingTypes, cities, onClose, onViewVenue }) {
   }
 
   const chip =
-    "text-sm px-3 py-1.5 rounded-full border border-white/15 text-haze hover:text-ink hover:border-amber/50 transition-colors";
+    "text-sm px-3 py-1.5 rounded-full border border-[#221410]/20 text-haze hover:text-ink hover:border-amber/50 transition-colors";
 
   return (
     <Modal title="Find my venue" onClose={onClose}>
@@ -393,7 +393,7 @@ function VenueQuiz({ venues, bookingTypes, cities, onClose, onViewVenue }) {
                   key={venue.id}
                   type="button"
                   onClick={() => onViewVenue(venue)}
-                  className="text-left rounded-2xl border border-white/10 bg-white/5 hover:border-amber/50 transition-colors p-4"
+                  className="text-left rounded-2xl border border-[#221410]/15 bg-[#221410]/5 hover:border-amber/50 transition-colors p-4"
                 >
                   <p className="font-display font-semibold text-ink">{venue.name}</p>
                   <p className="text-xs text-haze mb-1">{[venue.area, venue.city].filter(Boolean).join(", ")}</p>
@@ -412,7 +412,7 @@ function VenueQuiz({ venues, bookingTypes, cities, onClose, onViewVenue }) {
           <>
             <div className="flex items-center gap-1.5 mb-1">
               {QUIZ_STEPS.map((s, i) => (
-                <span key={s} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-amber" : "bg-white/10"}`} />
+                <span key={s} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-amber" : "bg-[#221410]/10"}`} />
               ))}
             </div>
 
@@ -500,15 +500,15 @@ function Modal({ title, onClose, children, className = "" }) {
       aria-label={title}
     >
       <div
-        className={`modal-card bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-white/10 ${className}`}
+        className={`modal-card bg-surface text-ink rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-hero border border-[#221410]/15 ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="no-print flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div className="no-print flex items-center justify-between px-4 py-3 border-b border-[#221410]/15">
           <p className="font-display font-semibold">{title}</p>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-haze hover:text-ink hover:bg-white/10 text-lg leading-none"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-haze hover:text-ink hover:bg-[#221410]/12 text-lg leading-none"
           >
             ✕
           </button>
@@ -613,7 +613,7 @@ function Select({
         <ul
           role="listbox"
           aria-label={ariaLabel}
-          className="absolute left-0 z-50 mt-1 max-h-60 min-w-full w-max max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border border-white/15 bg-surface py-1 shadow-hero"
+          className="absolute left-0 z-50 mt-1 max-h-60 min-w-full w-max max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border border-[#221410]/20 bg-surface py-1 shadow-hero"
         >
           {options.map((o, i) => (
             <li
@@ -819,7 +819,7 @@ function VenueFullMenu({ venue }) {
   );
 
   return (
-    <div className="rounded-2xl bg-surface border border-white/10 shadow-card overflow-hidden">
+    <div className="rounded-2xl bg-surface border border-[#221410]/15 shadow-card overflow-hidden">
       <button
         type="button"
         aria-expanded={expanded}
@@ -833,7 +833,7 @@ function VenueFullMenu({ venue }) {
       </button>
 
       {expanded && (
-        <div className="border-t border-white/10">
+        <div className="border-t border-[#221410]/15">
           <p className="text-sm text-haze px-4 pt-3">
             Everything this venue serves. Package-specific choices and quotas are shown on each
             package's “Drinks Included”.
@@ -843,7 +843,7 @@ function VenueFullMenu({ venue }) {
             <p className="text-sm text-haze/70 p-4">Menu details coming soon.</p>
           ) : (
             <>
-              <div className="flex border-b border-white/10 mt-3">
+              <div className="flex border-b border-[#221410]/15 mt-3">
                 {[
                   ["food", "Food Menu"],
                   ["beverages", "Beverages"],
@@ -880,7 +880,7 @@ function VenueFullMenu({ venue }) {
                         <Section key={s.kind} label={s.label} items={s.items} />
                       ))}
                       {alsoAvailable.length > 0 && (
-                        <div className="border-t border-white/10 pt-3">
+                        <div className="border-t border-[#221410]/15 pt-3">
                           <Section label="Also available" items={alsoAvailable} />
                         </div>
                       )}
@@ -948,14 +948,14 @@ function MenuGroupSection({
 }) {
   if (rules.length === 0) {
     return (
-      <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card">
+      <div className="bg-surface border border-[#221410]/15 rounded-2xl p-4 shadow-card">
         <h2 className="font-display text-lg font-semibold text-ink mb-1">{title}</h2>
         <p className="text-sm text-haze/70">This package has no {title.toLowerCase()} choices.</p>
       </div>
     );
   }
   return (
-    <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card flex flex-col gap-4">
+    <div className="bg-surface border border-[#221410]/15 rounded-2xl p-4 shadow-card flex flex-col gap-4">
       <h2 className="font-display text-lg font-semibold text-ink">{title}</h2>
       {locked ? (
         <div className="flex flex-col gap-3">
@@ -1286,8 +1286,8 @@ function BookingStepper({ stage }) {
             ? "bg-amber text-[#170D0B] border-amber step-active-glow"
             : state === "done"
             ? "bg-haze/25 text-ink border-haze/40"
-            : "bg-transparent text-haze/60 border-white/15";
-        const line = i < stage ? "bg-haze/40" : "bg-white/10";
+            : "bg-transparent text-haze/60 border-[#221410]/20";
+        const line = i < stage ? "bg-haze/40" : "bg-[#221410]/10";
         const text =
           state === "current" ? "text-amber font-semibold" : state === "done" ? "text-haze" : "text-haze/50";
         return (
@@ -1321,13 +1321,13 @@ const restoreImg = (e) => {
 
 function VenueCardSkeleton() {
   return (
-    <div className="rounded-2xl overflow-hidden bg-surface border border-white/10 animate-pulse">
-      <div className="w-full h-48 bg-white/5" />
+    <div className="rounded-2xl overflow-hidden bg-surface border border-[#221410]/15 animate-pulse">
+      <div className="w-full h-48 bg-[#221410]/5" />
       <div className="p-4">
-        <div className="h-4 bg-white/10 rounded w-2/3 mb-2" />
-        <div className="h-3 bg-white/10 rounded w-1/3 mb-3" />
-        <div className="h-3 bg-white/10 rounded w-full mb-1" />
-        <div className="h-3 bg-white/10 rounded w-5/6" />
+        <div className="h-4 bg-[#221410]/10 rounded w-2/3 mb-2" />
+        <div className="h-3 bg-[#221410]/10 rounded w-1/3 mb-3" />
+        <div className="h-3 bg-[#221410]/10 rounded w-full mb-1" />
+        <div className="h-3 bg-[#221410]/10 rounded w-5/6" />
       </div>
     </div>
   );
@@ -2367,7 +2367,7 @@ export default function App() {
     completed: "bg-haze/15 text-haze border border-haze/30",
     rejected: "bg-red-500/15 text-red-300 border border-red-400/30",
     cancelled: "bg-red-500/15 text-red-300 border border-red-400/30",
-    unconfirmed: "bg-white/10 text-haze border border-white/15",
+    unconfirmed: "bg-[#221410]/10 text-haze border border-[#221410]/20",
     no_show: "bg-red-500/15 text-red-300 border border-red-400/30",
   };
 
@@ -2424,7 +2424,7 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-left">
               {[...chipsRow1, ...chipsRow1].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-haze border border-white/15 rounded-full px-4 py-2">
+                <span key={i} className="whitespace-nowrap text-sm text-haze border border-[#221410]/20 rounded-full px-4 py-2">
                   {c}
                 </span>
               ))}
@@ -2433,7 +2433,7 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-right">
               {[...chipsRow2, ...chipsRow2].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-haze border border-white/15 rounded-full px-4 py-2">
+                <span key={i} className="whitespace-nowrap text-sm text-haze border border-[#221410]/20 rounded-full px-4 py-2">
                   {c}
                 </span>
               ))}
@@ -2457,9 +2457,9 @@ export default function App() {
           </button>
 
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 h-px bg-white/15" />
+            <div className="flex-1 h-px bg-[#221410]/20" />
             <span className="text-xs text-haze">or</span>
-            <div className="flex-1 h-px bg-white/15" />
+            <div className="flex-1 h-px bg-[#221410]/20" />
           </div>
 
           <form onSubmit={handleAuth} className="flex flex-col gap-3">
@@ -2467,7 +2467,7 @@ export default function App() {
               type="email"
               required
               placeholder="Enter email address"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+              className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={authEmail}
               onChange={(e) => setAuthEmail(e.target.value)}
             />
@@ -2476,7 +2476,7 @@ export default function App() {
               required
               minLength={6}
               placeholder="Password"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+              className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={authPassword}
               onChange={(e) => setAuthPassword(e.target.value)}
             />
@@ -2545,7 +2545,7 @@ export default function App() {
           <div className="flex gap-2 mb-6">
             <button
               className={`flex-1 rounded-full py-2 text-sm font-medium ${
-                resetMethod === "email" ? "bg-amber text-[#170D0B]" : "border border-white/15 text-haze"
+                resetMethod === "email" ? "bg-amber text-[#170D0B]" : "border border-[#221410]/20 text-haze"
               }`}
               onClick={() => {
                 setResetMethod("email");
@@ -2557,7 +2557,7 @@ export default function App() {
             </button>
             <button
               className={`flex-1 rounded-full py-2 text-sm font-medium ${
-                resetMethod === "phone" ? "bg-amber text-[#170D0B]" : "border border-white/15 text-haze"
+                resetMethod === "phone" ? "bg-amber text-[#170D0B]" : "border border-[#221410]/20 text-haze"
               }`}
               onClick={() => {
                 setResetMethod("phone");
@@ -2575,7 +2575,7 @@ export default function App() {
                 type="email"
                 required
                 placeholder="Enter email address"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+                className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
               />
@@ -2602,7 +2602,7 @@ export default function App() {
                 type="tel"
                 required
                 placeholder="+91 98765 43210"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+                className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetPhone}
                 onChange={(e) => setResetPhone(e.target.value)}
               />
@@ -2623,7 +2623,7 @@ export default function App() {
                 type="text"
                 required
                 placeholder="6-digit code"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+                className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetOtp}
                 onChange={(e) => setResetOtp(e.target.value)}
               />
@@ -2632,7 +2632,7 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="New password"
-                className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+                className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
                 value={resetNewPassword}
                 onChange={(e) => setResetNewPassword(e.target.value)}
               />
@@ -2662,7 +2662,7 @@ export default function App() {
               required
               minLength={6}
               placeholder="New password"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+              className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
@@ -2671,7 +2671,7 @@ export default function App() {
               required
               minLength={6}
               placeholder="Confirm new password"
-              className="bg-white/5 border border-white/15 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
+              className="bg-[#221410]/5 border border-[#221410]/20 rounded-full px-5 py-3.5 text-sm placeholder-haze/50 text-ink focus:outline-none focus:border-amber/60"
               value={newPasswordConfirm}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
             />
@@ -2690,7 +2690,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-base text-ink pb-20 sm:pb-0">
-      <header className="bg-base/90 backdrop-blur border-b border-white/10 sticky top-0 z-30">
+      <header className="bg-base/90 backdrop-blur border-b border-[#221410]/15 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setScreen("browse")}>
             <img src="/paxo-icon.png" alt="" className="h-8 w-8 rounded-lg" />
@@ -2720,27 +2720,27 @@ export default function App() {
                 </button>
               </div>
               <button
-                className="w-8 h-8 rounded-full bg-white/10 text-ink font-semibold flex items-center justify-center text-xs border border-white/15"
+                className="w-8 h-8 rounded-full bg-[#221410]/10 text-ink font-semibold flex items-center justify-center text-xs border border-[#221410]/20"
                 onClick={() => setMenuOpen((v) => !v)}
               >
                 {(session.email || "?").slice(0, 1).toUpperCase()}
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-10 w-48 bg-surface text-ink rounded-xl border border-white/10 shadow-hero overflow-hidden z-10">
-                  <p className="px-4 py-3 text-xs text-haze border-b border-white/10 truncate">{session.email}</p>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("profile"); setMenuOpen(false); }}>
+                <div className="absolute right-0 top-10 w-48 bg-surface text-ink rounded-xl border border-[#221410]/15 shadow-hero overflow-hidden z-10">
+                  <p className="px-4 py-3 text-xs text-haze border-b border-[#221410]/15 truncate">{session.email}</p>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#221410]/8" onClick={() => { setScreen("profile"); setMenuOpen(false); }}>
                     Profile
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("myBookings"); setMenuOpen(false); }}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#221410]/8" onClick={() => { setScreen("myBookings"); setMenuOpen(false); }}>
                     My bookings
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("settings"); setMenuOpen(false); }}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#221410]/8" onClick={() => { setScreen("settings"); setMenuOpen(false); }}>
                     Settings
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#221410]/8" onClick={() => { setScreen("help"); setMenuOpen(false); }}>
                     Help & support
                   </button>
-                  <button className="w-full text-left px-4 py-2.5 text-sm text-red-300 hover:bg-white/5 border-t border-white/10" onClick={logOut}>
+                  <button className="w-full text-left px-4 py-2.5 text-sm text-red-300 hover:bg-[#221410]/8 border-t border-[#221410]/15" onClick={logOut}>
                     Log out
                   </button>
                 </div>
@@ -2772,7 +2772,7 @@ export default function App() {
             <p className="text-haze text-sm mb-5">Clubs, lounges and banquets ready for your night.</p>
 
             {venues.length > 0 && (
-              <div className="rounded-[28px] bg-black p-1.5 mb-7 shadow-hero">
+              <div className="rounded-[28px] bg-[#221410] p-1.5 mb-7 shadow-hero">
                 <div
                   className="relative rounded-3xl overflow-hidden h-60 cursor-pointer bg-gradient-to-br from-surface to-[#2A1512]"
                   onClick={() => openVenue(venues[heroIndex % venues.length])}
@@ -2792,10 +2792,10 @@ export default function App() {
                     onLoad={restoreImg}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
-                  <div className="absolute bottom-0 left-0 p-5 text-ink">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#221410] via-[#221410]/60 to-transparent" />
+                  <div className="absolute bottom-0 left-0 p-5 text-[#F5F1EE]">
                     <p className="font-display text-2xl font-bold">{venues[heroIndex % venues.length].name}</p>
-                    <p className="text-sm text-haze">
+                    <p className="text-sm text-[#C9B8AE]">
                       {venues[heroIndex % venues.length].area ? `${venues[heroIndex % venues.length].area}, ` : ""}
                       {venues[heroIndex % venues.length].city}
                     </p>
@@ -2821,7 +2821,7 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-2 mb-6">
               <button
                 className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                  selectedCity === null ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"
+                  selectedCity === null ? "bg-ink text-[#F5F1EE] border-ink" : "border-[#221410]/20 text-haze hover:text-ink"
                 }`}
                 onClick={() => setSelectedCity(null)}
               >
@@ -2831,7 +2831,7 @@ export default function App() {
                 <button
                   key={c}
                   className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                    selectedCity === c ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"
+                    selectedCity === c ? "bg-ink text-[#F5F1EE] border-ink" : "border-[#221410]/20 text-haze hover:text-ink"
                   }`}
                   onClick={() => setSelectedCity(c)}
                 >
@@ -2841,7 +2841,7 @@ export default function App() {
               <Select
                 ariaLabel="Sort by price"
                 wrapperClassName="sm:ml-auto"
-                className="text-sm px-3 py-1.5 rounded-full border border-white/15 text-haze bg-surface focus:outline-none focus:border-amber/60"
+                className="text-sm px-3 py-1.5 rounded-full border border-[#221410]/20 text-haze bg-surface focus:outline-none focus:border-amber/60"
                 value={priceSort}
                 onChange={(v) => setPriceSort(v)}
                 options={[
@@ -2862,7 +2862,7 @@ export default function App() {
                 {visibleVenues.map((v) => (
                   <div
                     key={v.id}
-                    className="group rounded-2xl overflow-hidden bg-surface border border-white/10 cursor-pointer hover:border-amber/50 transition-colors shadow-card"
+                    className="group rounded-2xl overflow-hidden bg-surface border border-[#221410]/15 cursor-pointer hover:border-amber/50 transition-colors shadow-card"
                     onClick={() => openVenue(v)}
                   >
                     <div className="relative h-44 bg-gradient-to-br from-surface to-[#2A1512]">
@@ -2873,16 +2873,16 @@ export default function App() {
                         onLoad={restoreImg}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#221410] via-[#221410]/50 to-transparent" />
                       {v.is_verified && (
-                        <span className="absolute top-3 left-3 text-[10px] font-semibold text-amber bg-base/80 border border-amber/40 rounded px-2 py-0.5">
+                        <span className="absolute top-3 left-3 text-[10px] font-semibold text-amber bg-[#221410]/80 border border-amber/40 rounded px-2 py-0.5">
                           ✓ Verified
                         </span>
                       )}
                       <div className="absolute bottom-0 left-0 right-0 p-3">
-                        <h3 className="font-display text-lg font-semibold text-ink leading-tight">{v.name}</h3>
+                        <h3 className="font-display text-lg font-semibold text-[#F5F1EE] leading-tight">{v.name}</h3>
                         <div className="flex items-center gap-1.5">
-                          <p className="text-xs text-haze">
+                          <p className="text-xs text-[#C9B8AE]">
                             {v.area ? `${v.area}, ` : ""}
                             {v.city}
                           </p>
@@ -2910,12 +2910,12 @@ export default function App() {
                       <p className="text-sm text-haze line-clamp-2">{v.description}</p>
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {v.serves_alcohol && (
-                          <span className="inline-block text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
+                          <span className="inline-block text-xs bg-[#221410]/5 text-haze px-2 py-0.5 rounded">
                             Serves alcohol
                           </span>
                         )}
                         {v.guest_capacity && (
-                          <span className="inline-block text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
+                          <span className="inline-block text-xs bg-[#221410]/5 text-haze px-2 py-0.5 rounded">
                             Up to {v.guest_capacity} guests
                           </span>
                         )}
@@ -2994,12 +2994,12 @@ export default function App() {
                 {selectedVenue.address || `${selectedVenue.area}, ${selectedVenue.city}`}
               </span>
               {selectedVenue.venue_type && (
-                <span className="text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
+                <span className="text-xs bg-[#221410]/5 text-haze px-2 py-0.5 rounded">
                   {selectedVenue.venue_type}
                 </span>
               )}
               {selectedVenue.guest_capacity && (
-                <span className="text-xs bg-white/5 text-haze px-2 py-0.5 rounded">
+                <span className="text-xs bg-[#221410]/5 text-haze px-2 py-0.5 rounded">
                   Up to {selectedVenue.guest_capacity} guests
                 </span>
               )}
@@ -3011,7 +3011,7 @@ export default function App() {
 
             <div className="flex flex-col gap-3 mt-8">
               {selectedVenue.venue_packages?.map((p) => (
-                <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-4 bg-surface border border-white/10 shadow-card">
+                <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-4 bg-surface border border-[#221410]/15 shadow-card">
                   <div>
                     <p className="font-display font-semibold text-ink">{p.name}</p>
                     <p className="text-sm text-haze">{p.description}</p>
@@ -3115,13 +3115,13 @@ export default function App() {
             </button>
             <h1 className="font-display text-3xl font-bold mb-4">Request a booking</h1>
 
-            <div className="rounded-2xl p-4 bg-surface border border-white/10 text-sm mb-6">
+            <div className="rounded-2xl p-4 bg-surface border border-[#221410]/15 text-sm mb-6">
               <p className="font-display font-semibold text-ink">{selectedVenue.name}</p>
               <p className="text-haze text-xs mb-2">
                 {selectedVenue.area ? `${selectedVenue.area}, ` : ""}
                 {selectedVenue.city}
               </p>
-              <div className="flex justify-between text-xs text-haze pt-2 border-t border-white/10">
+              <div className="flex justify-between text-xs text-haze pt-2 border-t border-[#221410]/15">
                 <span>{selectedPackage?.name}</span>
                 <span className="text-amber font-semibold">
                   {inr(effectivePricePerHead(selectedPackage))} / person
@@ -3135,7 +3135,7 @@ export default function App() {
                 <input
                   type="text"
                   required
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                  className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={form.customer_name}
                   onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
                 />
@@ -3148,7 +3148,7 @@ export default function App() {
                     type="tel"
                     required
                     placeholder="+91 98765 43210"
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.contact_mobile}
                     onChange={(e) => setForm({ ...form, contact_mobile: e.target.value })}
                   />
@@ -3158,7 +3158,7 @@ export default function App() {
                   <input
                     type="email"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.contact_email}
                     onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
                   />
@@ -3170,7 +3170,7 @@ export default function App() {
                 <input
                   type="text"
                   disabled
-                  className="border border-white/10 bg-white/[0.03] text-haze rounded-lg px-3 py-2 text-sm w-full"
+                  className="border border-[#221410]/15 bg-[#221410]/[0.05] text-haze rounded-lg px-3 py-2 text-sm w-full"
                   value={selectedVenue.city}
                 />
               </div>
@@ -3179,7 +3179,7 @@ export default function App() {
                 <label className="text-sm font-medium block mb-1">Occasion</label>
                 <Select
                   ariaLabel="Occasion"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
+                  className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
                   value={form.booking_type_id}
                   onChange={(v) => setForm({ ...form, booking_type_id: v })}
                   options={[
@@ -3195,7 +3195,7 @@ export default function App() {
                   <input
                     type="text"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.occasion_other}
                     onChange={(e) => setForm({ ...form, occasion_other: e.target.value })}
                   />
@@ -3208,7 +3208,7 @@ export default function App() {
                   <input
                     type="date"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.event_date}
                     onChange={(e) => setForm({ ...form, event_date: e.target.value })}
                   />
@@ -3218,7 +3218,7 @@ export default function App() {
                   <input
                     type="time"
                     required
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.event_time}
                     onChange={(e) => setForm({ ...form, event_time: e.target.value })}
                   />
@@ -3251,7 +3251,7 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.male_count}
                     onChange={(e) => setForm({ ...form, male_count: e.target.value })}
                   />
@@ -3261,14 +3261,14 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                    className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                     value={form.female_count}
                     onChange={(e) => setForm({ ...form, female_count: e.target.value })}
                   />
                 </div>
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm flex justify-between items-center">
+              <div className="bg-[#221410]/5 border border-[#221410]/15 rounded-lg px-3 py-2 text-sm flex justify-between items-center">
                 <span className="text-haze">Total guest count</span>
                 <span className="font-semibold text-ink">{headcountNum}</span>
               </div>
@@ -3278,7 +3278,7 @@ export default function App() {
                 <textarea
                   rows={3}
                   placeholder="Tell the venue about any special requirements for your event"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                  className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={form.special_request}
                   onChange={(e) => setForm({ ...form, special_request: e.target.value })}
                 />
@@ -3299,7 +3299,7 @@ export default function App() {
                     {!atLimit && remainingOptions.length > 0 && (
                       <Select
                         ariaLabel="Add an add-on"
-                        className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
+                        className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
                         value=""
                         onChange={(v) => {
                           if (!v) return;
@@ -3319,7 +3319,7 @@ export default function App() {
                         {selectedAddons.map((a) => (
                           <div
                             key={a.id}
-                            className="flex justify-between items-center gap-2 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm"
+                            className="flex justify-between items-center gap-2 bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm"
                           >
                             <span className="text-ink">{a.name}</span>
                             <button
@@ -3355,7 +3355,7 @@ export default function App() {
               })()}
 
               {headcountNum > 0 && preview && (
-                <div className="bg-surface border border-white/10 rounded-2xl p-4 text-sm">
+                <div className="bg-surface border border-[#221410]/15 rounded-2xl p-4 text-sm">
                   <h3 className="font-display font-semibold text-ink mb-2">Booking summary</h3>
                   <div className="flex justify-between mb-1">
                     <span className="text-haze">{selectedPackage?.name} × {headcountNum} guests</span>
@@ -3374,7 +3374,7 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
+                  <div className="flex justify-between mb-2 pb-2 border-b border-[#221410]/15 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
                     <span className="text-amber">{inr(totalPreview)}</span>
                   </div>
@@ -3386,7 +3386,7 @@ export default function App() {
                 </div>
               )}
 
-              <div className="border border-white/10 bg-white/[0.03] rounded-2xl p-4 text-xs text-haze max-h-32 overflow-y-auto">
+              <div className="border border-[#221410]/15 bg-[#221410]/[0.05] rounded-2xl p-4 text-xs text-haze max-h-32 overflow-y-auto">
                 <p className="font-semibold text-ink mb-1">Booking terms &amp; conditions</p>
                 <ul className="list-disc pl-4 flex flex-col gap-1">
                   <li>
@@ -3440,7 +3440,7 @@ export default function App() {
 
         {screen === "request" && submitted && (
           <div className="max-w-lg">
-            <div className="bg-surface border border-white/10 rounded-2xl p-6 text-center shadow-card">
+            <div className="bg-surface border border-[#221410]/15 rounded-2xl p-6 text-center shadow-card">
               <h2 className="font-display text-2xl font-bold text-ink mb-2">Request sent</h2>
               <p className="text-haze text-sm mb-4">
                 {selectedVenue.name} has up to 2 hours to respond. You'll see the status update under
@@ -3474,8 +3474,8 @@ export default function App() {
                   onClick={() => setBookingsTab(t)}
                   className={`text-sm px-3 py-1.5 rounded-full border capitalize transition-colors ${
                     bookingsTab === t
-                      ? "bg-ink text-[#170D0B] border-ink"
-                      : "border-white/15 text-haze hover:text-ink"
+                      ? "bg-ink text-[#F5F1EE] border-ink"
+                      : "border-[#221410]/20 text-haze hover:text-ink"
                   }`}
                 >
                   {t}
@@ -3513,7 +3513,7 @@ export default function App() {
                   stage === 1 && !!b.partner_disclosure_note && !b.disclosure_response;
 
                 return (
-                  <div key={b.id} className="rounded-2xl p-4 bg-surface border border-white/10 shadow-card">
+                  <div key={b.id} className="rounded-2xl p-4 bg-surface border border-[#221410]/15 shadow-card">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-display font-semibold text-ink">{b.venues?.name}</p>
@@ -3527,7 +3527,7 @@ export default function App() {
                         </p>
                       </div>
                       {stage === null && (
-                        <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 capitalize ${statusColor[b.status] || "bg-white/10 text-haze"}`}>
+                        <span className={`text-xs font-medium px-2 py-1 rounded shrink-0 capitalize ${statusColor[b.status] || "bg-[#221410]/10 text-haze"}`}>
                           {b.status.replace(/_/g, " ")}
                         </span>
                       )}
@@ -3553,7 +3553,7 @@ export default function App() {
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
                         {Array.isArray(b.booking_addon_requests) && b.booking_addon_requests.length > 0 && (
-                          <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
+                          <div className="mt-3 border border-[#221410]/15 rounded-xl p-3 bg-[#221410]/[0.05]">
                             <p className="text-xs font-semibold text-haze mb-2">Add-ons requested</p>
                             <ul className="flex flex-col gap-2">
                               {b.booking_addon_requests.map((a) => (
@@ -3569,7 +3569,7 @@ export default function App() {
                                         Not available
                                       </span>
                                     ) : a.status === "customer_declined" ? (
-                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-white/10 text-haze border border-white/15">
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0 bg-[#221410]/10 text-haze border border-[#221410]/20">
                                         Declined
                                       </span>
                                     ) : a.status === "partner_available" ? (
@@ -3597,7 +3597,7 @@ export default function App() {
                                           type="button"
                                           disabled={!!addonOfferBusy}
                                           onClick={() => reviewAddonOffer(a.id, "customer_declined")}
-                                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/5 text-haze border border-white/15 disabled:opacity-50"
+                                          className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#221410]/5 text-haze border border-[#221410]/20 disabled:opacity-50"
                                         >
                                           {addonOfferBusy === `${a.id}:customer_declined` ? "Declining…" : "Decline"}
                                         </button>
@@ -3637,7 +3637,7 @@ export default function App() {
                                     type="button"
                                     disabled={!!disclosureBusy}
                                     onClick={() => respondToDisclosure(b, "declined")}
-                                    className="border border-white/15 text-haze text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:text-ink transition"
+                                    className="border border-[#221410]/20 text-haze text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:text-ink transition"
                                   >
                                     {disclosureBusy === `${b.id}:declined`
                                       ? "Saving…"
@@ -3654,11 +3654,11 @@ export default function App() {
 
                         {b.status === "pending" && (
                           cancelId === b.id ? (
-                            <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03] flex flex-col gap-2">
+                            <div className="mt-3 border border-[#221410]/15 rounded-xl p-3 bg-[#221410]/[0.05] flex flex-col gap-2">
                               <p className="text-xs font-semibold text-haze">Cancel this request</p>
                               <Select
                                 ariaLabel="Reason for cancelling"
-                                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
+                                className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink focus:outline-none focus:border-amber/60"
                                 value={cancelPreset}
                                 onChange={pickCancelPreset}
                                 options={[
@@ -3671,7 +3671,7 @@ export default function App() {
                                 placeholder="Tell the venue why you're cancelling"
                                 value={cancelReason}
                                 onChange={(e) => setCancelReason(e.target.value)}
-                                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                                className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                               />
                               {cancelError && <p className="text-xs text-red-300">{cancelError}</p>}
                               <div className="flex gap-2">
@@ -3705,7 +3705,7 @@ export default function App() {
                         )}
 
                         {stage === 1 && !needsDisclosureResponse && (
-                          <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
+                          <div className="mt-3 border border-[#221410]/15 rounded-xl p-3 bg-[#221410]/[0.05]">
                             <p className="text-xs font-semibold text-haze mb-2">
                               Booking summary
                             </p>
@@ -3733,7 +3733,7 @@ export default function App() {
                                 <dt className="text-haze">Package</dt>
                                 <dd className="text-right">{b.venue_packages?.name}</dd>
                               </div>
-                              <div className="flex justify-between gap-4 border-t border-white/10 pt-1 mt-1">
+                              <div className="flex justify-between gap-4 border-t border-[#221410]/15 pt-1 mt-1">
                                 <dt className="text-haze">
                                   {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
                                 </dt>
@@ -3822,7 +3822,7 @@ export default function App() {
                         )}
 
                         {b.status === "confirmed" && (
-                          <div className="mt-3 border border-white/10 rounded-xl p-3">
+                          <div className="mt-3 border border-[#221410]/15 rounded-xl p-3">
                             <p className="text-xs font-semibold text-haze mb-1">Guest count</p>
                             <p className="text-xs text-haze/70">
                               Booked for {b.headcount} guests. If additional guests attend beyond your
@@ -3835,7 +3835,7 @@ export default function App() {
                           const editable = canEditConfirmedBooking(b);
                           const confirming = confirmedCancelConfirming === b.id;
                           return (
-                            <div className="mt-3 border border-white/10 rounded-xl p-3">
+                            <div className="mt-3 border border-[#221410]/15 rounded-xl p-3">
                               <p className="text-xs font-semibold text-haze mb-1">Cancel booking</p>
                               {!editable ? (
                                 <p className="text-xs text-haze/70">
@@ -3896,7 +3896,7 @@ export default function App() {
                         })()}
 
                         {b.status === "confirmed" && (
-                          <div className="mt-3 border border-white/10 rounded-xl p-3">
+                          <div className="mt-3 border border-[#221410]/15 rounded-xl p-3">
                             <p className="text-xs font-semibold text-haze mb-1">
                               Check-in code
                             </p>
@@ -3968,7 +3968,7 @@ export default function App() {
                         )}
                       </>
                     ) : b.status === "completed" ? (
-                      <div className="mt-3 border border-white/10 rounded-xl p-3">
+                      <div className="mt-3 border border-[#221410]/15 rounded-xl p-3">
                         {fb?.status === "submitted" ? (
                           <>
                             <p className="text-xs font-semibold text-haze mb-1">
@@ -3976,7 +3976,7 @@ export default function App() {
                             </p>
                             <p className="text-amber text-lg leading-none">
                               {"★".repeat(fb.rating || 0)}
-                              <span className="text-white/15">{"★".repeat(5 - (fb.rating || 0))}</span>
+                              <span className="text-[#221410]/20">{"★".repeat(5 - (fb.rating || 0))}</span>
                             </p>
                             {fb.comment && (
                               <p className="text-sm text-haze mt-1 whitespace-pre-wrap">{fb.comment}</p>
@@ -4005,7 +4005,7 @@ export default function App() {
                                     setFbDraft((d) => ({ ...d, [b.id]: { ...draft, rating: n } }))
                                   }
                                   className={`text-2xl leading-none ${
-                                    draft.rating >= n ? "text-amber" : "text-white/15"
+                                    draft.rating >= n ? "text-amber" : "text-[#221410]/20"
                                   }`}
                                 >
                                   ★
@@ -4019,7 +4019,7 @@ export default function App() {
                               onChange={(e) =>
                                 setFbDraft((d) => ({ ...d, [b.id]: { ...draft, comment: e.target.value } }))
                               }
-                              className="bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-sm w-full mt-1 text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                              className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-2 py-1.5 text-sm w-full mt-1 text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                             />
                             {fbError[b.id] && (
                               <p className="text-xs text-red-300 mt-1">{fbError[b.id]}</p>
@@ -4093,12 +4093,12 @@ export default function App() {
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Profile</h1>
             <p className="text-haze text-sm mb-6">Keep your details up to date for smoother bookings.</p>
-            <form onSubmit={saveProfile} className="flex flex-col gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card">
+            <form onSubmit={saveProfile} className="flex flex-col gap-4 bg-surface border border-[#221410]/15 rounded-2xl p-5 shadow-card">
               <div>
                 <label className="text-sm font-medium block mb-1">Full name</label>
                 <input
                   type="text"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                  className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={profileForm.full_name}
                   onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
                 />
@@ -4108,7 +4108,7 @@ export default function App() {
                 <input
                   type="tel"
                   placeholder="+91 98765 43210"
-                  className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                  className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                   value={profileForm.phone}
                   onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                 />
@@ -4118,7 +4118,7 @@ export default function App() {
                 <input
                   type="email"
                   disabled
-                  className="border border-white/10 bg-white/[0.03] text-haze rounded-lg px-3 py-2 text-sm w-full"
+                  className="border border-[#221410]/15 bg-[#221410]/[0.05] text-haze rounded-lg px-3 py-2 text-sm w-full"
                   value={profile?.email || session.email}
                 />
               </div>
@@ -4138,14 +4138,14 @@ export default function App() {
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Settings</h1>
             <p className="text-haze text-sm mb-6">Manage your account security.</p>
-            <form onSubmit={changePassword} className="flex flex-col gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card">
+            <form onSubmit={changePassword} className="flex flex-col gap-4 bg-surface border border-[#221410]/15 rounded-2xl p-5 shadow-card">
               <h2 className="text-sm font-medium">Change password</h2>
               <input
                 type="password"
                 required
                 minLength={6}
                 placeholder="New password"
-                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                 value={settingsPassword}
                 onChange={(e) => setSettingsPassword(e.target.value)}
               />
@@ -4154,7 +4154,7 @@ export default function App() {
                 required
                 minLength={6}
                 placeholder="Confirm new password"
-                className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                className="bg-[#221410]/5 border border-[#221410]/20 rounded-lg px-3 py-2 text-sm w-full text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
                 value={settingsPasswordConfirm}
                 onChange={(e) => setSettingsPasswordConfirm(e.target.value)}
               />
@@ -4235,12 +4235,12 @@ export default function App() {
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Help &amp; support</h1>
             <p className="text-haze text-sm mb-6">We're here if something doesn't look right.</p>
-            <div className="bg-surface border border-white/10 rounded-2xl p-5 flex flex-col gap-4 shadow-card">
+            <div className="bg-surface border border-[#221410]/15 rounded-2xl p-5 flex flex-col gap-4 shadow-card">
               <div>
                 <p className="text-sm font-medium text-ink">Email us</p>
                 <p className="text-sm text-haze">hello.mypaxo@gmail.com</p>
               </div>
-              <div className="border-t border-white/10 pt-4">
+              <div className="border-t border-[#221410]/15 pt-4">
                 <p className="text-sm font-medium text-ink mb-1">Common questions</p>
                 <ul className="text-sm text-haze list-disc pl-4 flex flex-col gap-1">
                   <li>How long does a venue have to respond to my request? Up to 2 hours.</li>
@@ -4310,7 +4310,7 @@ export default function App() {
 
       {session && (
         <nav
-          className="sm:hidden fixed bottom-0 inset-x-0 z-20 bg-base/95 backdrop-blur border-t border-white/10 flex items-stretch"
+          className="sm:hidden fixed bottom-0 inset-x-0 z-20 bg-base/95 backdrop-blur border-t border-[#221410]/15 flex items-stretch"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
           {[

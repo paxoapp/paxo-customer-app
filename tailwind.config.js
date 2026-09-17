@@ -4,13 +4,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Nightlife palette — matched to the existing login screen:
-        // warm near-black ground, one amber accent, warm-neutral text.
-        base: "#000000", // page background — true black
-        surface: "#221410", // cards and raised surfaces, one step up from base
-        amber: "#F5A623", // the single accent — every CTA and every tier/price signal
-        ink: "#F5F1EE", // primary text — warm white
-        haze: "#C9B8AE", // secondary / muted text — warm tan-grey
+        // White theme — brown text/accents, amber unchanged as the accent.
+        base: "#FFFFFF", // page background — white
+        surface: "#EDE0D3", // cards — warm light tan, visibly different from pure white
+        amber: "#F5A623", // unchanged — yellow accent
+        ink: "#170D0B", // primary text — dark brown (was the old dark background color)
+        haze: "#6B584E", // secondary / muted text — muted brown
       },
       fontFamily: {
         display: ['"Space Grotesk"', "ui-sans-serif", "system-ui", "sans-serif"],
