@@ -1360,6 +1360,135 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   );
 }
 
+function RefundReceiptBody({ booking, onFinalize }) {
+  const b = booking;
+  // The refund fields live on the deposit payment row itself — written by
+  // process-booking-refund at cancellation time, so these are the actual
+  // Razorpay-processed values, not a pre-cancellation preview.
+  const depositPayment = (b.payments || []).find((p) => p.payment_type === "deposit");
+  const refundPercent =
+    depositPayment?.refund_percent ??
+    refundPercentPreview(b.booking_type, hoursUntil(b.event_date, b.event_time));
+  const depositPaid = Number(depositPayment?.amount || 0);
+  const refundAmount =
+    depositPayment?.refund_amount ?? Math.round(depositPaid * (refundPercent / 100) * 100) / 100;
+  const cancelledOn = b.cancelled_at
+    ? new Date(b.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  const fullRef = useRef(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
+  async function viewFullReceipt() {
+    if (pdfBusy) return;
+    setPdfError("");
+    setPdfBusy(true);
+    const tab = window.open("", "_blank");
+    if (tab) {
+      tab.document.write(
+        "<title>Generating receipt…</title><body style='font:14px system-ui;padding:24px;color:#444'>Generating your receipt…</body>"
+      );
+    }
+    let holder;
+    try {
+      const { default: html2pdf } = await import("html2pdf.js");
+      const clone = fullRef.current.cloneNode(true);
+      clone.classList.remove("hidden");
+      clone.style.display = "block";
+      clone.style.width = "540px";
+      clone.style.padding = "24px";
+      clone.style.color = "#1c1917";
+      clone.style.background = "#ffffff";
+      holder = document.createElement("div");
+      holder.style.cssText = "position:fixed;left:-10000px;top:0;background:#ffffff";
+      holder.appendChild(clone);
+      document.body.appendChild(holder);
+
+      const blobUrl = await html2pdf()
+        .set({
+          margin: 10,
+          filename: `refund-receipt-${booking.booking_ref}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(clone)
+        .output("bloburl");
+
+      if (tab) tab.location.href = blobUrl;
+      else window.open(blobUrl, "_blank");
+    } catch (e) {
+      console.error(e);
+      if (tab) tab.close();
+      setPdfError("Couldn't generate the receipt. Please try again.");
+    } finally {
+      if (holder) document.body.removeChild(holder);
+      setPdfBusy(false);
+    }
+  }
+
+  const Row = ({ k, v }) => (
+    <div className="flex justify-between gap-4 py-1.5 border-b border-stone-100 text-sm">
+      <span className="text-stone-500">{k}</span>
+      <span className="text-right font-medium text-stone-900">{v || "—"}</span>
+    </div>
+  );
+  return (
+    <div className="receipt-print bg-white text-stone-900 rounded-xl">
+      <div className="print:hidden">
+        <h2 className="font-display text-xl font-semibold">Cancellation refund receipt</h2>
+        <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
+
+        <Row k="Venue" v={b.venues?.name} />
+        <Row k="Event date" v={fmtDate(b.event_date)} />
+        <Row k="Cancelled on" v={cancelledOn} />
+        {refundPercent === 0 ? (
+          <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
+        ) : (
+          <Row k="Refund amount" v={inr(refundAmount)} />
+        )}
+
+        {pdfError && <p className="text-xs text-red-600 mt-3">{pdfError}</p>}
+        <div className="flex flex-wrap gap-2 mt-5">
+          <button
+            type="button"
+            onClick={viewFullReceipt}
+            disabled={pdfBusy}
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition disabled:opacity-60"
+          >
+            {pdfBusy ? "Generating…" : "View Full Receipt"}
+          </button>
+        </div>
+      </div>
+
+      <div ref={fullRef} className="hidden print:block text-stone-900">
+        <img src="/paxo-icon.png" alt="Paxo" className="h-10 w-10 rounded-lg mb-3" />
+        <h2 className="font-display text-xl font-semibold text-stone-900">Cancellation refund receipt</h2>
+        <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
+
+        <Row k="Venue" v={b.venues?.name} />
+        <Row k="Event date" v={fmtDate(b.event_date)} />
+        <Row k="Cancelled on" v={cancelledOn} />
+
+        <div className="h-3" />
+        <Row k="Deposit paid" v={inr(depositPaid)} />
+        <Row k="Refund %" v={`${refundPercent}%`} />
+        {refundPercent === 0 ? (
+          <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
+        ) : (
+          <Row k="Refund amount" v={inr(refundAmount)} />
+        )}
+
+        <div className="h-3" />
+        <Row k="Name" v={b.contact_name} />
+        <Row k="Mobile" v={b.contact_mobile} />
+        <Row k="Email" v={b.contact_email} />
+      </div>
+    </div>
+  );
+}
+
 function fmtTime(t) {
   if (!t) return "";
   const [h, m] = t.split(":");
@@ -1539,6 +1668,7 @@ export default function App() {
   const [fbError, setFbError] = useState({}); // keyed by booking id
   const [fbOpenId, setFbOpenId] = useState(null); // booking id whose feedback form is expanded after a skip
   const [receiptId, setReceiptId] = useState(null); // booking id whose receipt modal is open
+  const [refundReceiptId, setRefundReceiptId] = useState(null); // booking id whose refund receipt modal is open
   // "Your Menu" — a single flow for both first-ever selection and every later
   // edit, split into two independently-submitted groups, Food and Beverage.
   const [yourMenuId, setYourMenuId] = useState(null); // booking id whose "Your Menu" screen is open
@@ -1639,7 +1769,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id)," +
+          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
@@ -4235,6 +4365,16 @@ export default function App() {
                           If a refund applies, it will reflect in your original payment method
                           within 7–10 business days.
                         </p>
+                        {b.cancelled_by &&
+                          (b.payments || []).some((p) => p.payment_type === "deposit" && p.status === "paid") && (
+                            <button
+                              type="button"
+                              onClick={() => setRefundReceiptId(b.id)}
+                              className="mt-2 text-sm font-medium text-amber hover:brightness-110 mr-4"
+                            >
+                              View Refund Receipt
+                            </button>
+                          )}
                         <button
                           type="button"
                           onClick={() => setScreen("browse")}
@@ -4483,6 +4623,18 @@ export default function App() {
                 paymentRef={paymentRef}
                 onFinalize={() => openYourMenu(b)}
               />
+            </Modal>
+          );
+        })()}
+
+      {refundReceiptId &&
+        screen === "myBookings" &&
+        (() => {
+          const b = myBookings.find((x) => x.id === refundReceiptId);
+          if (!b) return null;
+          return (
+            <Modal title="Refund Receipt" className="receipt-modal" onClose={() => setRefundReceiptId(null)}>
+              <RefundReceiptBody booking={b} />
             </Modal>
           );
         })()}
