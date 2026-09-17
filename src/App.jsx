@@ -2385,7 +2385,7 @@ export default function App() {
 
   if (screen === "auth") {
     const chipsRow1 = ["Book your venue instantly", "Easy to use", "Unlimited packages", "Select your menu"];
-    const chipsRow2 = ["Easy payment methods", "Use anytime, anywhere", "Live booking status", "Rate your experience"];
+    const chipsRow2 = ["Pay a small deposit, rest at venue", "Use anytime, anywhere", "Live booking status", "Rate your experience"];
     return (
       <div
         className="relative min-h-screen bg-base text-ink flex flex-col justify-center px-6 py-10 overflow-hidden"
@@ -2426,7 +2426,7 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-left">
               {[...chipsRow1, ...chipsRow1].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-haze border border-white/15 rounded-full px-4 py-2">
+                <span key={i} className="whitespace-nowrap text-sm text-ink/80 bg-white/5 border border-white/10 rounded-full px-4 py-2">
                   {c}
                 </span>
               ))}
@@ -2435,7 +2435,7 @@ export default function App() {
           <div className="overflow-hidden">
             <div className="marquee-track marquee-right">
               {[...chipsRow2, ...chipsRow2].map((c, i) => (
-                <span key={i} className="whitespace-nowrap text-sm text-haze border border-white/15 rounded-full px-4 py-2">
+                <span key={i} className="whitespace-nowrap text-sm text-ink/80 bg-white/5 border border-white/10 rounded-full px-4 py-2">
                   {c}
                 </span>
               ))}
