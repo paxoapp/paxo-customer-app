@@ -836,7 +836,7 @@ function VenueFullMenu({ venue }) {
         <div className="border-t border-white/10">
           <p className="text-sm text-haze px-4 pt-3">
             Everything this venue serves. Package-specific choices and quotas are shown on each
-            package's “Review menu”.
+            package's “Drinks Included”.
           </p>
 
           {!hasPackages ? (
@@ -3097,7 +3097,7 @@ export default function App() {
                       className="border border-amber/50 text-amber font-medium hover:bg-amber/10 text-sm px-4 py-2 rounded-xl transition"
                       onClick={() => setReviewPkg(p)}
                     >
-                      Review menu
+                      Drinks Included
                     </button>
                   </div>
                 </div>
