@@ -6,7 +6,7 @@ export default {
       colors: {
         // Nightlife palette — matched to the existing login screen:
         // warm near-black ground, one amber accent, warm-neutral text.
-        base: "#000000", // page background — true black
+        base: "#170D0B", // page background — near-black, warm maroon undertone
         surface: "#221410", // cards and raised surfaces, one step up from base
         amber: "#F5A623", // the single accent — every CTA and every tier/price signal
         ink: "#F5F1EE", // primary text — warm white
