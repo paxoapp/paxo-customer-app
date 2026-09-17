@@ -1182,6 +1182,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
           Receipt" clones this block and renders it to a PDF; the @media print
           rules still format it for a direct browser print. */}
       <div ref={fullRef} className="hidden print:block text-stone-900">
+        <img src="/paxo-icon.png" alt="Paxo" className="h-10 w-10 rounded-lg mb-3" />
         <h2 className="font-display text-xl font-semibold text-stone-900">Booking confirmation receipt</h2>
         <p className="text-xs font-semibold text-[#9a5f0f] mb-3">{b.booking_ref}</p>
 
@@ -2401,6 +2402,7 @@ export default function App() {
           .marquee-right { animation: marquee-right 26s linear infinite; }
         `}</style>
         <div className="max-w-sm mx-auto w-full">
+          <img src="/paxo-icon.png" alt="Paxo" className="h-12 w-12 rounded-xl mb-6" />
           <button
             type="button"
             className="text-sm text-haze hover:text-ink mb-6"
@@ -2690,7 +2692,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-base text-ink pb-20 sm:pb-0">
-      <header className="bg-base/90 backdrop-blur border-b border-white/10 sticky top-0 z-30">
+      <header className="bg-black/90 backdrop-blur border-b border-white/10 sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setScreen("browse")}>
             <img src="/paxo-icon.png" alt="" className="h-8 w-8 rounded-lg" />
