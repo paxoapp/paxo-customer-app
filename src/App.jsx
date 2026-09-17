@@ -3890,6 +3890,10 @@ export default function App() {
                                         <span className="font-semibold">{cancelPct}% refund</span> of your deposit —{" "}
                                         <span className="font-semibold">{inr(cancelRefund)}</span> of {inr(b.deposit_amount)} paid.
                                       </p>
+                                      <p className="text-xs text-haze mt-1">
+                                        This refund will be credited to your original payment method within
+                                        7–10 business days.
+                                      </p>
                                       {confirmedCancelError && (
                                         <p className="text-xs text-red-300 mt-1.5">{confirmedCancelError}</p>
                                       )}
@@ -4093,6 +4097,10 @@ export default function App() {
                             {b.cancellation_reason}
                           </p>
                         )}
+                        <p className="text-xs text-haze/80 mt-1.5">
+                          If a refund applies, it will reflect in your original payment method
+                          within 7–10 business days.
+                        </p>
                         <button
                           type="button"
                           onClick={() => setScreen("browse")}
@@ -4269,8 +4277,43 @@ export default function App() {
                 <ul className="text-sm text-haze list-disc pl-4 flex flex-col gap-1">
                   <li>How long does a venue have to respond to my request? Up to 2 hours.</li>
                   <li>When do I pay the rest of the bill? Directly at the venue, unless you paid in full.</li>
-                  <li>Can I cancel a confirmed booking? Yes — refunds on your deposit follow the policy above based on how close it is to the event.</li>
+                  <li>Can I cancel a confirmed booking? Yes — refunds on your deposit follow the policy below based on how close it is to the event.</li>
                 </ul>
+              </div>
+            </div>
+
+            <div className="bg-surface border border-white/10 rounded-2xl p-5 mt-5 shadow-card">
+              <h2 className="font-display text-lg font-semibold text-ink mb-3">
+                Cancellation &amp; Refund Policy
+              </h2>
+              <div className="flex flex-col gap-4 text-sm text-haze">
+                <div>
+                  <p className="font-medium text-ink mb-1">Standard Booking (event 7+ days away)</p>
+                  <ul className="list-disc pl-4 flex flex-col gap-0.5">
+                    <li>Cancel more than 72 hours before your event → 100% refund of deposit</li>
+                    <li>Cancel 48–72 hours before → 50% refund of deposit</li>
+                    <li>Cancel less than 48 hours before, or no-show → no refund</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium text-ink mb-1">Secure Booking (event within a week, more than 48 hours away)</p>
+                  <ul className="list-disc pl-4 flex flex-col gap-0.5">
+                    <li>Cancel more than 96 hours before your event → 100% refund of deposit</li>
+                    <li>Cancel 72–96 hours before → 50% refund of deposit</li>
+                    <li>Cancel less than 72 hours before, or no-show → no refund</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium text-ink mb-1">Instant Booking (event within 48 hours)</p>
+                  <ul className="list-disc pl-4 flex flex-col gap-0.5">
+                    <li>Non-refundable — no refund at any time once confirmed</li>
+                  </ul>
+                </div>
+                <p className="text-xs text-haze/80 border-t border-white/10 pt-3">
+                  This applies only to the deposit paid through PAXO. The remaining balance paid
+                  directly at the venue is not covered by this policy. Approved refunds are
+                  credited back to your original payment method within 7–10 business days.
+                </p>
               </div>
             </div>
           </div>
