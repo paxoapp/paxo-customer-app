@@ -1053,6 +1053,28 @@ function VenueFullMenu({ venue }) {
   );
 }
 
+// Shares a venue's public deep link via the Web Share API, falling back to a
+// clipboard copy. Shared by the venue detail page (VenueReviews) and the
+// browse-grid card's share icon.
+async function shareVenueLink(venue, onCopied) {
+  const url = `https://www.mypaxo.in/v/${venue.venue_view_code}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: venue.name, text: `Check out ${venue.name} on Paxo`, url });
+    } catch (e) {
+      // User dismissed the share sheet — nothing to do.
+    }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    onCopied?.();
+  } catch (e) {
+    // Clipboard unavailable — silently give up rather than show an error
+    // for a non-critical share action.
+  }
+}
+
 // Public, logged-out-readable reviews for a venue's detail page. Deliberately
 // reads only rating/comment/created_at — never joined to bookings, so no
 // reviewer name/contact ever reaches the client. booking_feedback_select_public
@@ -1087,23 +1109,10 @@ function VenueReviews({ venue }) {
   const avgRounded = Math.round(avg);
 
   async function shareVenue() {
-    const url = `https://www.mypaxo.in/v/${venue.venue_view_code}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: venue.name, text: `Check out ${venue.name} on Paxo`, url });
-      } catch (e) {
-        // User dismissed the share sheet — nothing to do.
-      }
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
+    await shareVenueLink(venue, () => {
       setShared(true);
       setTimeout(() => setShared(false), 2000);
-    } catch (e) {
-      // Clipboard unavailable — silently give up rather than show an error
-      // for a non-critical share action.
-    }
+    });
   }
 
   return (
@@ -1806,6 +1815,7 @@ export default function App() {
   });
   const [viaFriendInvite, setViaFriendInvite] = useState(false);
   const [reviewPkg, setReviewPkg] = useState(null); // package whose "Review Menu" modal is open
+  const [copiedVenueId, setCopiedVenueId] = useState(null); // venue id whose share link was just clipboard-copied
   const [bookingTypes, setBookingTypes] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [payingBookingId, setPayingBookingId] = useState(null);
@@ -1894,7 +1904,7 @@ export default function App() {
     setVenuesLoading(true);
     try {
       const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active)&status=eq.approved&order=created_at.desc"
+        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&order=created_at.desc"
       );
       setVenues(data);
     } catch (e) {
@@ -3300,7 +3310,13 @@ export default function App() {
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 gap-5">
-                {visibleVenues.map((v) => (
+                {visibleVenues.map((v) => {
+                  const reviews = v.booking_feedback || [];
+                  const reviewCount = reviews.length;
+                  const avgRating = reviewCount
+                    ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviewCount
+                    : 0;
+                  return (
                   <div
                     key={v.id}
                     className="group rounded-2xl overflow-hidden bg-surface border border-white/10 cursor-pointer hover:border-amber/50 transition-colors shadow-card"
@@ -3320,6 +3336,27 @@ export default function App() {
                           ✓ Verified
                         </span>
                       )}
+                      {v.venue_view_code && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            shareVenueLink(v, () => {
+                              setCopiedVenueId(v.id);
+                              setTimeout(() => setCopiedVenueId((id) => (id === v.id ? null : id)), 2000);
+                            });
+                          }}
+                          aria-label={`Share ${v.name}`}
+                          title={copiedVenueId === v.id ? "Link copied!" : "Share this venue"}
+                          className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full bg-base/80 border border-white/20 text-ink hover:text-amber hover:border-amber/40 transition"
+                        >
+                          {copiedVenueId === v.id ? (
+                            <span className="text-[10px] font-semibold text-amber">✓</span>
+                          ) : (
+                            <span className="text-xs leading-none">⤴</span>
+                          )}
+                        </button>
+                      )}
                       <div className="absolute bottom-0 left-0 right-0 p-3">
                         <h3 className="font-display text-lg font-semibold text-ink leading-tight">{v.name}</h3>
                         <div className="flex items-center gap-1.5">
@@ -3337,11 +3374,18 @@ export default function App() {
                             📍 Directions
                           </a>
                         </div>
-                        {minPackagePrice(v) != null && (
-                          <p className="text-sm font-semibold text-amber mt-0.5">
-                            From {inr(minPackagePrice(v))} / head
-                          </p>
-                        )}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {minPackagePrice(v) != null && (
+                            <p className="text-sm font-semibold text-amber">
+                              From {inr(minPackagePrice(v))} / head
+                            </p>
+                          )}
+                          {reviewCount > 0 && (
+                            <p className="text-xs text-haze">
+                              ★ {avgRating.toFixed(1)} ({reviewCount})
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="p-4">
@@ -3373,7 +3417,8 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {visibleVenues.length === 0 && (
                   <p className="text-haze/70 text-sm col-span-2">No venues in {selectedCity} yet.</p>
                 )}
