@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MapPin, CalendarCheck, User, Sparkles } from "lucide-react";
+import { MapPin, CalendarCheck, User, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -790,21 +790,33 @@ function ReviewMenuBody({ pkg, venue }) {
 
   const ItemList = ({ items }) =>
     items.length ? (
-      <ul className="list-disc pl-5 text-sm text-haze flex flex-col gap-0.5">
+      <div className="flex flex-wrap gap-1.5">
         {items.map((it) => (
-          <li key={it.id} className={it.is_available ? "" : "opacity-50"}>
+          <span
+            key={it.id}
+            className={`inline-flex items-center gap-1 text-xs rounded-full pl-1.5 pr-2.5 py-1 border ${
+              it.is_available
+                ? "bg-white/5 border-white/10 text-haze"
+                : "bg-white/[0.03] border-white/5 text-haze/50"
+            }`}
+          >
+            {it.is_available ? (
+              <Check size={12} className="text-emerald-400 shrink-0" strokeWidth={3} />
+            ) : (
+              <span className="w-3 text-center shrink-0 text-haze/40">—</span>
+            )}
             {it.name}
-            {!it.is_available && " (currently unavailable)"}
-          </li>
+            {!it.is_available && " (unavailable)"}
+          </span>
         ))}
-      </ul>
+      </div>
     ) : (
       <p className="text-sm text-haze/70">No items listed yet.</p>
     );
 
   const Group = ({ kind, items }) => (
-    <div className="mb-3 last:mb-0">
-      <p className="text-sm font-medium text-ink mb-1">
+    <div className="mb-4 last:mb-0">
+      <p className="text-sm font-medium text-ink mb-1.5">
         Choose <span className="text-amber font-semibold">{quotaFor(kind)}</span>{" "}
         {quotaLabel(kind, quotaFor(kind))}
       </p>
@@ -814,11 +826,20 @@ function ReviewMenuBody({ pkg, venue }) {
 
   const nothing = drinkKinds.length === 0 && !pkg.inclusions?.length;
 
+  const SectionHeader = ({ icon: Icon, children }) => (
+    <h3 className="font-display text-base font-semibold text-ink mb-2.5 flex items-center gap-2">
+      <span className="w-6 h-6 rounded-lg bg-amber/10 text-amber flex items-center justify-center shrink-0">
+        <Icon size={14} strokeWidth={2.5} />
+      </span>
+      {children}
+    </h3>
+  );
+
   return (
     <div>
       {Number(pkg?.price_per_head) > 0 && (
-        <div className="mb-5">
-          <h3 className="font-display text-base font-semibold text-ink mb-2">Pricing</h3>
+        <div className="mb-5 pb-5 border-b border-white/10">
+          <SectionHeader icon={IndianRupee}>Pricing</SectionHeader>
           {pkg.discount_percent > 0 ? (
             <p className="text-sm font-medium">
               <span className="line-through text-haze/60 mr-2">{inr(pkg.price_per_head)}</span>
@@ -833,10 +854,8 @@ function ReviewMenuBody({ pkg, venue }) {
       )}
 
       {drinkKinds.length > 0 && (
-        <div className="mb-5">
-          <h3 className="font-display text-base font-semibold text-ink mb-2">
-            Drinks included in this package
-          </h3>
+        <div className="mb-5 pb-5 border-b border-white/10">
+          <SectionHeader icon={Wine}>Drinks included in this package</SectionHeader>
           {drinkKinds.map((k) => (
             <Group key={k} kind={k} items={itemsForKind(k).filter((it) => poolIds.has(it.id))} />
           ))}
@@ -844,21 +863,25 @@ function ReviewMenuBody({ pkg, venue }) {
       )}
 
       {pkg.inclusions?.length > 0 && (
-        <div className="mb-5 last:mb-0">
-          <h3 className="font-display text-base font-semibold text-ink mb-2">Also included</h3>
-          <ul className="list-disc pl-5 text-sm text-haze flex flex-col gap-0.5">
+        <div className="mb-5 pb-5 border-b border-white/10 last:mb-0 last:pb-0 last:border-0">
+          <SectionHeader icon={CheckCircle2}>Also included</SectionHeader>
+          <div className="flex flex-wrap gap-1.5">
             {pkg.inclusions.map((inc, i) => (
-              <li key={i}>{inc}</li>
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 text-xs rounded-full pl-1.5 pr-2.5 py-1 bg-white/5 border border-white/10 text-haze"
+              >
+                <Check size={12} className="text-emerald-400 shrink-0" strokeWidth={3} />
+                {inc}
+              </span>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 
       {terms && (
         <div className="mb-5 last:mb-0">
-          <h3 className="font-display text-base font-semibold text-ink mb-2">
-            Terms &amp; Conditions
-          </h3>
+          <SectionHeader icon={ScrollText}>Terms &amp; Conditions</SectionHeader>
           <p className="text-sm text-haze whitespace-pre-wrap">{terms}</p>
         </div>
       )}
@@ -1025,6 +1048,114 @@ function VenueFullMenu({ venue }) {
             </>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Public, logged-out-readable reviews for a venue's detail page. Deliberately
+// reads only rating/comment/created_at — never joined to bookings, so no
+// reviewer name/contact ever reaches the client. booking_feedback_select_public
+// RLS already restricts this to status='submitted' rows only.
+function VenueReviews({ venue }) {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [shared, setShared] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    sb(
+      `/rest/v1/booking_feedback?venue_id=eq.${venue.id}&status=eq.submitted&select=rating,comment,created_at&order=created_at.desc`
+    )
+      .then((data) => {
+        if (!cancelled) setReviews(data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setReviews([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [venue.id]);
+
+  const count = reviews.length;
+  const avg = count ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / count : 0;
+  const avgRounded = Math.round(avg);
+
+  async function shareVenue() {
+    const url = `https://www.mypaxo.in/v/${venue.venue_view_code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: venue.name, text: `Check out ${venue.name} on Paxo`, url });
+      } catch (e) {
+        // User dismissed the share sheet — nothing to do.
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    } catch (e) {
+      // Clipboard unavailable — silently give up rather than show an error
+      // for a non-critical share action.
+    }
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <h2 className="font-display text-xl font-semibold">Reviews</h2>
+        {venue.venue_view_code && (
+          <button
+            type="button"
+            onClick={shareVenue}
+            className="text-xs font-medium text-amber border border-amber/40 hover:bg-amber/10 rounded-full px-3 py-1.5 transition"
+          >
+            {shared ? "Link copied!" : "Share this venue"}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-haze/70">Loading reviews…</p>
+      ) : count === 0 ? (
+        <p className="text-sm text-haze/70">
+          No reviews yet — be the first to book and share your experience.
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 mb-4">
+            <p className="text-amber text-lg leading-none">
+              {"★".repeat(avgRounded)}
+              <span className="text-white/15">{"★".repeat(5 - avgRounded)}</span>
+            </p>
+            <p className="text-sm text-haze">
+              {avg.toFixed(1)} · {count} review{count === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {reviews.map((r, i) => (
+              <div key={i} className="rounded-2xl p-4 bg-surface border border-white/10 shadow-card">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-amber text-sm leading-none">
+                    {"★".repeat(r.rating || 0)}
+                    <span className="text-white/15">{"★".repeat(5 - (r.rating || 0))}</span>
+                  </p>
+                  <p className="text-xs text-haze/60">{timeAgo(r.created_at)}</p>
+                </div>
+                {r.comment && (
+                  <p className="text-sm text-ink/90 mt-1 whitespace-pre-wrap">{r.comment}</p>
+                )}
+                <p className="text-xs text-haze/50 mt-2">Verified Guest</p>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -1504,6 +1635,25 @@ function fmtDate(d) {
   return Number.isNaN(parsed.getTime())
     ? d
     : parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+// "2 weeks ago" style relative timestamp for public reviews.
+function timeAgo(dateStr) {
+  if (!dateStr) return "";
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
 }
 
 // Customer booking journey. Returns the index (0-3) of the current stage, or
@@ -3396,6 +3546,8 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            <VenueReviews venue={selectedVenue} />
           </div>
         )}
 
