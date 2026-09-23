@@ -982,7 +982,7 @@ function VenueFullMenu({ venue }) {
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left bg-amber/10 border border-amber/30"
       >
-        <span className="font-display text-base font-semibold text-amber">View full menu</span>
+        <span className="font-display text-[1rem] leading-6 font-semibold text-amber">View full menu</span>
         <span aria-hidden className="text-lg leading-none text-amber w-5 text-center shrink-0">
           {expanded ? "−" : "+"}
         </span>
