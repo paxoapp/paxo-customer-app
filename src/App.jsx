@@ -104,6 +104,41 @@ function formatCountdown(totalMinutes) {
   return `${mins} min`;
 }
 
+// Ticks every second on its own (not the app-wide 30s re-render), so this one
+// visibly counts down instead of appearing frozen for up to a minute at a time.
+function secondsLeft(deadline) {
+  if (!deadline) return null;
+  return Math.round((new Date(deadline).getTime() - Date.now()) / 1000);
+}
+
+function formatCountdownSeconds(totalSeconds) {
+  if (totalSeconds === null || totalSeconds <= 0) return null;
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function PartnerResponseCountdown({ deadline }) {
+  const [secs, setSecs] = useState(() => secondsLeft(deadline));
+  useEffect(() => {
+    if (!deadline) return undefined;
+    setSecs(secondsLeft(deadline));
+    const id = setInterval(() => setSecs(secondsLeft(deadline)), 1000);
+    return () => clearInterval(id);
+  }, [deadline]);
+  if (secs === null) return null;
+  return (
+    <p className={`text-xs mt-1 ${secs < 1800 ? "text-red-300 font-medium" : "text-haze"}`}>
+      {secs > 0
+        ? `Venue has ${formatCountdownSeconds(secs)} left to respond`
+        : "Response window passed — this request will be auto-cancelled"}
+    </p>
+  );
+}
+
 // Booking Type is computed once from hours-to-event at request time and
 // locked permanently server-side (compute_booking_financials) — no customer
 // choice anywhere. This mirrors that same computation for the client preview.
@@ -4037,17 +4072,7 @@ export default function App() {
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
-                        {stage === 0 && (() => {
-                          const respondMins = minutesLeft(b.partner_response_deadline);
-                          if (respondMins === null) return null;
-                          return (
-                            <p className={`text-xs mt-1 ${respondMins < 30 ? "text-red-300 font-medium" : "text-haze"}`}>
-                              {respondMins > 0
-                                ? `Venue has ${formatCountdown(respondMins)} left to respond`
-                                : "Response window passed — this request will be auto-cancelled"}
-                            </p>
-                          );
-                        })()}
+                        {stage === 0 && <PartnerResponseCountdown deadline={b.partner_response_deadline} />}
 
                         {Array.isArray(b.booking_addon_requests) && b.booking_addon_requests.length > 0 && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
