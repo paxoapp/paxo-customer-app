@@ -4037,6 +4037,18 @@ export default function App() {
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
+                        {stage === 0 && (() => {
+                          const respondMins = minutesLeft(b.partner_response_deadline);
+                          if (respondMins === null) return null;
+                          return (
+                            <p className={`text-xs mt-1 ${respondMins < 30 ? "text-red-300 font-medium" : "text-haze"}`}>
+                              {respondMins > 0
+                                ? `Venue has ${formatCountdown(respondMins)} left to respond`
+                                : "Response window passed — this request will be auto-cancelled"}
+                            </p>
+                          );
+                        })()}
+
                         {Array.isArray(b.booking_addon_requests) && b.booking_addon_requests.length > 0 && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
                             <p className="text-xs font-semibold text-haze mb-2">Add-ons requested</p>
