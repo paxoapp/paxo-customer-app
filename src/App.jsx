@@ -3517,7 +3517,7 @@ export default function App() {
               const activePhoto = photos[activeIndex];
               const hasMultiple = photos.length > 1;
               return (
-                <div className="h-60 mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512] relative">
+                <div className="aspect-video mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512] relative">
                   <img
                     src={activePhoto?.image_url}
                     alt=""
