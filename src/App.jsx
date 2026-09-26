@@ -3650,6 +3650,7 @@ export default function App() {
                   {inr(effectivePricePerHead(selectedPackage))} / person
                 </span>
               </div>
+              <GstLine pkg={selectedPackage} className="text-xs text-haze/70 mt-1.5 text-right" />
             </div>
 
             <form onSubmit={submitRequest} className="flex flex-col gap-4">
@@ -3893,6 +3894,7 @@ export default function App() {
                       )}
                     </span>
                   </div>
+                  <GstLine pkg={selectedPackage} className="text-xs text-haze/70 mb-2 text-right" />
 
                   <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
                     <span>Estimated package value</span>
