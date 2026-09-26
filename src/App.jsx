@@ -3630,14 +3630,21 @@ export default function App() {
                               </ul>
                             </div>
                           )}
-                          {(bev.length > 0 || p.inclusions?.length > 0) && (
+                          {bev.length > 0 && (
                             <div className="mt-3">
                               <p className="text-xs font-semibold text-ink mb-0.5">Beverages</p>
                               <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
                                 {bev.map((q) => (
                                   <li key={q.id}>{line(q)}</li>
                                 ))}
-                                {(p.inclusions || []).map((inc, i) => (
+                              </ul>
+                            </div>
+                          )}
+                          {p.inclusions?.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-ink mb-0.5">Also included</p>
+                              <ul className="list-disc pl-4 text-xs text-haze flex flex-col gap-0.5">
+                                {p.inclusions.map((inc, i) => (
                                   <li key={`inc-${i}`}>{inc}</li>
                                 ))}
                               </ul>
