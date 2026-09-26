@@ -3926,6 +3926,10 @@ export default function App() {
                   </li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
                   <li>
+                    Your final bill — covering the remaining balance plus any extra-guest or
+                    confirmed add-on charges — is provided directly by the venue at the event.
+                  </li>
+                  <li>
                     If additional guests attend beyond the confirmed headcount, extra charges
                     may apply as per the venue's policy.
                   </li>
@@ -4351,6 +4355,8 @@ export default function App() {
                             <p className="text-xs text-haze/70">
                               Booked for {b.headcount} guests. If additional guests attend beyond your
                               confirmed headcount, extra charges may apply as per the venue's policy.
+                              Your final bill, covering the remaining balance and any such charges,
+                              is provided directly by the venue at the event.
                             </p>
                           </div>
                         )}
