@@ -1939,7 +1939,7 @@ export default function App() {
     setVenuesLoading(true);
     try {
       const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&order=created_at.desc"
+        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&is_live=eq.true&order=created_at.desc"
       );
       setVenues(data);
     } catch (e) {
