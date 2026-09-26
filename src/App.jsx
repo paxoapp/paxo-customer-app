@@ -3010,6 +3010,13 @@ export default function App() {
               {authMode === "login" ? "Create account" : "Login"}
             </button>
           </p>
+
+          <p className="text-center text-xs text-haze/60 mt-4">
+            Own a venue?{" "}
+            <a href="https://partner.mypaxo.in" className="text-haze hover:text-ink transition-colors">
+              Become a Partner
+            </a>
+          </p>
         </div>
       </div>
     );
