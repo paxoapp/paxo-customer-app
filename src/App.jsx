@@ -1838,6 +1838,9 @@ export default function App() {
   const [venues, setVenues] = useState([]);
   const [venuesLoading, setVenuesLoading] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState(null);
+  // Which of the venue's photos the detail-page hero is showing. Reset to the
+  // cover photo whenever a different venue is opened.
+  const [venuePhotoIndex, setVenuePhotoIndex] = useState(0);
   // QR/share deep links — /v/<venue_view_code> and /invite/friend/<invite_friend_code>,
   // parsed once on load and resolved against `venues` once it's fetched.
   const [pendingDeepLink, setPendingDeepLink] = useState(() => {
@@ -1939,7 +1942,7 @@ export default function App() {
     setVenuesLoading(true);
     try {
       const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&is_live=eq.true&order=created_at.desc"
+        "/rest/v1/venues?select=*,venue_images(id,image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&is_live=eq.true&venue_images.order=sort_order.asc&order=created_at.desc"
       );
       setVenues(data);
     } catch (e) {
@@ -2665,6 +2668,7 @@ export default function App() {
 
   function openVenue(v, viaFriend = false) {
     setSelectedVenue(v);
+    setVenuePhotoIndex(0);
     setViaFriendInvite(viaFriend);
     setScreen("venue");
   }
@@ -2672,6 +2676,7 @@ export default function App() {
   function afterAuthSuccess() {
     if (pendingPackage) {
       setSelectedVenue(pendingPackage.venue);
+      setVenuePhotoIndex(0);
       startRequest(pendingPackage.pkg);
       setPendingPackage(null);
     } else {
@@ -3500,15 +3505,64 @@ export default function App() {
                 </button>
               </div>
             )}
-            <div className="h-60 mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512]">
-              <img
-                src={selectedVenue.venue_images?.[0]?.image_url || selectedVenue.cover_image_url}
-                alt=""
-                onError={hideBrokenImg}
-                onLoad={restoreImg}
-                className="w-full h-full object-cover"
-              />
-            </div>
+            {(() => {
+              const photos = selectedVenue.venue_images?.length
+                ? selectedVenue.venue_images
+                : selectedVenue.cover_image_url
+                ? [{ id: "cover", image_url: selectedVenue.cover_image_url }]
+                : [];
+              const activeIndex = photos.length
+                ? Math.min(venuePhotoIndex, photos.length - 1)
+                : 0;
+              const activePhoto = photos[activeIndex];
+              const hasMultiple = photos.length > 1;
+              return (
+                <div className="h-60 mb-4 rounded-2xl overflow-hidden shadow-hero bg-gradient-to-br from-surface to-[#2A1512] relative">
+                  <img
+                    src={activePhoto?.image_url}
+                    alt=""
+                    onError={hideBrokenImg}
+                    onLoad={restoreImg}
+                    className="w-full h-full object-cover"
+                  />
+                  {hasMultiple && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVenuePhotoIndex((i) => (i - 1 + photos.length) % photos.length)
+                        }
+                        className="absolute top-1/2 left-2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 text-white text-lg leading-none flex items-center justify-center hover:bg-black/70"
+                        aria-label="Previous photo"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVenuePhotoIndex((i) => (i + 1) % photos.length)}
+                        className="absolute top-1/2 right-2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 text-white text-lg leading-none flex items-center justify-center hover:bg-black/70"
+                        aria-label="Next photo"
+                      >
+                        ›
+                      </button>
+                      <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                        {photos.map((p, i) => (
+                          <button
+                            type="button"
+                            key={p.id}
+                            onClick={() => setVenuePhotoIndex(i)}
+                            aria-label={`Show photo ${i + 1}`}
+                            className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                              i === activeIndex ? "bg-white" : "bg-white/40"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h1 className="font-display text-3xl font-bold">{selectedVenue.name}</h1>
               {selectedVenue.is_verified && (
