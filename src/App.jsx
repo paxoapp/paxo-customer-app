@@ -4962,7 +4962,9 @@ export default function App() {
             <div className="bg-surface border border-white/10 rounded-2xl p-5 flex flex-col gap-4 shadow-card">
               <div>
                 <p className="text-sm font-medium text-ink">Email us</p>
-                <p className="text-sm text-haze">hello.mypaxo@gmail.com</p>
+                <a href="mailto:support@mypaxo.in" className="text-sm text-haze underline">
+                  support@mypaxo.in
+                </a>
               </div>
               <div className="border-t border-white/10 pt-4">
                 <p className="text-sm font-medium text-ink mb-1">Common questions</p>
