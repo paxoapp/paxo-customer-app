@@ -1872,6 +1872,7 @@ export default function App() {
 
   const [venues, setVenues] = useState([]);
   const [venuesLoading, setVenuesLoading] = useState(false);
+  const [venuesError, setVenuesError] = useState("");
   const [selectedVenue, setSelectedVenue] = useState(null);
   // Which of the venue's photos the detail-page hero is showing. Reset to the
   // cover photo whenever a different venue is opened.
@@ -1891,6 +1892,7 @@ export default function App() {
   const [copiedVenueId, setCopiedVenueId] = useState(null); // venue id whose share link was just clipboard-copied
   const [bookingTypes, setBookingTypes] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
+  const [myBookingsError, setMyBookingsError] = useState("");
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
@@ -1975,6 +1977,7 @@ export default function App() {
 
   const loadVenues = useCallback(async () => {
     setVenuesLoading(true);
+    setVenuesError("");
     try {
       const data = await sb(
         "/rest/v1/venues?select=*,venue_images(id,image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&is_live=eq.true&venue_images.order=sort_order.asc&order=created_at.desc"
@@ -1982,6 +1985,10 @@ export default function App() {
       setVenues(data);
     } catch (e) {
       console.error(e);
+      // Distinguish "the fetch failed" from "there are genuinely no venues" --
+      // without this, a network/RLS/outage error rendered the exact same
+      // "No venues in {city} yet." a customer would see for a real empty city.
+      setVenuesError(e.message || "Couldn't load venues. Please try again.");
     } finally {
       setVenuesLoading(false);
     }
@@ -1997,6 +2004,7 @@ export default function App() {
   }, []);
 
   const loadMyBookings = useCallback(async (token) => {
+    setMyBookingsError("");
     try {
       const data = await sb(
         "/rest/v1/bookings?select=*," +
@@ -2012,6 +2020,11 @@ export default function App() {
       setMyBookings(data);
     } catch (e) {
       console.error(e);
+      // Without this, a failed fetch (offline, RLS error, outage) rendered the
+      // exact same "You haven't requested any bookings yet." a customer with a
+      // genuinely empty history would see -- indistinguishable from their real
+      // pending/confirmed bookings having "vanished".
+      setMyBookingsError(e.message || "Couldn't load your requests. Please try again.");
     }
   }, []);
 
@@ -2780,6 +2793,20 @@ export default function App() {
       setSubmitError("Enter at least 1 guest across Male / Female.");
       return;
     }
+    // Packages can set a guest-count band (e.g. "50-100 guests" for a large-format
+    // package) -- match the same "0/missing = unrestricted" convention used for the
+    // quiz matching (min_headcount || 1, max_headcount || 99999) so this can't be
+    // submitted outside the range the package card itself advertises.
+    const pkgMin = selectedPackage?.min_headcount || 1;
+    const pkgMax = selectedPackage?.max_headcount || 99999;
+    if (headcount < pkgMin || headcount > pkgMax) {
+      setSubmitError(
+        `${selectedPackage?.name || "This package"} is for ${pkgMin}–${
+          selectedPackage?.max_headcount ? pkgMax : "∞"
+        } guests. Adjust your guest count or pick a different package.`
+      );
+      return;
+    }
     if (!form.event_time) {
       setSubmitError("Select a party slot timing.");
       return;
@@ -3501,7 +3528,19 @@ export default function App() {
                   </div>
                   );
                 })}
-                {visibleVenues.length === 0 && (
+                {visibleVenues.length === 0 && venuesError && (
+                  <div className="col-span-2 text-sm">
+                    <p className="text-rose-400 mb-2">{venuesError}</p>
+                    <button
+                      type="button"
+                      onClick={loadVenues}
+                      className="text-amber underline underline-offset-2"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {visibleVenues.length === 0 && !venuesError && (
                   <p className="text-haze/70 text-sm col-span-2">No venues in {selectedCity} yet.</p>
                 )}
               </div>
@@ -4125,7 +4164,18 @@ export default function App() {
               ))}
             </div>
 
-            {myBookings.length === 0 ? (
+            {myBookings.length === 0 && myBookingsError ? (
+              <div className="text-sm">
+                <p className="text-rose-400 mb-2">{myBookingsError}</p>
+                <button
+                  type="button"
+                  onClick={() => loadMyBookings(session.token)}
+                  className="text-amber underline underline-offset-2"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : myBookings.length === 0 ? (
               <p className="text-haze/70 text-sm">You haven't requested any bookings yet.</p>
             ) : visibleBookings.length === 0 ? (
               <p className="text-haze/70 text-sm">
