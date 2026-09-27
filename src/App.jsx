@@ -133,11 +133,10 @@ function PartnerResponseCountdown({ deadline, remainingSeconds }) {
   // accepting requests -- the venue is currently Paused / outside its Auto
   // Set hours. The clock hasn't been cancelled, just held.
   if (!deadline && remainingSeconds != null) {
-    const owed = formatCountdownSeconds(remainingSeconds);
     return (
-      <p className="text-xs mt-1 text-haze">
-        This venue isn't accepting live requests right now — your request is in, and their
-        {owed ? ` ${owed} response window` : " response window"} will start once they're back online.
+      <p className="text-xs mt-1 text-amber font-medium">
+        🎉 Your request is locked in! The venue will pick it up the moment they're back online — we'll notify
+        you the second they respond.
       </p>
     );
   }
@@ -4071,20 +4070,23 @@ export default function App() {
         {screen === "request" && submitted && (
           <div className="max-w-lg">
             <div className="bg-surface border border-white/10 rounded-2xl p-6 text-center shadow-card">
-              <h2 className="font-display text-2xl font-bold text-ink mb-2">Request sent</h2>
+              <h2 className="font-display text-2xl font-bold text-ink mb-2">
+                {submitted.partner_response_deadline ? "You're in! 🎉" : "Request locked in! 🎉"}
+              </h2>
               <p className="text-haze text-sm mb-4">
                 {submitted.partner_response_deadline ? (
                   <>
-                    {selectedVenue.name} has up to {RESPONSE_WINDOW_LABEL[submitted.booking_type] || "a few hours"} to
-                    respond.
+                    {selectedVenue.name} typically responds within{" "}
+                    {RESPONSE_WINDOW_LABEL[submitted.booking_type] || "a few hours"} — we'll notify you the moment
+                    they do.
                   </>
                 ) : (
                   <>
-                    {selectedVenue.name} isn't accepting live requests right now — your request is in, and their
-                    response window starts the moment they're back online.
+                    {selectedVenue.name} will pick up your request the moment they're back online — we'll notify
+                    you the second they respond.
                   </>
                 )}{" "}
-                You'll see the status update under "My requests".
+                Track it anytime under "My requests".
               </p>
               <button
                 className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2.5 rounded-xl hover:brightness-110 transition"
