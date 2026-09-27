@@ -121,7 +121,7 @@ function formatCountdownSeconds(totalSeconds) {
   return `${s}s`;
 }
 
-function PartnerResponseCountdown({ deadline }) {
+function PartnerResponseCountdown({ deadline, remainingSeconds }) {
   const [secs, setSecs] = useState(() => secondsLeft(deadline));
   useEffect(() => {
     if (!deadline) return undefined;
@@ -129,6 +129,18 @@ function PartnerResponseCountdown({ deadline }) {
     const id = setInterval(() => setSecs(secondsLeft(deadline)), 1000);
     return () => clearInterval(id);
   }, [deadline]);
+  // No deadline yet, but a window is still owed once the venue is next
+  // accepting requests -- the venue is currently Paused / outside its Auto
+  // Set hours. The clock hasn't been cancelled, just held.
+  if (!deadline && remainingSeconds != null) {
+    const owed = formatCountdownSeconds(remainingSeconds);
+    return (
+      <p className="text-xs mt-1 text-haze">
+        This venue isn't accepting live requests right now — your request is in, and their
+        {owed ? ` ${owed} response window` : " response window"} will start once they're back online.
+      </p>
+    );
+  }
   if (secs === null) return null;
   return (
     <p className={`text-xs mt-1 ${secs < 1800 ? "text-red-300 font-medium" : "text-haze"}`}>
@@ -144,6 +156,10 @@ function PartnerResponseCountdown({ deadline }) {
 // choice anywhere. This mirrors that same computation for the client preview.
 const BOOKING_TYPE_LABELS = { standard: "Standard", secure: "Secure", instant: "Instant" };
 const BOOKING_TYPE_DEPOSIT_TIER = { standard: "20pct", secure: "50pct", instant: "50pct" };
+// Mirrors the partner-response window each booking type gets in
+// compute_booking_financials (4h / 2h / 30min) -- used for the "Request
+// sent" confirmation so it states the actual window instead of a guess.
+const RESPONSE_WINDOW_LABEL = { standard: "4 hours", secure: "2 hours", instant: "30 minutes" };
 
 function bookingTypeFor(hrsToEvent) {
   if (hrsToEvent === null || hrsToEvent === undefined) return null;
@@ -4057,8 +4073,18 @@ export default function App() {
             <div className="bg-surface border border-white/10 rounded-2xl p-6 text-center shadow-card">
               <h2 className="font-display text-2xl font-bold text-ink mb-2">Request sent</h2>
               <p className="text-haze text-sm mb-4">
-                {selectedVenue.name} has up to 2 hours to respond. You'll see the status update under
-                "My requests".
+                {submitted.partner_response_deadline ? (
+                  <>
+                    {selectedVenue.name} has up to {RESPONSE_WINDOW_LABEL[submitted.booking_type] || "a few hours"} to
+                    respond.
+                  </>
+                ) : (
+                  <>
+                    {selectedVenue.name} isn't accepting live requests right now — your request is in, and their
+                    response window starts the moment they're back online.
+                  </>
+                )}{" "}
+                You'll see the status update under "My requests".
               </p>
               <button
                 className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2.5 rounded-xl hover:brightness-110 transition"
@@ -4166,7 +4192,12 @@ export default function App() {
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
 
-                        {stage === 0 && <PartnerResponseCountdown deadline={b.partner_response_deadline} />}
+                        {stage === 0 && (
+                          <PartnerResponseCountdown
+                            deadline={b.partner_response_deadline}
+                            remainingSeconds={b.response_remaining_seconds}
+                          />
+                        )}
 
                         {Array.isArray(b.booking_addon_requests) && b.booking_addon_requests.length > 0 && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3 bg-white/[0.03]">
