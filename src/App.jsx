@@ -3335,7 +3335,9 @@ export default function App() {
       <main key={screen} className="max-w-4xl mx-auto px-5 py-8">
         {screen === "browse" && (
           <div>
-            <h1 className="font-display text-3xl font-bold mb-1">Book venues without a wait</h1>
+            <h1 className="font-display text-3xl font-bold mb-1">
+              Book <span className="text-amber">venues</span> without a wait
+            </h1>
             <p className="text-haze text-sm mb-5">Clubs, lounges and rooftops ready for your night.</p>
 
             {venues.length > 0 && (
