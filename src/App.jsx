@@ -727,9 +727,9 @@ function TimeField({ value, onChange }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  function commit(h, m, ap) {
-    if (h != null && m != null && ap != null) {
-      onChange(buildTime24(h, m, ap));
+  function applyPendingTime() {
+    if (pendingHour != null && pendingMinute != null && pendingAmPm != null) {
+      onChange(buildTime24(pendingHour, pendingMinute, pendingAmPm));
       setOpen(false);
     }
   }
@@ -760,10 +760,7 @@ function TimeField({ value, onChange }) {
                 <button
                   key={h}
                   type="button"
-                  onClick={() => {
-                    setPendingHour(h);
-                    commit(h, pendingMinute, pendingAmPm);
-                  }}
+                  onClick={() => setPendingHour(h)}
                   className={optionClass(pendingHour === h)}
                 >
                   {h}
@@ -775,10 +772,7 @@ function TimeField({ value, onChange }) {
                 <button
                   key={m}
                   type="button"
-                  onClick={() => {
-                    setPendingMinute(m);
-                    commit(pendingHour, m, pendingAmPm);
-                  }}
+                  onClick={() => setPendingMinute(m)}
                   className={optionClass(pendingMinute === m)}
                 >
                   {m}
@@ -790,16 +784,21 @@ function TimeField({ value, onChange }) {
                 <button
                   key={ap}
                   type="button"
-                  onClick={() => {
-                    setPendingAmPm(ap);
-                    commit(pendingHour, pendingMinute, ap);
-                  }}
+                  onClick={() => setPendingAmPm(ap)}
                   className={optionClass(pendingAmPm === ap)}
                 >
                   {ap}
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={applyPendingTime}
+              disabled={pendingHour == null || pendingMinute == null || pendingAmPm == null}
+              className="mt-3 w-full bg-amber text-[#170D0B] text-sm font-medium rounded-lg py-2 disabled:opacity-40"
+            >
+              Set time
+            </button>
           </div>
         </>
       )}
