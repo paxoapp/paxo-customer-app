@@ -694,14 +694,15 @@ function parseTime24(hhmm) {
   const ampm = h >= 12 ? "PM" : "AM";
   let hour12 = h % 12;
   if (hour12 === 0) hour12 = 12;
-  const minute = ["00", "15", "30", "45"].includes(m) ? m : null;
+  const mNum = parseInt(m, 10);
+  const minute = Number.isInteger(mNum) && mNum >= 0 && mNum <= 59 ? String(mNum).padStart(2, "0") : null;
   return { hour12, minute, ampm };
 }
 
 function buildTime24(hour12, minute, ampm) {
   let h = hour12 % 12;
   if (ampm === "PM") h += 12;
-  return `${String(h).padStart(2, "0")}:${minute}`;
+  return `${String(h).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 function TimeField({ value, onChange }) {
@@ -767,7 +768,7 @@ function TimeField({ value, onChange }) {
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-4 gap-1.5 mb-3">
+            <div className="grid grid-cols-4 gap-1.5 mb-1.5">
               {["00", "15", "30", "45"].map((m) => (
                 <button
                   key={m}
@@ -779,6 +780,26 @@ function TimeField({ value, onChange }) {
                 </button>
               ))}
             </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={2}
+              placeholder="Or type exact minute (0–59)"
+              value={pendingMinute ?? ""}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
+                if (digits === "") {
+                  setPendingMinute(null);
+                  return;
+                }
+                const n = Math.max(0, Math.min(59, parseInt(digits, 10)));
+                // Keep a bare leading digit as typed (e.g. "0") without padding
+                // mid-entry, so typing "0" then "9" reads naturally as "09".
+                setPendingMinute(digits.length < 2 && n < 10 ? digits : String(n).padStart(2, "0"));
+              }}
+              className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-sm text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60 mb-3"
+            />
             <div className="grid grid-cols-2 gap-1.5">
               {["AM", "PM"].map((ap) => (
                 <button
