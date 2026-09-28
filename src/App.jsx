@@ -73,6 +73,36 @@ async function sb(path, { method = "GET", body, token, prefer } = {}) {
   return data;
 }
 
+const AVATARS_BUCKET = "avatars";
+
+// Upload a File to the public avatars bucket, shared with the partner app.
+// The storage RLS policy requires the first path segment to be the
+// uploader's own auth.uid(), so this always uses the signed-in user's id.
+// Returns the object's public URL directly (no signing needed -- the
+// bucket is public).
+async function uploadAvatar(token, userId, file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const objectPath = `${userId}/avatar-${Date.now()}.${ext}`;
+  const res = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${AVATARS_BUCKET}/${encodeURIComponent(objectPath).replace(/%2F/g, "/")}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": file.type || "application/octet-stream",
+        "x-upsert": "true",
+      },
+      body: file,
+    }
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(JSON.parse(t || "{}")?.message || "Upload failed");
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/${AVATARS_BUCKET}/${objectPath}`;
+}
+
 // Call a Supabase Edge Function with the user's session JWT.
 async function callFn(slug, token, body) {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
@@ -1958,6 +1988,8 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   const [settingsPassword, setSettingsPassword] = useState("");
   const [settingsPasswordConfirm, setSettingsPasswordConfirm] = useState("");
@@ -2395,7 +2427,7 @@ export default function App() {
 
   const loadProfile = useCallback(async (token, userId) => {
     try {
-      const [row] = await sb(`/rest/v1/profiles?id=eq.${userId}&select=full_name,phone,email`, { token });
+      const [row] = await sb(`/rest/v1/profiles?id=eq.${userId}&select=full_name,phone,email,avatar_url`, { token });
       setProfile(row);
       setProfileForm({ full_name: row?.full_name || "", phone: row?.phone || "" });
     } catch (e) {
@@ -2449,6 +2481,26 @@ export default function App() {
       setProfileError(e.message);
     } finally {
       setProfileLoading(false);
+    }
+  }
+
+  async function handleAvatarUpload(file) {
+    if (!file) return;
+    setAvatarError("");
+    setAvatarUploading(true);
+    try {
+      const url = await uploadAvatar(session.token, session.userId, file);
+      await sb(`/rest/v1/profiles?id=eq.${session.userId}`, {
+        method: "PATCH",
+        token: session.token,
+        prefer: "return=minimal",
+        body: { avatar_url: url },
+      });
+      setProfile((p) => ({ ...(p || {}), avatar_url: url }));
+    } catch (e) {
+      setAvatarError(e.message || "Couldn't upload photo. Please try again.");
+    } finally {
+      setAvatarUploading(false);
     }
   }
 
@@ -3288,10 +3340,14 @@ export default function App() {
                 </button>
               </div>
               <button
-                className="w-8 h-8 rounded-full bg-white/10 text-ink font-semibold flex items-center justify-center text-xs border border-white/15"
+                className="w-8 h-8 rounded-full bg-white/10 text-ink font-semibold flex items-center justify-center text-xs border border-white/15 overflow-hidden shrink-0"
                 onClick={() => setMenuOpen((v) => !v)}
               >
-                {(session.email || "?").slice(0, 1).toUpperCase()}
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  (session.email || "?").slice(0, 1).toUpperCase()
+                )}
               </button>
               {menuOpen && (
                 <>
@@ -4852,6 +4908,33 @@ export default function App() {
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Profile</h1>
             <p className="text-haze text-sm mb-6">Keep your details up to date for smoother bookings.</p>
+            <div className="flex items-center gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card mb-4">
+              <div className="w-16 h-16 rounded-full bg-white/10 border border-white/15 overflow-hidden flex items-center justify-center text-xl font-semibold shrink-0">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  (profile?.full_name || session.email || "?").slice(0, 1).toUpperCase()
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-1">Profile photo</p>
+                <label className="inline-block text-sm font-medium bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-white/15 transition-colors">
+                  {avatarUploading ? "Uploading…" : "Change photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={avatarUploading}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      handleAvatarUpload(f);
+                    }}
+                  />
+                </label>
+                {avatarError && <p className="text-red-300 text-xs mt-1">{avatarError}</p>}
+              </div>
+            </div>
             <form onSubmit={saveProfile} className="flex flex-col gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card">
               <div>
                 <label className="text-sm font-medium block mb-1">Full name</label>
