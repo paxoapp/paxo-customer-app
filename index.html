@@ -34,6 +34,33 @@
     />
     <meta name="twitter:image" content="https://www.mypaxo.in/og-image.png" />
 
+    <!-- Structured data: tells Google what Paxo is, its logo, and its
+         official social profiles -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "Paxo",
+            "url": "https://www.mypaxo.in/",
+            "logo": "https://www.mypaxo.in/paxo-icon.png",
+            "sameAs": [
+              "https://x.com/Mypaxo",
+              "https://www.facebook.com/profile.php?id=61592804842088",
+              "https://www.instagram.com/paxo.in/",
+              "https://www.youtube.com/@mypaxo"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "name": "Paxo",
+            "url": "https://www.mypaxo.in/"
+          }
+        ]
+      }
+    </script>
+
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
