@@ -1948,7 +1948,7 @@ export default function App() {
   // Cities customers can actually book in today, vs. ones shown so people
   // know we're expanding there but can't browse/book yet.
   const LAUNCHED_CITIES = ["Delhi", "Noida", "Gurugram"];
-  const COMING_SOON_CITIES = ["Dehradun", "Indore", "Pune", "Mumbai", "Goa"];
+  const COMING_SOON_CITIES = ["Dehradun", "Jaipur", "Indore", "Pune", "Mumbai", "Goa"];
   const CITIES = [...LAUNCHED_CITIES, ...COMING_SOON_CITIES];
   const [quizOpen, setQuizOpen] = useState(false);
 
