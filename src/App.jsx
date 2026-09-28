@@ -1945,7 +1945,11 @@ export default function App() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [selectedCity, setSelectedCity] = useState(null);
   const [priceSort, setPriceSort] = useState(""); // '' | 'asc' | 'desc'
-  const CITIES = ["Delhi", "Gurugram", "Noida", "Dehradun", "Punjab"];
+  // Cities customers can actually book in today, vs. ones shown so people
+  // know we're expanding there but can't browse/book yet.
+  const LAUNCHED_CITIES = ["Delhi", "Noida", "Gurugram"];
+  const COMING_SOON_CITIES = ["Dehradun", "Indore", "Pune", "Mumbai", "Goa"];
+  const CITIES = [...LAUNCHED_CITIES, ...COMING_SOON_CITIES];
   const [quizOpen, setQuizOpen] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -3394,17 +3398,29 @@ export default function App() {
               >
                 All cities
               </button>
-              {CITIES.map((c) => (
-                <button
-                  key={c}
-                  className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                    selectedCity === c ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"
-                  }`}
-                  onClick={() => setSelectedCity(c)}
-                >
-                  {c}
-                </button>
-              ))}
+              {CITIES.map((c) => {
+                const comingSoon = COMING_SOON_CITIES.includes(c);
+                return (
+                  <button
+                    key={c}
+                    className={`text-sm px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 ${
+                      selectedCity === c ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"
+                    }`}
+                    onClick={() => setSelectedCity(c)}
+                  >
+                    {c}
+                    {comingSoon && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${
+                          selectedCity === c ? "bg-[#170D0B]/10 text-[#170D0B]" : "bg-amber/15 text-amber"
+                        }`}
+                      >
+                        Soon
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
               <Select
                 ariaLabel="Sort by price"
                 wrapperClassName="sm:ml-auto"
@@ -3419,7 +3435,24 @@ export default function App() {
               />
             </div>
 
-            {venuesLoading ? (
+            {selectedCity && COMING_SOON_CITIES.includes(selectedCity) ? (
+              <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
+                <p className="font-display text-2xl font-semibold text-ink mb-2">
+                  Coming soon to {selectedCity}
+                </p>
+                <p className="text-haze text-sm max-w-md mx-auto mb-5">
+                  We're live in Delhi, Noida and Gurugram right now, and {selectedCity} is next on
+                  our list. Check back soon — or explore a city that's already open.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCity(LAUNCHED_CITIES[0])}
+                  className="bg-amber text-[#170D0B] text-sm font-semibold px-5 py-2.5 rounded-xl hover:brightness-110 transition"
+                >
+                  See what's live in {LAUNCHED_CITIES[0]}
+                </button>
+              </div>
+            ) : venuesLoading ? (
               <div className="grid sm:grid-cols-2 gap-5">
                 <VenueCardSkeleton />
                 <VenueCardSkeleton />
@@ -5076,7 +5109,7 @@ export default function App() {
         <VenueQuiz
           venues={venues}
           bookingTypes={bookingTypes}
-          cities={CITIES}
+          cities={LAUNCHED_CITIES}
           onClose={() => setQuizOpen(false)}
           onViewVenue={(v) => {
             setQuizOpen(false);
