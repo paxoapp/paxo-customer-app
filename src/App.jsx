@@ -1878,6 +1878,103 @@ function VenueCardSkeleton() {
   );
 }
 
+// Customer Help & support — grouped, expand-on-tap Q&A. Content mirrors the
+// published Booking, Payment, Cancellation & Partner Policy (v3) so this
+// never states a number that disagrees with the checkout terms or the PDF.
+const CUSTOMER_FAQ_SECTIONS = [
+  {
+    title: "How PAXO works",
+    items: [
+      {
+        q: "How do I actually book a venue?",
+        a: "Browse venues, open one you like, and pick a package. Send a booking request for your date — the venue then has up to a few hours to accept or reject it (how long depends on how soon your event is). Once they accept, you pay a deposit through PAXO to confirm, and pay the rest directly to the venue when you arrive.",
+      },
+      {
+        q: "Why is my deposit 20% for one booking and 50% for another?",
+        a: "It's based on how far away your event was when you sent the request, not your guest count. 7+ days out → 20% deposit (Standard Booking). Within a week but more than 48 hours out → 50% (Secure). Under 48 hours out → 50%, non-refundable (Instant). You'll see which one applies as you fill out the request form.",
+      },
+      {
+        q: "How long does a venue have to respond to my request?",
+        a: "Up to 4 hours for a Standard Booking, 2 hours for a Secure Booking, or 30 minutes for an Instant Booking. If they don't respond in time, the request expires automatically and you're free to try elsewhere — you're not charged.",
+      },
+    ],
+  },
+  {
+    title: "Payment",
+    items: [
+      {
+        q: "When do I pay the rest of the bill?",
+        a: "Directly at the venue, in person — unless you've already paid the full amount. The deposit through PAXO is only ever part of the total.",
+      },
+      {
+        q: "What if I don't pay my deposit in time?",
+        a: "Once a venue accepts your request, you have a payment window (4 hours for Standard/Secure, 2 hours for Instant) to pay. If it lapses, the request simply expires — this is different from a no-show and doesn't count against your account.",
+      },
+    ],
+  },
+  {
+    title: "Cancellations & refunds",
+    items: [
+      {
+        q: "Can I cancel a confirmed booking?",
+        a: "Yes — how much of your deposit comes back depends on your Booking Type and how close it is to the event. See the full breakdown below. Instant Bookings are never refundable.",
+      },
+      {
+        q: "How long does a refund take?",
+        a: "Approved refunds are credited back to your original payment method within 7–10 business days.",
+      },
+    ],
+  },
+  {
+    title: "At the event",
+    items: [
+      {
+        q: "What if more guests show up than I booked for?",
+        a: "That's handled at the venue's own discretion — extra charges may apply as per that venue's policy, on top of the amount you already booked and paid a deposit for.",
+      },
+    ],
+  },
+];
+
+function FaqAccordion({ sections }) {
+  const [openId, setOpenId] = useState(null);
+  return (
+    <div className="flex flex-col gap-6">
+      {sections.map((section) => (
+        <div key={section.title}>
+          <p className="text-sm font-semibold text-ink mb-2">{section.title}</p>
+          <div className="border border-white/10 rounded-2xl divide-y divide-white/10 overflow-hidden bg-surface shadow-card">
+            {section.items.map((item) => {
+              const id = `${section.title}::${item.q}`;
+              const isOpen = openId === id;
+              return (
+                <div key={id}>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => setOpenId(isOpen ? null : id)}
+                    className="w-full flex items-start justify-between gap-3 text-left px-4 py-3.5 hover:bg-white/5"
+                  >
+                    <span className="text-sm font-medium text-ink">{item.q}</span>
+                    <span className="text-haze/70 text-sm leading-5 shrink-0" aria-hidden="true">
+                      {isOpen ? "−" : "+"}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4">
+                      <p className="text-sm text-haze leading-relaxed">{item.a}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   // Forces a re-render every 30s so minutesLeft()-driven countdowns (payment
   // window, etc.) tick down live instead of freezing until an unrelated
@@ -5106,24 +5203,16 @@ export default function App() {
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Help &amp; support</h1>
             <p className="text-haze text-sm mb-6">We're here if something doesn't look right.</p>
-            <div className="bg-surface border border-white/10 rounded-2xl p-5 flex flex-col gap-4 shadow-card">
-              <div>
-                <p className="text-sm font-medium text-ink">Email us</p>
-                <a href="mailto:support@mypaxo.in" className="text-sm text-haze underline">
-                  support@mypaxo.in
-                </a>
-              </div>
-              <div className="border-t border-white/10 pt-4">
-                <p className="text-sm font-medium text-ink mb-1">Common questions</p>
-                <ul className="text-sm text-haze list-disc pl-4 flex flex-col gap-1">
-                  <li>How long does a venue have to respond to my request? Up to 2 hours.</li>
-                  <li>When do I pay the rest of the bill? Directly at the venue, unless you paid in full.</li>
-                  <li>Can I cancel a confirmed booking? Yes — refunds on your deposit follow the policy below based on how close it is to the event.</li>
-                </ul>
-              </div>
+            <div className="bg-surface border border-white/10 rounded-2xl p-5 shadow-card mb-6">
+              <p className="text-sm font-medium text-ink">Email us</p>
+              <a href="mailto:support@mypaxo.in" className="text-sm text-haze underline">
+                support@mypaxo.in
+              </a>
             </div>
 
-            <div className="bg-surface border border-white/10 rounded-2xl p-5 mt-5 shadow-card">
+            <FaqAccordion sections={CUSTOMER_FAQ_SECTIONS} />
+
+            <div className="bg-surface border border-white/10 rounded-2xl p-5 mt-6 shadow-card">
               <h2 className="font-display text-lg font-semibold text-ink mb-3">
                 Cancellation &amp; Refund Policy
               </h2>
