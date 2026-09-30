@@ -272,6 +272,24 @@ function gstSplit(amount, pkg) {
   return { rate, pct: Math.round(rate * 100), base, gst: Math.round((amount - base) * 100) / 100 };
 }
 
+// Legal minimum drinking age by city, per each state's own excise law — NOT
+// a PAXO policy, and not something PAXO enforces (the venue checks ID at the
+// door, same as always). Delhi's age has moved before: lowered to 21 in the
+// 2021 excise policy, then that policy was scrapped and it reverted to 25;
+// as of late 2025 a further change was under active review. This table is
+// the one place to update if any of these change again — confirm the
+// current figure before editing, don't just guess.
+const DRINKING_AGE_BY_CITY = {
+  "delhi": 25,
+  "new delhi": 25,
+  "noida": 21, // Uttar Pradesh
+  "greater noida": 21,
+  "gurugram": 21, // Haryana
+  "gurgaon": 21,
+  "faridabad": 21, // Haryana
+};
+const drinkingAgeFor = (city) => DRINKING_AGE_BY_CITY[(city || "").trim().toLowerCase()] ?? null;
+
 // Compact GST breakdown line for a per-head package price.
 function GstLine({ pkg, className = "text-xs text-haze/80" }) {
   const price = effectivePricePerHead(pkg);
@@ -4178,6 +4196,17 @@ export default function App() {
                     no-show. Instant: always 0% refund.
                   </li>
                   <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
+                  {selectedPackage?.includes_alcohol &&
+                    (() => {
+                      const age = drinkingAgeFor(selectedVenue?.city);
+                      return (
+                        <li>
+                          {age
+                            ? `This package includes alcohol. The legal drinking age in ${selectedVenue.city} is ${age} — the venue may ask for valid ID.`
+                            : "This package includes alcohol. The venue applies the legal drinking age for its location and may ask for valid ID."}
+                        </li>
+                      );
+                    })()}
                 </ul>
               </div>
               <label className="flex items-start gap-2 text-sm text-ink">
