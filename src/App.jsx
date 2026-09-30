@@ -301,6 +301,16 @@ function GstLine({ pkg, className = "text-xs text-haze/80" }) {
       </p>
     );
   }
+  if (pkg?.gst_mode === "non_gst") {
+    return <p className={className}>No GST applies to this package.</p>;
+  }
+  if (pkg?.gst_mode === "pending_verification") {
+    return (
+      <p className={className}>
+        GST status for this package is being verified — the price shown is what you pay.
+      </p>
+    );
+  }
   const { pct, base, gst } = gstSplit(price, pkg);
   return (
     <p className={className}>
@@ -1598,6 +1608,14 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
           b.venue_packages.gst_mode === "excluded" ? (
             <p className="text-xs text-stone-500 py-1.5">
               Amounts are exclusive of GST; the total payable is unchanged.
+            </p>
+          ) : b.venue_packages.gst_mode === "non_gst" ? (
+            <p className="text-xs text-stone-500 py-1.5">
+              No GST applies to this package.
+            </p>
+          ) : b.venue_packages.gst_mode === "pending_verification" ? (
+            <p className="text-xs text-stone-500 py-1.5">
+              GST status for this package is being verified — the amount shown is what you pay.
             </p>
           ) : (
             (() => {
