@@ -347,8 +347,8 @@ const OCCASION_VENUE_HINTS = {
   Birthday: ["Nightclub", "Lounge", "Bar", "Rooftop"],
   "Bachelor / Bachelorette": ["Nightclub", "Lounge", "Bar"],
   Anniversary: ["Lounge", "Rooftop", "Courtyard", "Resort"],
-  "Corporate Event": ["Banquet Hall", "Cafe", "Restaurant"],
-  "Engagement / Pre-Wedding": ["Banquet Hall", "Resort", "Courtyard", "Lawn"],
+  "Corporate Event": ["Lounge", "Cafe", "Restaurant"],
+  "Engagement / Pre-Wedding": ["Lounge", "Resort", "Courtyard", "Lawn"],
   Farewell: ["Cafe", "Restaurant", "Lounge"],
   "Get Together": ["Cafe", "Lounge", "Restaurant", "Bar"],
   "Kitty Party": ["Cafe", "Lounge", "Restaurant"],
@@ -3398,7 +3398,7 @@ export default function App() {
             <h1 className="font-display text-3xl font-bold mb-1">
               Book <span className="text-amber">venues</span> without a wait
             </h1>
-            <p className="text-haze text-sm mb-5">Clubs, lounges and rooftops ready for your night.</p>
+            <p className="text-haze text-sm mb-5">Restaurants, cafés, bars, lounges and clubs — ready for your celebration.</p>
 
             {venues.length > 0 && (
               <div
