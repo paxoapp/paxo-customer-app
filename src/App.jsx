@@ -261,6 +261,13 @@ const effectivePricePerHead = (pkg) => {
   return pct > 0 ? Math.round(price * (1 - pct / 100) * 100) / 100 : price;
 };
 
+// Admin-only promotion (no price/payout effect — see gst_mode-style fields
+// above for the pricing kind of flag). A package stays "featured" until an
+// admin turns it off, or until featured_until passes — checked client-side
+// since there's no cron clearing it server-side.
+const isPackageFeatured = (pkg) =>
+  !!pkg?.is_featured && (!pkg.featured_until || new Date(pkg.featured_until).getTime() > Date.now());
+
 // Label-only GST view. `price_per_head` is authoritative and never changes — for
 // "included" packages we just break the amount into base + GST for transparency
 // (18% when the package has alcohol, 5% for food-only, CA-confirmed). "excluded"
@@ -3895,10 +3902,24 @@ export default function App() {
             <VenueFullMenu venue={selectedVenue} />
 
             <div className="flex flex-col gap-3 mt-8">
-              {selectedVenue.venue_packages?.map((p) => (
-                <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-4 bg-surface border border-white/10 shadow-card">
+              {[...(selectedVenue.venue_packages || [])]
+                .sort((a, b) => (isPackageFeatured(b) ? 1 : 0) - (isPackageFeatured(a) ? 1 : 0))
+                .map((p) => (
+                <div
+                  key={p.id}
+                  className={`rounded-2xl p-4 flex items-start justify-between gap-4 bg-surface border shadow-card ${
+                    isPackageFeatured(p) ? "border-amber/60" : "border-white/10"
+                  }`}
+                >
                   <div>
-                    <p className="font-display font-semibold text-ink">{p.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-display font-semibold text-ink">{p.name}</p>
+                      {isPackageFeatured(p) && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber text-[#170D0B]">
+                          ★ Featured
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-haze">{p.description}</p>
                     <p className="text-xs text-haze/70 mt-1">
                       {p.min_headcount}–{p.max_headcount || "∞"} guests
