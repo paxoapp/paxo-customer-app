@@ -1630,6 +1630,89 @@ function MenuGroupSection({
   );
 }
 
+// India-time "today" and "yesterday" as YYYY-MM-DD, to match the database rule for when
+// a balance code can be generated (the day of the event, or the day after it starts).
+function istDay(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 86400000);
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+function PaidAtVenueLine({ bal }) {
+  return (
+    <p className="mt-3 text-sm font-medium text-amber" data-testid="paid-at-venue">
+      Paid at the venue: {formatRupees(Number(bal.amount_received))} on{" "}
+      {new Date(bal.received_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" })},{" "}
+      {bal.mode === "cash" ? "cash" : "online"}
+    </p>
+  );
+}
+
+// "Pay at the venue": the customer generates a 6-digit code and gives it to the venue
+// when paying the balance (cash or online). The code is valid for about a minute and
+// is only ever shown here, once. After the venue records it, the booking shows the paid line.
+function PayAtVenue({ booking, token, onChanged }) {
+  const [code, setCode] = useState(null); // { value, expiresAt }
+  const [now, setNow] = useState(Date.now());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const left = code ? Math.max(0, Math.ceil((code.expiresAt - now) / 1000)) : 0;
+  const live = !!code && left > 0;
+
+  useEffect(() => {
+    if (!code) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [code]);
+  // while a code is on screen, check whether the venue has recorded the payment
+  useEffect(() => {
+    if (!live) return undefined;
+    const t = setInterval(() => onChanged(), 4000);
+    return () => clearInterval(t);
+  }, [live, onChanged]);
+
+  async function generate() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await sb("/rest/v1/rpc/generate_balance_code", { method: "POST", token, body: { p_booking_id: booking.id } });
+      setCode({ value: res.code, expiresAt: Date.now() + (res.valid_seconds || 60) * 1000 });
+      setNow(Date.now());
+    } catch (e) {
+      setError(e.message || "Couldn't create a code. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 border border-white/10 rounded-xl p-3" data-testid="pay-at-venue">
+      <p className="text-xs font-semibold text-haze mb-1">Pay at the venue</p>
+      {live ? (
+        <>
+          <p className="text-4xl font-bold tracking-[0.35em] text-amber my-1" data-testid="balance-code">{code.value}</p>
+          <p className="text-xs text-haze">Give this code to the venue when you pay the balance.</p>
+          <p className="text-xs text-haze/80 mt-1">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-haze mb-2">
+            {code ? "This code has expired." : "Paying the balance at the venue? Generate a code to give the venue staff."}
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={generate}
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+          >
+            {busy ? "Generating…" : code ? "Generate new code" : "Pay at the venue"}
+          </button>
+        </>
+      )}
+      {error && <p className="text-xs text-red-300 mt-1">{error}</p>}
+    </div>
+  );
+}
+
 function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   const b = booking;
   const total = Number(b.total_amount || 0);
@@ -2347,6 +2430,7 @@ export default function App() {
           "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
+          "booking_balance_payments(amount_received,mode,received_at)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
           "&order=created_at.desc",
         { token }
@@ -5007,6 +5091,18 @@ export default function App() {
                           );
                         })()}
 
+                        {(() => {
+                          const bal = Array.isArray(b.booking_balance_payments) ? b.booking_balance_payments[0] : b.booking_balance_payments;
+                          if (bal) {
+                            return <PaidAtVenueLine bal={bal} />;
+                          }
+                          const day = String(b.event_date).slice(0, 10);
+                          if (b.status === "confirmed" && partialPaid && (day === istDay(0) || day === istDay(-1))) {
+                            return <PayAtVenue booking={b} token={session.token} onChanged={() => loadMyBookings(session.token)} />;
+                          }
+                          return null;
+                        })()}
+
                         {b.status === "confirmed" && (
                           <div className="mt-3 border border-white/10 rounded-xl p-3">
                             <p className="text-xs font-semibold text-haze mb-1">
@@ -5534,4 +5630,5 @@ export default function App() {
     </div>
   );
 }
+
 
