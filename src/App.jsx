@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MapPin, CalendarCheck, User, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
+import {
+  packageTaxView,
+  computeBookingTax,
+  effectiveAlcoholPercent,
+  formatPercent,
+  formatRupees,
+  round2,
+} from "./tax";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -268,17 +276,6 @@ const effectivePricePerHead = (pkg) => {
 const isPackageFeatured = (pkg) =>
   !!pkg?.is_featured && (!pkg.featured_until || new Date(pkg.featured_until).getTime() > Date.now());
 
-// Label-only GST view. `price_per_head` is authoritative and never changes — for
-// "included" packages we just break the amount into base + GST for transparency
-// (18% when the package has alcohol, 5% for food-only, CA-confirmed). "excluded"
-// packages cost exactly the same; GST simply isn't itemised here.
-const gstRateFor = (pkg) => (pkg?.includes_alcohol ? 0.18 : 0.05);
-function gstSplit(amount, pkg) {
-  const rate = gstRateFor(pkg);
-  const base = Math.round((amount / (1 + rate)) * 100) / 100;
-  return { rate, pct: Math.round(rate * 100), base, gst: Math.round((amount - base) * 100) / 100 };
-}
-
 // Legal minimum drinking age by city, per each state's own excise law — NOT
 // a PAXO policy, and not something PAXO enforces (the venue checks ID at the
 // door, same as always). Delhi's age has moved before: lowered to 21 in the
@@ -297,20 +294,67 @@ const DRINKING_AGE_BY_CITY = {
 };
 const drinkingAgeFor = (city) => DRINKING_AGE_BY_CITY[(city || "").trim().toLowerCase()] ?? null;
 
-// Compact GST breakdown line for a per-head package price.
-function GstLine({ pkg, className = "text-xs text-haze/80" }) {
-  const price = effectivePricePerHead(pkg);
-  if (!price) return null;
-  if (pkg?.gst_mode === "excluded") {
+// Tax rates (food GST / alcohol VAT per city) from the `tax_rates` table, loaded
+// once and shared. `null` while loading (or if the load failed): packages that
+// need a rate then show "+ applicable taxes" rather than a guessed figure.
+let taxRatesCache = null;
+let taxRatesPromise = null;
+function useTaxRates() {
+  const [rates, setRates] = useState(taxRatesCache);
+  useEffect(() => {
+    if (taxRatesCache) return;
+    let live = true;
+    taxRatesPromise =
+      taxRatesPromise ||
+      sb("/rest/v1/tax_rates?select=*").then((r) => {
+        taxRatesCache = r || [];
+        return taxRatesCache;
+      });
+    taxRatesPromise.then((r) => live && setRates(r)).catch(() => {
+      taxRatesPromise = null;
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return rates;
+}
+
+// "+ taxes" / "+ applicable taxes" to sit right after a per-person price.
+function TaxSuffix({ pkg, city }) {
+  const rates = useTaxRates();
+  const view = packageTaxView(pkg, rates, city);
+  if (view.kind === "extra") return <> + taxes</>;
+  if (view.kind === "applicable") return <> + applicable taxes</>;
+  return null;
+}
+
+// Small note under a package price: "All taxes included", the "Tax breakdown"
+// link, or "+ applicable taxes". non_gst / pending_verification are unchanged.
+function PriceNote({ pkg, city, className = "text-xs text-haze/80" }) {
+  const rates = useTaxRates();
+  const [open, setOpen] = useState(false);
+  if (!effectivePricePerHead(pkg)) return null;
+  const view = packageTaxView(pkg, rates, city);
+  if (view.kind === "included") return <p className={className}>All taxes included</p>;
+  if (view.kind === "applicable") return null; // the price line already says "+ applicable taxes"
+  if (view.kind === "extra") {
     return (
-      <p className={className}>
-        {inr(price)}/head is exclusive of GST — the total you pay is unchanged.
-      </p>
+      <>
+        <p className={className}>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="underline underline-offset-2 hover:text-ink"
+          >
+            Tax breakdown
+          </button>
+        </p>
+        {open && <TaxBreakdownModal pkg={pkg} view={view} onClose={() => setOpen(false)} />}
+      </>
     );
   }
-  if (pkg?.gst_mode === "non_gst") {
-    return <p className={className}>No GST applies to this package.</p>;
-  }
+  if (pkg?.gst_mode === "non_gst") return <p className={className}>No GST applies to this package.</p>;
   if (pkg?.gst_mode === "pending_verification") {
     return (
       <p className={className}>
@@ -318,11 +362,108 @@ function GstLine({ pkg, className = "text-xs text-haze/80" }) {
       </p>
     );
   }
-  const { pct, base, gst } = gstSplit(price, pkg);
+  return null;
+}
+
+// Per-person tax breakdown for a "taxes extra" package whose tax is known.
+function TaxBreakdownModal({ pkg, view, onClose }) {
+  const { rate, t, hasAlcohol } = view;
+  const vatPct = Number(rate.alcohol_vat_percent);
+  const surchargePct = Number(rate.alcohol_surcharge_percent);
+  const Line = ({ k, v, strong }) => (
+    <div className={`flex justify-between gap-4 py-2 border-b border-white/10 text-sm ${strong ? "font-semibold text-ink" : "text-haze"}`}>
+      <span>{k}</span>
+      <span className={strong ? "text-amber" : "text-ink"}>{v}</span>
+    </div>
+  );
   return (
-    <p className={className}>
-      Incl. GST: {inr(base)} base + {inr(gst)} GST ({pct}%) = {inr(price)}/head
-    </p>
+    <Modal title="Tax breakdown" onClose={onClose}>
+      <p className="text-xs text-haze mb-2">Per person · {pkg.name}</p>
+      <Line k={pkg.discount_percent > 0 ? "Package price (after discount)" : "Package price"} v={formatRupees(t.effectivePrice)} />
+      {t.foodBase > 0 && (
+        <Line k={`GST on food (${formatPercent(rate.food_gst_percent)}%)`} v={formatRupees(t.foodGst)} />
+      )}
+      {hasAlcohol && vatPct > 0 && (
+        <Line
+          k={
+            surchargePct > 0
+              ? `Alcohol VAT ${formatPercent(effectiveAlcoholPercent(rate))}% (${formatPercent(vatPct)}% + ${formatPercent(surchargePct)}% surcharge)`
+              : `Alcohol VAT ${formatPercent(vatPct)}%`
+          }
+          v={formatRupees(t.alcoholVat + t.alcoholSurcharge)}
+        />
+      )}
+      <Line k="Total per person" v={formatRupees(t.totalPerHead)} strong />
+      <p className="text-xs text-haze/80 mt-3">The venue's final bill is the tax invoice.</p>
+    </Modal>
+  );
+}
+
+// Booking summary before the deposit: package, taxes (taxes-extra packages only),
+// total, what to pay now and what's left for the venue. Matches the amounts the
+// database stores on the booking (see computeBookingTax in tax.js).
+function BookingSummaryLines({ pkg, venue, headcount, depositPct }) {
+  const rates = useTaxRates();
+  const view = packageTaxView(pkg, rates, venue?.city);
+  const perHead = effectivePricePerHead(pkg);
+  let lines;
+  let total;
+  let note = null;
+  if (view.kind === "extra") {
+    const b = computeBookingTax({
+      price: pkg.price_per_head,
+      alcoholAmount: pkg.includes_alcohol ? pkg.alcohol_amount_per_head : 0,
+      discountPercent: pkg.discount_percent,
+      headcount,
+      rate: view.rate,
+    });
+    total = b.total;
+    lines = [
+      { k: `Package, ${headcount} guests × ${formatRupees(perHead)}`, v: b.packageTotal },
+      b.gst > 0 && { k: `GST on food (${formatPercent(view.rate.food_gst_percent)}%)`, v: b.gst },
+      b.vat > 0 && {
+        k:
+          Number(view.rate.alcohol_surcharge_percent) > 0
+            ? `Alcohol VAT ${formatPercent(effectiveAlcoholPercent(view.rate))}% (${formatPercent(view.rate.alcohol_vat_percent)}% + ${formatPercent(view.rate.alcohol_surcharge_percent)}% surcharge)`
+            : `Alcohol VAT ${formatPercent(view.rate.alcohol_vat_percent)}%`,
+        v: b.vat,
+      },
+      { k: "Total", v: b.total, strong: true },
+    ].filter(Boolean);
+  } else {
+    total = round2(perHead * headcount);
+    lines = [
+      {
+        k: `${pkg.name} at ${venue?.name}, ${headcount} guests × ${formatRupees(perHead)}`,
+        v: total,
+      },
+    ];
+    if (view.kind === "included") note = "All taxes included";
+    if (view.kind === "applicable") {
+      lines = [{ k: `Package, ${headcount} guests × ${formatRupees(perHead)}`, v: total }];
+      note = "+ applicable taxes, confirmed on the venue's final bill";
+    }
+  }
+  const payNow = round2(total * depositPct);
+  const atVenue = round2(total - payNow);
+  const Row = ({ k, v, strong }) => (
+    <div className={`flex justify-between gap-4 mb-1 ${strong ? "font-semibold text-ink pt-1" : ""}`}>
+      <span className={strong ? "" : "text-haze"}>{k}</span>
+      <span className={strong ? "text-amber" : "text-ink font-medium"}>{formatRupees(v)}</span>
+    </div>
+  );
+  return (
+    <>
+      {lines.map((l, i) => (
+        <Row key={i} k={l.k} v={l.v} strong={l.strong} />
+      ))}
+      {note && <p className="text-xs text-haze/80 mb-1">{note}</p>}
+      <div className="border-t border-white/10 mt-2 pt-2">
+        <Row k={`Pay now to book (${Math.round(depositPct * 100)}%)`} v={payNow} strong />
+        <Row k="Pay at the venue on the day" v={atVenue} />
+      </div>
+      <p className="text-xs text-haze/80 mt-2">The venue issues the final bill.</p>
+    </>
   );
 }
 
@@ -983,13 +1124,19 @@ function ReviewMenuBody({ pkg, venue }) {
           {pkg.discount_percent > 0 ? (
             <p className="text-sm font-medium">
               <span className="line-through text-haze/60 mr-2">{inr(pkg.price_per_head)}</span>
-              <span className="text-ink">{inr(effectivePricePerHead(pkg))} / head</span>{" "}
+              <span className="text-ink">
+                {inr(effectivePricePerHead(pkg))} / head
+                <TaxSuffix pkg={pkg} city={venue?.city} />
+              </span>{" "}
               <span className="text-emerald-600 font-semibold text-xs">({pkg.discount_percent}% off)</span>
             </p>
           ) : (
-            <p className="text-sm text-ink font-medium">{inr(pkg.price_per_head)} / head</p>
+            <p className="text-sm text-ink font-medium">
+              {inr(pkg.price_per_head)} / head
+              <TaxSuffix pkg={pkg} city={venue?.city} />
+            </p>
           )}
-          <GstLine pkg={pkg} className="text-xs text-haze/80 mt-1" />
+          <PriceNote pkg={pkg} city={venue?.city} className="text-xs text-haze/80 mt-1" />
         </div>
       )}
 
@@ -1567,7 +1714,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
         <Row k="Venue" v={b.venues?.name} />
         <Row k="Package" v={b.venue_packages?.name} />
         <Row k="Event date" v={fmtDate(b.event_date)} />
-        <Row k="Amount paid" v={inr(amountPaid)} />
+        <Row k="Amount paid" v={formatRupees(amountPaid)} />
 
         {pdfError && <p className="text-xs text-red-600 mt-3">{pdfError}</p>}
         <div className="flex flex-wrap gap-2 mt-5">
@@ -1609,13 +1756,26 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
 
         <div className="h-3" />
         <Row k="Deposit tier" v={tierLabel} />
-        <Row k="Amount paid" v={inr(amountPaid)} />
-        <Row k="Total package amount" v={inr(total)} />
+        <Row k="Amount paid" v={formatRupees(amountPaid)} />
+        <Row k="Total package amount" v={formatRupees(total)} />
         {total > 0 && b.venue_packages && (
           b.venue_packages.gst_mode === "excluded" ? (
-            <p className="text-xs text-stone-500 py-1.5">
-              Amounts are exclusive of GST; the total payable is unchanged.
-            </p>
+            b.package_value == null ? (
+              <p className="text-xs text-stone-500 py-1.5">
+                Amounts are exclusive of GST; the total payable is unchanged.
+              </p>
+            ) : (
+              <>
+                <Row k="— Package (before taxes)" v={formatRupees(Number(b.package_value))} />
+                {Number(b.tax_amount) > 0 ? (
+                  <Row k="— Taxes" v={formatRupees(Number(b.tax_amount))} />
+                ) : (
+                  <p className="text-xs text-stone-500 py-1.5">
+                    Applicable taxes are confirmed on the venue's final bill.
+                  </p>
+                )}
+              </>
+            )
           ) : b.venue_packages.gst_mode === "non_gst" ? (
             <p className="text-xs text-stone-500 py-1.5">
               No GST applies to this package.
@@ -1625,18 +1785,11 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
               GST status for this package is being verified — the amount shown is what you pay.
             </p>
           ) : (
-            (() => {
-              const { pct, base, gst } = gstSplit(total, b.venue_packages);
-              return (
-                <>
-                  <Row k="— Base (excl. GST)" v={inr(base)} />
-                  <Row k={`— GST (${pct}%)`} v={inr(gst)} />
-                </>
-              );
-            })()
+            <p className="text-xs text-stone-500 py-1.5">All taxes included.</p>
           )
         )}
-        <Row k="Remaining balance (payable at venue)" v={inr(remaining)} />
+        <Row k="Remaining balance (payable at venue)" v={formatRupees(remaining)} />
+        <p className="text-xs text-stone-500 py-1.5">The venue issues the final bill.</p>
         <Row k="Payment reference" v={paymentRef} />
 
         <div className="h-3" />
@@ -3087,8 +3240,6 @@ export default function App() {
   // independent of guest count (unlike `preview` above, used in the summary panel).
   const bookingTypePreview = hrs !== null ? depositPreview(hrs) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
-  const totalPreview =
-    selectedPackage && headcountNum ? effectivePricePerHead(selectedPackage) * headcountNum : 0;
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
@@ -3977,7 +4128,6 @@ export default function App() {
                         </>
                       );
                     })()}
-                    <GstLine pkg={p} className="text-xs text-haze/70 mt-3" />
                     <p
                       className={`text-xs mt-2 ${p.includes_dj ? "text-indigo-300" : "text-haze/60"}`}
                     >
@@ -3990,16 +4140,25 @@ export default function App() {
                         <span className="line-through text-haze/50 font-normal text-xs block">
                           {inr(p.price_per_head)}
                         </span>
-                        {inr(effectivePricePerHead(p))} <span className="text-haze font-normal text-xs">/ head</span>
+                        {inr(effectivePricePerHead(p))}{" "}
+                        <span className="text-haze font-normal text-xs">
+                          / head
+                          <TaxSuffix pkg={p} city={selectedVenue.city} />
+                        </span>
                         <span className="block text-emerald-500 font-semibold text-xs">
                           {p.discount_percent}% off
                         </span>
                       </p>
                     ) : (
                       <p className="font-semibold text-amber">
-                        {inr(p.price_per_head)} <span className="text-haze font-normal text-xs">/ head</span>
+                        {inr(p.price_per_head)}{" "}
+                        <span className="text-haze font-normal text-xs">
+                          / head
+                          <TaxSuffix pkg={p} city={selectedVenue.city} />
+                        </span>
                       </p>
                     )}
+                    <PriceNote pkg={p} city={selectedVenue.city} className="text-xs text-haze/70 -mt-1" />
                     <button
                       disabled={selectedVenue.on_hold}
                       className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
@@ -4040,9 +4199,10 @@ export default function App() {
                 <span className="text-amber font-semibold">{selectedPackage?.name}</span>
                 <span className="text-amber font-semibold">
                   {inr(effectivePricePerHead(selectedPackage))} / person
+                  <TaxSuffix pkg={selectedPackage} city={selectedVenue.city} />
                 </span>
               </div>
-              <GstLine pkg={selectedPackage} className="text-xs text-haze/70 mt-1.5 text-right" />
+              <PriceNote pkg={selectedPackage} city={selectedVenue.city} className="text-xs text-haze/70 mt-1.5 text-right" />
             </div>
 
             <form onSubmit={submitRequest} className="flex flex-col gap-4">
@@ -4270,33 +4430,19 @@ export default function App() {
               {headcountNum > 0 && preview && (
                 <div className="bg-surface border border-white/10 rounded-2xl p-4 text-sm">
                   <h3 className="font-display font-semibold text-ink mb-2">Booking summary</h3>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-haze">{selectedPackage?.name} × {headcountNum} guests</span>
-                    <span className="text-haze">
-                      {selectedPackage?.discount_percent > 0 && (
-                        <span className="line-through text-haze/50 mr-1">
-                          {inr(selectedPackage.price_per_head)}
-                        </span>
-                      )}
-                      {inr(effectivePricePerHead(selectedPackage))} / head
-                      {selectedPackage?.discount_percent > 0 && (
-                        <span className="text-emerald-500 font-semibold ml-1">
-                          ({selectedPackage.discount_percent}% off)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <GstLine pkg={selectedPackage} className="text-xs text-haze/70 mb-2 text-right" />
-
-                  <div className="flex justify-between mb-2 pb-2 border-b border-white/10 font-semibold text-base text-ink">
-                    <span>Estimated package value</span>
-                    <span className="text-amber">{inr(totalPreview)}</span>
-                  </div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-haze">Deposit due now</span>
-                    <span className="font-medium text-ink">{preview.tier}</span>
-                  </div>
-                  <p className="text-xs text-haze/80">{preview.reason}</p>
+                  {selectedPackage?.discount_percent > 0 && (
+                    <p className="text-xs text-emerald-500 font-semibold mb-1">
+                      {selectedPackage.discount_percent}% off — {inr(selectedPackage.price_per_head)} per
+                      person before the offer
+                    </p>
+                  )}
+                  <BookingSummaryLines
+                    pkg={selectedPackage}
+                    venue={selectedVenue}
+                    headcount={headcountNum}
+                    depositPct={preview.pct}
+                  />
+                  <p className="text-xs text-haze/80 mt-2">{preview.reason}</p>
                 </div>
               )}
 
@@ -5388,3 +5534,4 @@ export default function App() {
     </div>
   );
 }
+
