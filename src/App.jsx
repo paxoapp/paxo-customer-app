@@ -1648,7 +1648,7 @@ function PaidAtVenueLine({ bal }) {
 }
 
 // "Pay at the venue": the customer generates a 6-digit code and gives it to the venue
-// when paying the balance (cash or online). The code is valid for about a minute and
+// when paying the balance (cash or online). The code is valid for 10 minutes and
 // is only ever shown here, once. After the venue records it, the booking shows the paid line.
 function PayAtVenue({ booking, token, onChanged }) {
   const [code, setCode] = useState(null); // { value, expiresAt }
