@@ -1637,6 +1637,85 @@ function istDay(offsetDays = 0) {
   return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
+// Check-in code: made by the database (secure random, only a hash is stored), shown once,
+// valid for 10 minutes. The customer gives it to the venue on arrival; the venue checks it
+// in their app. Nothing is generated or stored in the browser.
+function CheckinCode({ booking, token, onChanged, remainingPct }) {
+  const [code, setCode] = useState(null); // { value, expiresAt }
+  const [now, setNow] = useState(Date.now());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const left = code ? Math.max(0, Math.ceil((code.expiresAt - now) / 1000)) : 0;
+  const live = !!code && left > 0;
+  const day = String(booking.event_date).slice(0, 10);
+  const eventDay = day === istDay(0) || day === istDay(-1);
+
+  useEffect(() => {
+    if (!code) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [code]);
+  // while a code is on screen, notice when the venue has checked us in
+  useEffect(() => {
+    if (!live) return undefined;
+    const t = setInterval(() => onChanged(), 4000);
+    return () => clearInterval(t);
+  }, [live, onChanged]);
+
+  async function generate() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await sb("/rest/v1/rpc/generate_checkin_code", { method: "POST", token, body: { p_booking_id: booking.id } });
+      setCode({ value: res.code, expiresAt: Date.now() + (res.valid_seconds || 600) * 1000 });
+      setNow(Date.now());
+    } catch (e) {
+      setError(e.message || "Couldn't create a code. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 border border-white/10 rounded-xl p-3" data-testid="checkin-code">
+      <p className="text-xs font-semibold text-haze mb-1">Check-in code</p>
+      {booking.event_started_at ? (
+        <p className="text-sm font-medium text-amber">
+          ✓ Checked in at{" "}
+          {new Date(booking.event_started_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+        </p>
+      ) : live ? (
+        <>
+          <p className="text-4xl font-bold tracking-[0.35em] text-amber my-1" data-testid="checkin-code-value">{code.value}</p>
+          <p className="text-xs text-haze">Give this code to the venue when you arrive.</p>
+          <p className="text-xs text-haze/80 mt-1">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</p>
+        </>
+      ) : !eventDay ? (
+        <p className="text-sm text-haze">You can generate your check-in code on the day of the event.</p>
+      ) : (
+        <>
+          <p className="text-sm text-haze mb-2">{code ? "This code has expired." : "Arriving at the venue? Generate your check-in code."}</p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={generate}
+            className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
+          >
+            {busy ? "Generating…" : code ? "Generate new code" : "Generate check-in code"}
+          </button>
+        </>
+      )}
+      {error && <p className="text-xs text-red-300 mt-1">{error}</p>}
+      {!booking.event_started_at && remainingPct > 0 && (
+        <p className="text-xs text-amber mt-2">
+          The remaining {remainingPct}% is due directly to the venue at the event — please arrive at least 30 minutes
+          early to pay it and check in.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PaidAtVenueLine({ bal }) {
   return (
     <p className="mt-3 text-sm font-medium text-amber" data-testid="paid-at-venue">
@@ -2307,8 +2386,6 @@ export default function App() {
   const [payingBookingId, setPayingBookingId] = useState(null);
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
-  const [otpBusyId, setOtpBusyId] = useState(null);
-  const [otpError, setOtpError] = useState({}); // keyed by booking id
   const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
   const [fbBusyId, setFbBusyId] = useState(null);
   const [fbError, setFbError] = useState({}); // keyed by booking id
@@ -2522,30 +2599,6 @@ export default function App() {
         [booking.id]: err.message || "Couldn't start the payment. Please try again.",
       }));
       setPayingBookingId(null);
-    }
-  }
-
-  // Generate (or regenerate) a 6-digit check-in code for a confirmed booking.
-  // The DB lets the customer set this freely until event_started_at is stamped.
-  async function generateCheckinOtp(booking) {
-    setOtpError((m) => ({ ...m, [booking.id]: "" }));
-    setOtpBusyId(booking.id);
-    try {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
-        method: "PATCH",
-        token: session.token,
-        prefer: "return=minimal",
-        body: { checkin_otp: code, checkin_otp_generated_at: new Date().toISOString() },
-      });
-      await loadMyBookings(session.token);
-    } catch (e) {
-      setOtpError((m) => ({
-        ...m,
-        [booking.id]: e.message || "Couldn't generate a code. Please try again.",
-      }));
-    } finally {
-      setOtpBusyId(null);
     }
   }
 
@@ -5104,60 +5157,12 @@ export default function App() {
                         })()}
 
                         {b.status === "confirmed" && (
-                          <div className="mt-3 border border-white/10 rounded-xl p-3">
-                            <p className="text-xs font-semibold text-haze mb-1">
-                              Check-in code
-                            </p>
-                            {b.event_started_at ? (
-                              <p className="text-sm font-medium text-amber">
-                                ✓ Checked in at {fmtDate(b.event_started_at.slice(0, 10))}, {fmtTime(b.event_started_at.slice(11, 16))}
-                              </p>
-                            ) : (
-                              <>
-                                {b.checkin_otp ? (
-                                  <>
-                                    <p className="text-3xl font-bold tracking-[0.35em] text-amber my-1">
-                                      {b.checkin_otp}
-                                    </p>
-                                    <p className="text-xs text-haze">
-                                      Show this code to venue staff when you arrive.
-                                    </p>
-                                    <button
-                                      type="button"
-                                      disabled={otpBusyId === b.id}
-                                      onClick={() => generateCheckinOtp(b)}
-                                      className="mt-2 text-sm font-medium text-amber hover:brightness-110 disabled:opacity-50"
-                                    >
-                                      {otpBusyId === b.id ? "Generating…" : "Regenerate code"}
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <p className="text-sm text-haze mb-2">
-                                      Generate a code to show venue staff at check-in.
-                                    </p>
-                                    <button
-                                      type="button"
-                                      disabled={otpBusyId === b.id}
-                                      onClick={() => generateCheckinOtp(b)}
-                                      className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
-                                    >
-                                      {otpBusyId === b.id ? "Generating…" : "Generate check-in code"}
-                                    </button>
-                                  </>
-                                )}
-                                {otpError[b.id] && (
-                                  <p className="text-xs text-red-300 mt-1">{otpError[b.id]}</p>
-                                )}
-                                {partialPaid && (
-                                  <p className="text-xs text-amber mt-2">
-                                    The remaining {100 - pct}% is due directly to the venue at the event —
-                                    please arrive at least 30 minutes early to pay it and check in.
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
+                          <CheckinCode
+                            booking={b}
+                            token={session.token}
+                            onChanged={() => loadMyBookings(session.token)}
+                            remainingPct={partialPaid ? 100 - pct : 0}
+                          />
                         )}
 
                         {stage === 2 && (
