@@ -1630,11 +1630,27 @@ function MenuGroupSection({
   );
 }
 
-// India-time "today" and "yesterday" as YYYY-MM-DD, to match the database rule for when
-// a balance code can be generated (the day of the event, or the day after it starts).
+// India-time "today" and "yesterday" as YYYY-MM-DD. The balance code opens 24 hours before the event
+// start (checkinWindow below) and, as before, is not offered once the event date is before yesterday.
 function istDay(offsetDays = 0) {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+// The check-in window (and the Pay-at-the-venue window) opens 24 hours before the event start and the
+// check-in window closes 12 hours after it, in India time. The database enforces this; this only
+// decides which message to show. Event date and time are India local time.
+function checkinWindow(b) {
+  const day = String(b.event_date).slice(0, 10);
+  const time = String(b.event_time || "00:00").slice(0, 5);
+  const start = new Date(`${day}T${time}:00+05:30`).getTime();
+  return { start, opens: start - 24 * 3600 * 1000, closes: start + 12 * 3600 * 1000 };
+}
+function fmtEventDate(ms) {
+  return new Date(ms).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
+}
+function fmtEventTime(ms) {
+  return new Date(ms).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" });
 }
 
 // Check-in code: made by the database (secure random, only a hash is stored), shown once,
@@ -1647,12 +1663,13 @@ function CheckinCode({ booking, token, onChanged, remainingPct }) {
   const [error, setError] = useState("");
   const left = code ? Math.max(0, Math.ceil((code.expiresAt - now) / 1000)) : 0;
   const live = !!code && left > 0;
-  const day = String(booking.event_date).slice(0, 10);
-  const eventDay = day === istDay(0) || day === istDay(-1);
+  const win = checkinWindow(booking);
+  const tooEarly = now < win.opens;
+  const closed = now > win.closes;
 
+  // fast tick while a code is on screen (countdown); slow tick otherwise so the window opening/closing is noticed
   useEffect(() => {
-    if (!code) return undefined;
-    const t = setInterval(() => setNow(Date.now()), 500);
+    const t = setInterval(() => setNow(Date.now()), code ? 500 : 30000);
     return () => clearInterval(t);
   }, [code]);
   // while a code is on screen, notice when the venue has checked us in
@@ -1680,33 +1697,51 @@ function CheckinCode({ booking, token, onChanged, remainingPct }) {
     <div className="mt-3 border border-white/10 rounded-xl p-3" data-testid="checkin-code">
       <p className="text-xs font-semibold text-haze mb-1">Check-in code</p>
       {booking.event_started_at ? (
-        <p className="text-sm font-medium text-amber">
-          ✓ Checked in at{" "}
-          {new Date(booking.event_started_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
-        </p>
+        <>
+          <p className="text-sm font-medium text-amber">
+            ✓ Checked in at{" "}
+            {new Date(booking.event_started_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+          </p>
+          <p className="text-sm text-haze mt-1" data-testid="checkin-done-text">
+            You're checked in. Enjoy your party!
+            {remainingPct > 0
+              ? ` The remaining ${remainingPct}% balance is paid at the venue. When the staff ask, open Pay at the venue here to get your payment code.`
+              : ""}
+          </p>
+        </>
       ) : live ? (
         <>
           <p className="text-4xl font-bold tracking-[0.35em] text-amber my-1" data-testid="checkin-code-value">{code.value}</p>
           <p className="text-xs text-haze">Give this code to the venue when you arrive.</p>
           <p className="text-xs text-haze/80 mt-1">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</p>
         </>
-      ) : !eventDay ? (
-        <p className="text-sm text-haze">You can generate your check-in code on the day of the event.</p>
+      ) : closed ? (
+        <p className="text-sm text-haze" data-testid="checkin-closed-text">
+          The check-in window for this event has closed. If you were at the venue, ask the staff to contact PAXO.
+        </p>
+      ) : tooEarly ? (
+        <p className="text-sm text-haze" data-testid="checkin-early-text">
+          Your check-in code unlocks 24 hours before your event on {fmtEventDate(win.start)} at {fmtEventTime(win.start)}. Then
+          come back to this page, tap Generate code, and show the 6-digit code to the venue staff. They enter it to check you in.
+        </p>
       ) : (
         <>
-          <p className="text-sm text-haze mb-2">{code ? "This code has expired." : "Arriving at the venue? Generate your check-in code."}</p>
+          <p className="text-sm text-haze mb-2" data-testid="checkin-ready-text">
+            Your check-in code is ready. Tap Generate code and show the 6 digits to the venue staff. The code works for 10
+            minutes. If it expires, just generate a new one.
+          </p>
           <button
             type="button"
             disabled={busy}
             onClick={generate}
             className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
           >
-            {busy ? "Generating…" : code ? "Generate new code" : "Generate check-in code"}
+            {busy ? "Generating…" : "Generate code"}
           </button>
         </>
       )}
       {error && <p className="text-xs text-red-300 mt-1">{error}</p>}
-      {!booking.event_started_at && remainingPct > 0 && (
+      {!booking.event_started_at && !closed && remainingPct > 0 && (
         <p className="text-xs text-amber mt-2">
           The remaining {remainingPct}% is due directly to the venue at the event — please arrive at least 30 minutes
           early to pay it and check in.
@@ -5076,7 +5111,7 @@ export default function App() {
                           </div>
                         )}
 
-                        {b.status === "confirmed" && b.booking_type !== "instant" && (() => {
+                        {b.status === "confirmed" && b.booking_type !== "instant" && !b.event_started_at && (() => {
                           const editable = canEditConfirmedBooking(b);
                           const confirming = confirmedCancelConfirming === b.id;
                           return (
@@ -5150,7 +5185,7 @@ export default function App() {
                             return <PaidAtVenueLine bal={bal} />;
                           }
                           const day = String(b.event_date).slice(0, 10);
-                          if (b.status === "confirmed" && partialPaid && (day === istDay(0) || day === istDay(-1))) {
+                          if (b.status === "confirmed" && partialPaid && Date.now() >= checkinWindow(b).opens && day >= istDay(-1)) {
                             return <PayAtVenue booking={b} token={session.token} onChanged={() => loadMyBookings(session.token)} />;
                           }
                           return null;
