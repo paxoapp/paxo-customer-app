@@ -8,6 +8,7 @@ import {
   formatRupees,
   round2,
 } from "./tax";
+import { PolicySummary, PayNote, CancelQuoteBox, policyKind, RESPONSE_WINDOW_LABEL, money2 } from "./policy";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -123,14 +124,13 @@ async function callFn(slug, token, body) {
     body: JSON.stringify(body),
   });
   const data = await res.text().then((t) => (t ? JSON.parse(t) : {}));
-  if (!res.ok) throw new Error(data.error || data.details || "Something went wrong");
+  if (!res.ok) {
+    const err = new Error(data.error || data.details || "Something went wrong");
+    err.data = data;
+    err.status = res.status;
+    throw err;
+  }
   return data;
-}
-
-function hoursUntil(dateStr, timeStr) {
-  if (!dateStr || !timeStr) return null;
-  const target = new Date(`${dateStr}T${timeStr}`);
-  return (target.getTime() - Date.now()) / (1000 * 60 * 60);
 }
 
 // Same style as the partner app's own response-window countdown.
@@ -191,58 +191,6 @@ function PartnerResponseCountdown({ deadline, remainingSeconds }) {
         : "Response window passed — this request will be auto-cancelled"}
     </p>
   );
-}
-
-// Booking Type is computed once from hours-to-event at request time and
-// locked permanently server-side (compute_booking_financials) — no customer
-// choice anywhere. This mirrors that same computation for the client preview.
-const BOOKING_TYPE_LABELS = { standard: "Standard", secure: "Secure", instant: "Instant" };
-const BOOKING_TYPE_DEPOSIT_TIER = { standard: "20pct", secure: "50pct", instant: "50pct" };
-// Mirrors the partner-response window each booking type gets in
-// compute_booking_financials (4h / 2h / 30min) -- used for the "Request
-// sent" confirmation so it states the actual window instead of a guess.
-const RESPONSE_WINDOW_LABEL = { standard: "4 hours", secure: "2 hours", instant: "30 minutes" };
-
-function bookingTypeFor(hrsToEvent) {
-  if (hrsToEvent === null || hrsToEvent === undefined) return null;
-  if (hrsToEvent > 168) return "standard";
-  if (hrsToEvent > 48) return "secure";
-  return "instant";
-}
-
-function depositPreview(hrsToEvent) {
-  const bookingType = bookingTypeFor(hrsToEvent);
-  if (!bookingType) return null;
-  const tier = BOOKING_TYPE_DEPOSIT_TIER[bookingType];
-  const reasons = {
-    standard: "More than 7 days before the event — booked as Standard, a 20% deposit secures it now.",
-    secure: "Between 2 and 7 days before the event — booked as Secure, a 50% deposit secures it now.",
-    instant: "48 hours or less before the event — booked as Instant, a 50% deposit secures it now.",
-  };
-  return {
-    bookingType,
-    bookingTypeLabel: BOOKING_TYPE_LABELS[bookingType],
-    tier: tier === "50pct" ? "50% deposit" : "20% deposit",
-    pct: tier === "50pct" ? 0.5 : 0.2,
-    reason: reasons[bookingType],
-  };
-}
-
-// Mirrors process-booking-refund's customer-initiated slab logic exactly (kept in
-// sync by hand — the edge function is the actual source of truth, this is only a
-// pre-confirmation preview): instant is always 0%; standard/secure each have their
-// own >X h / Y-X h / <Y h slab.
-function refundPercentPreview(bookingType, hrsToEvent) {
-  if (bookingType === "instant") return 0;
-  if (bookingType === "secure") {
-    if (hrsToEvent > 96) return 100;
-    if (hrsToEvent >= 72) return 50;
-    return 0;
-  }
-  // standard
-  if (hrsToEvent > 72) return 100;
-  if (hrsToEvent >= 48) return 50;
-  return 0;
 }
 
 const inr = (n) =>
@@ -402,7 +350,7 @@ function TaxBreakdownModal({ pkg, view, onClose }) {
 // Booking summary before the deposit: package, taxes (taxes-extra packages only),
 // total, what to pay now and what's left for the venue. Matches the amounts the
 // database stores on the booking (see computeBookingTax in tax.js).
-function BookingSummaryLines({ pkg, venue, headcount, depositPct }) {
+function BookingSummaryLines({ pkg, venue, headcount, depositPct, policy, ackChecked, onAckChange }) {
   const rates = useTaxRates();
   const view = packageTaxView(pkg, rates, venue?.city);
   const perHead = effectivePricePerHead(pkg);
@@ -462,6 +410,9 @@ function BookingSummaryLines({ pkg, venue, headcount, depositPct }) {
         <Row k={`Pay now to book (${Math.round(depositPct * 100)}%)`} v={payNow} strong />
         <Row k="Pay at the venue on the day" v={atVenue} />
       </div>
+      {policy && (
+        <PolicySummary kind={policy} percent={Math.round(depositPct * 100)} amount={payNow} ack={ackChecked} onAck={onAckChange} />
+      )}
       <p className="text-xs text-haze/80 mt-2">The venue issues the final bill.</p>
     </>
   );
@@ -2004,12 +1955,22 @@ function RefundReceiptBody({ booking, onFinalize }) {
   // process-booking-refund at cancellation time, so these are the actual
   // Razorpay-processed values, not a pre-cancellation preview.
   const depositPayment = (b.payments || []).find((p) => p.payment_type === "deposit");
-  const refundPercent =
-    depositPayment?.refund_percent ??
-    refundPercentPreview(b.booking_type, hoursUntil(b.event_date, b.event_time));
+  const refundPercent = Number(depositPayment?.refund_percent ?? 0);
   const depositPaid = Number(depositPayment?.amount || 0);
-  const refundAmount =
-    depositPayment?.refund_amount ?? Math.round(depositPaid * (refundPercent / 100) * 100) / 100;
+  const refundAmount = Number(depositPayment?.refund_amount ?? 0);
+  const feeDeducted = Number(depositPayment?.gateway_fee_deducted || 0);
+  const refundPending = depositPayment?.refund_status === "pending";
+  const noRefund = refundPercent === 0 && refundAmount === 0;
+  const refundDetail = () => (
+    <>
+      <Row k="Refund under the cancellation policy" v={`${money2(refundAmount + feeDeducted)} (${refundPercent}%)`} />
+      {feeDeducted > 0 && <Row k="Payment gateway fee deducted" v={`−${money2(feeDeducted)}`} />}
+      <Row k="Refund amount" v={money2(refundAmount)} />
+      {refundPending && (
+        <p className="text-sm text-stone-600 py-1.5">Your refund is being processed. It can take a few hours longer than usual.</p>
+      )}
+    </>
+  );
   const cancelledOn = b.cancelled_at
     ? new Date(b.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
     : null;
@@ -2081,10 +2042,10 @@ function RefundReceiptBody({ booking, onFinalize }) {
         <Row k="Venue" v={b.venues?.name} />
         <Row k="Event date" v={fmtDate(b.event_date)} />
         <Row k="Cancelled on" v={cancelledOn} />
-        {refundPercent === 0 ? (
+        {noRefund ? (
           <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
         ) : (
-          <Row k="Refund amount" v={inr(refundAmount)} />
+          refundDetail()
         )}
 
         {pdfError && <p className="text-xs text-red-600 mt-3">{pdfError}</p>}
@@ -2111,11 +2072,10 @@ function RefundReceiptBody({ booking, onFinalize }) {
 
         <div className="h-3" />
         <Row k="Deposit paid" v={inr(depositPaid)} />
-        <Row k="Refund %" v={`${refundPercent}%`} />
-        {refundPercent === 0 ? (
+        {noRefund ? (
           <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
         ) : (
-          <Row k="Refund amount" v={inr(refundAmount)} />
+          refundDetail()
         )}
 
         <div className="h-3" />
@@ -2266,11 +2226,11 @@ const CUSTOMER_FAQ_SECTIONS = [
       },
       {
         q: "Why is my deposit 20% for one booking and 50% for another?",
-        a: "It's based on how far away your event was when you sent the request, not your guest count. 7+ days out → 20% deposit (Standard Booking). Within a week but more than 48 hours out → 50% (Secure). Under 48 hours out → 50%, non-refundable (Instant). You'll see which one applies as you fill out the request form.",
+        a: "It's based on how far away your event is when you send the request, not your guest count. More than 72 hours away → 20% deposit, refundable under the cancellation policy. 72 hours or less away → 50% deposit, non-refundable. You'll see which one applies as you fill out the request form.",
       },
       {
         q: "How long does a venue have to respond to my request?",
-        a: "Up to 4 hours for a Standard Booking, 2 hours for a Secure Booking, or 30 minutes for an Instant Booking. If they don't respond in time, the request expires automatically and you're free to try elsewhere — you're not charged.",
+        a: "Up to 4 hours (1 hour if your event is within 72 hours), and never later than 2 hours before the event. If they don't respond in time, the request expires automatically and you're free to try elsewhere — you're not charged.",
       },
     ],
   },
@@ -2283,7 +2243,7 @@ const CUSTOMER_FAQ_SECTIONS = [
       },
       {
         q: "What if I don't pay my deposit in time?",
-        a: "Once a venue accepts your request, you have a payment window (4 hours for Standard/Secure, 2 hours for Instant) to pay. If it lapses, the request simply expires — this is different from a no-show and doesn't count against your account.",
+        a: "Once a venue accepts your request, you have a payment window to pay: 4 hours (2 hours if your event is within 72 hours), and never later than 1 hour before the event. If it lapses, the request simply expires — this is different from a no-show and doesn't count against your account.",
       },
     ],
   },
@@ -2292,7 +2252,7 @@ const CUSTOMER_FAQ_SECTIONS = [
     items: [
       {
         q: "Can I cancel a confirmed booking?",
-        a: "Yes — how much of your deposit comes back depends on your Booking Type and how close it is to the event. See the full breakdown below. Instant Bookings are never refundable.",
+        a: "Yes, if you booked more than 72 hours ahead — how much of your deposit comes back depends on how close it is to the event, and the payment gateway's fee is deducted from the refund. See the full breakdown below. Bookings made within 72 hours of the event are non-refundable. If a venue declines, cancels or doesn't respond, you get back everything you paid.",
       },
       {
         q: "How long does a refund take?",
@@ -2503,6 +2463,35 @@ export default function App() {
   const [submitError, setSubmitError] = useState("");
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+  // The booking case, deposit and refundability for the chosen date and time come from the database (India time).
+  const [termsPreview, setTermsPreview] = useState(null);
+  const [lateAckCreate, setLateAckCreate] = useState(false); // tick box on the request form (late bookings)
+  const [payAckChecked, setPayAckChecked] = useState({}); // tick box before paying a late deposit, by booking id
+  const [editQuotes, setEditQuotes] = useState({}); // booking id -> { can_edit } from the database
+  const [cancelQuotes, setCancelQuotes] = useState({}); // booking id -> the exact refund quote from the database
+  useEffect(() => {
+    if (!form.event_date || !form.event_time || !session?.token) {
+      setTermsPreview(null);
+      return undefined;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      sb("/rest/v1/rpc/booking_terms_preview", {
+        method: "POST",
+        token: session.token,
+        body: { p_date: form.event_date, p_time: form.event_time },
+      })
+        .then((r) => live && setTermsPreview(r))
+        .catch(() => live && setTermsPreview(null));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [form.event_date, form.event_time, session?.token]);
+  useEffect(() => {
+    setLateAckCreate(false);
+  }, [form.event_date, form.event_time, form.package_id]);
 
   const loadVenues = useCallback(async () => {
     setVenuesLoading(true);
@@ -2539,7 +2528,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status)," +
+          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_balance_payments(amount_received,mode,received_at)," +
@@ -2548,6 +2537,15 @@ export default function App() {
         { token }
       );
       setMyBookings(data);
+      const confirmed = data.filter((b) => b.status === "confirmed");
+      const quotes = await Promise.all(
+        confirmed.map((b) =>
+          sb("/rest/v1/rpc/booking_edit_quote", { method: "POST", token, body: { p_booking_id: b.id } })
+            .then((q) => [b.id, q])
+            .catch(() => [b.id, null])
+        )
+      );
+      setEditQuotes(Object.fromEntries(quotes));
     } catch (e) {
       console.error(e);
       // Without this, a failed fetch (offline, RLS error, outage) rendered the
@@ -2571,6 +2569,7 @@ export default function App() {
       const order = await callFn("create-razorpay-order", session.token, {
         booking_id: booking.id,
         payment_type: paymentType,
+        acknowledged_non_refundable: payAckChecked[booking.id] === true,
       });
 
       const rzp = new window.Razorpay({
@@ -2863,27 +2862,44 @@ export default function App() {
     }
   }
 
-  // Standard/Secure confirmed bookings only, more than 24h out — mirrors the
-  // update-booking-guests / update-booking-menu edge functions' own precondition.
-  // Governs guest count, cancel, and menu edits once a group has a first selection.
+  // Whether a confirmed booking can still be edited / cancelled online is decided by the database
+  // (booking_edit_quote: confirmed, more than 24 hours before the event in India time).
   function canEditConfirmedBooking(b) {
-    if (b.status !== "confirmed") return false;
-    if (b.booking_type !== "standard" && b.booking_type !== "secure") return false;
-    const h = hoursUntil(b.event_date, b.event_time);
-    return h !== null && h > 24;
+    return !!editQuotes[b.id]?.can_edit;
+  }
+
+  // Opening the cancel screen asks the database for the exact refund; the same amount is sent back on confirm.
+  async function openCancelQuote(booking) {
+    setConfirmedCancelConfirming(booking.id);
+    setConfirmedCancelError("");
+    try {
+      const q = await sb("/rest/v1/rpc/booking_cancel_quote", {
+        method: "POST",
+        token: session.token,
+        body: { p_booking_id: booking.id, p_initiator: "customer" },
+      });
+      setCancelQuotes((m) => ({ ...m, [booking.id]: q }));
+    } catch (e) {
+      setConfirmedCancelError(e.message || "Couldn't work out your refund. Please try again.");
+    }
   }
 
   async function cancelConfirmedBooking(booking) {
+    const shown = cancelQuotes[booking.id];
+    if (!shown) return;
     setConfirmedCancelBusy(true);
     setConfirmedCancelError("");
     try {
       await callFn("process-booking-refund", session.token, {
         booking_id: booking.id,
         initiated_by: "customer",
+        expected_refund_amount: shown.refund_amount,
       });
       setConfirmedCancelConfirming(null);
       await loadMyBookings(session.token);
     } catch (e) {
+      // The refund changed while the screen was open (a slab boundary passed): show the new amount, refund nothing.
+      if (e.data?.quote) setCancelQuotes((m) => ({ ...m, [booking.id]: e.data.quote }));
       setConfirmedCancelError(e.message || "Couldn't cancel your booking. Please try again.");
     } finally {
       setConfirmedCancelBusy(false);
@@ -3337,9 +3353,12 @@ export default function App() {
       setSubmitError("Select a party slot timing.");
       return;
     }
-    const hrs = hoursUntil(form.event_date, form.event_time);
-    if (hrs !== null && hrs < 0) {
-      setSubmitError("That date and time has already passed.");
+    if (termsPreview && termsPreview.hours_to_event < 4) {
+      setSubmitError("Bookings must be made at least 4 hours before the event.");
+      return;
+    }
+    if (termsPreview?.booking_case === "late" && !lateAckCreate) {
+      setSubmitError("Please tick the box to confirm this deposit is non-refundable.");
       return;
     }
     if (!form.tc_agree) {
@@ -3403,14 +3422,15 @@ export default function App() {
     }
   }
 
-  const hrs = hoursUntil(form.event_date, form.event_time);
   const maleNum = parseInt(form.male_count, 10) || 0;
   const femaleNum = parseInt(form.female_count, 10) || 0;
   const headcountNum = maleNum + femaleNum;
-  const preview = headcountNum > 0 && hrs !== null ? depositPreview(hrs) : null;
+  const preview =
+    headcountNum > 0 && termsPreview && termsPreview.hours_to_event >= 4
+      ? { bookingCase: termsPreview.booking_case, pct: termsPreview.deposit_percent / 100 }
+      : null;
   // Live preview near the date/time fields — updates as soon as both are filled,
   // independent of guest count (unlike `preview` above, used in the summary panel).
-  const bookingTypePreview = hrs !== null ? depositPreview(hrs) : null;
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
@@ -4470,24 +4490,27 @@ export default function App() {
                 </div>
               </div>
 
-              {bookingTypePreview ? (
+              {termsPreview && termsPreview.hours_to_event < 4 ? (
+                <p className="rounded-xl px-4 py-2.5 text-sm border border-red-400/40 bg-red-500/10 text-red-200">
+                  Bookings must be made at least 4 hours before the event.
+                </p>
+              ) : termsPreview ? (
                 <div
                   className={`rounded-xl px-4 py-2.5 text-sm border ${
-                    bookingTypePreview.bookingType === "instant"
+                    termsPreview.booking_case === "late"
                       ? "border-red-400/40 bg-red-500/10 text-red-200"
                       : "border-amber/30 bg-amber/10 text-ink"
                   }`}
                 >
-                  <span className="font-semibold">Booking type: {bookingTypePreview.bookingTypeLabel} Booking</span>
+                  <span className="font-semibold">{termsPreview.deposit_percent}% deposit</span>
                   <span className="block text-xs mt-0.5 opacity-90">
-                    {bookingTypePreview.tier},{" "}
-                    {bookingTypePreview.bookingType === "instant" ? "non-refundable" : "refundable per policy"}
+                    {termsPreview.booking_case === "late"
+                      ? "Within 72 hours of the event · non-refundable"
+                      : "Refundable under the cancellation policy"}
                   </span>
                 </div>
               ) : (
-                <p className="text-xs text-haze/60">
-                  Pick an event date &amp; time above to see your booking type and deposit.
-                </p>
+                <p className="text-xs text-haze/60">Pick an event date &amp; time above to see your deposit.</p>
               )}
 
               <div className="grid grid-cols-2 gap-3">
@@ -4613,8 +4636,10 @@ export default function App() {
                     venue={selectedVenue}
                     headcount={headcountNum}
                     depositPct={preview.pct}
+                    policy={preview.bookingCase}
+                    ackChecked={lateAckCreate}
+                    onAckChange={setLateAckCreate}
                   />
-                  <p className="text-xs text-haze/80 mt-2">{preview.reason}</p>
                 </div>
               )}
 
@@ -4622,17 +4647,17 @@ export default function App() {
                 <p className="font-semibold text-ink mb-1">Booking terms &amp; conditions</p>
                 <ul className="list-disc pl-4 flex flex-col gap-1">
                   <li>
-                    Your booking type depends on how far out the event is: Standard (7+ days) —
-                    20% deposit; Secure (2–7 days) — 50% deposit; Instant (48 hours or less) — 50%
-                    deposit.
+                    If your event is more than 72 hours away you pay a 20% deposit. If it is 72 hours or less away you
+                    pay a 50% deposit, and that amount is non-refundable.
                   </li>
                   <li>
-                    The venue has up to 4 hours to accept or reject a Standard request, 2 hours
-                    for Secure, or 30 minutes for Instant.
+                    The venue has up to 4 hours to accept or reject your request (1 hour if your event is within 72
+                    hours), and never later than 2 hours before the event.
                   </li>
                   <li>
-                    Deposit payment window after acceptance: 4 hours for Standard and Secure, 2
-                    hours for Instant. Missing it releases the booking at no penalty to you.
+                    After the venue accepts, you pay the deposit within the payment window: 4 hours (2 hours if your
+                    event is within 72 hours), and never later than 1 hour before the event. Missing it releases the
+                    booking at no penalty to you.
                   </li>
                   <li>The remaining balance is paid directly to the venue at the event.</li>
                   <li>
@@ -4644,10 +4669,12 @@ export default function App() {
                     may apply as per the venue's policy.
                   </li>
                   <li>
-                    Cancellation refunds (on the PAXO-collected deposit only) — Standard: 100% if
-                    72+ hours before the event, 50% if 48–72 hours, 0% under 48 hours or no-show.
-                    Secure: 100% if 96+ hours before, 50% if 72–96 hours, 0% under 72 hours or
-                    no-show. Instant: always 0% refund.
+                    Cancellation refunds (on the PAXO-collected deposit only): 100% if you cancel more than 72 hours
+                    before the event, 50% from 72 hours down to 48 hours before, and nothing under 48 hours or if you
+                    do not show up. Bookings made within 72 hours of the event are non-refundable. When you cancel, the
+                    payment gateway's actual fee is deducted from your refund, and you see the exact amount before you
+                    confirm. If the venue declines, cancels, does not respond or does not honour the booking, you get
+                    back everything you paid.
                   </li>
                   <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
                   {selectedPackage?.includes_alcohol &&
@@ -4676,7 +4703,7 @@ export default function App() {
               {submitError && <p className="text-red-300 text-sm">{submitError}</p>}
 
               <button
-                disabled={submitLoading}
+                disabled={submitLoading || (termsPreview?.booking_case === "late" && !lateAckCreate)}
                 className="bg-amber text-[#170D0B] font-semibold rounded-xl px-4 py-2.5 text-sm disabled:opacity-50 hover:brightness-110 transition"
               >
                 {submitLoading ? "Submitting…" : "Submit request"}
@@ -5018,6 +5045,9 @@ export default function App() {
                                 <dd className="font-semibold text-amber">{inr(b.deposit_amount)}</dd>
                               </div>
                             </dl>
+                            {!anyPaid && b.deposit_tier !== "full" && (
+                              <PolicySummary kind={policyKind(b.booking_type)} percent={pct} amount={b.deposit_amount} />
+                            )}
 
                             {anyPaid ? (
                               <button
@@ -5055,9 +5085,23 @@ export default function App() {
                                       the event — please arrive at least 30 minutes early to complete
                                       this and check in.
                                     </p>
+                                    {policyKind(b.booking_type) === "late" ? (
+                                      <label className="flex items-start gap-2 mt-2 text-sm text-ink">
+                                        <input
+                                          type="checkbox"
+                                          className="mt-0.5 accent-amber"
+                                          checked={payAckChecked[b.id] === true}
+                                          onChange={(e) => setPayAckChecked((m) => ({ ...m, [b.id]: e.target.checked }))}
+                                          data-testid="late-ack-pay"
+                                        />
+                                        <span>I understand this {inr(b.deposit_amount)} deposit is non-refundable.</span>
+                                      </label>
+                                    ) : (
+                                      <PayNote />
+                                    )}
                                     <button
                                       type="button"
-                                      disabled={payingBookingId === b.id}
+                                      disabled={payingBookingId === b.id || (policyKind(b.booking_type) === "late" && payAckChecked[b.id] !== true)}
                                       onClick={() => startPayment(b, "deposit")}
                                       className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
@@ -5111,69 +5155,39 @@ export default function App() {
                           </div>
                         )}
 
-                        {b.status === "confirmed" && b.booking_type !== "instant" && !b.event_started_at && (() => {
+                        {b.status === "confirmed" && !b.event_started_at && (() => {
                           const editable = canEditConfirmedBooking(b);
                           const confirming = confirmedCancelConfirming === b.id;
+                          const lateBooking = policyKind(b.booking_type) === "late";
                           return (
                             <div className="mt-3 border border-white/10 rounded-xl p-3">
                               <p className="text-xs font-semibold text-haze mb-1">Cancel booking</p>
-                              {!editable ? (
+                              {lateBooking ? (
                                 <p className="text-xs text-haze/70">
-                                  Changes are no longer available this close to your event — please
-                                  contact PAXO support for any assistance.
+                                  This booking was made within 72 hours of the event, so its deposit is non-refundable and it
+                                  can't be cancelled online. Please contact PAXO support for any assistance.
+                                </p>
+                              ) : !editable ? (
+                                <p className="text-xs text-haze/70">
+                                  Changes are no longer available this close to your event — please contact PAXO support for
+                                  any assistance.
                                 </p>
                               ) : !confirming ? (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setConfirmedCancelConfirming(b.id);
-                                    setConfirmedCancelError("");
-                                  }}
+                                  onClick={() => openCancelQuote(b)}
                                   className="text-xs font-medium text-red-300 hover:brightness-110"
                                 >
                                   Cancel this booking
                                 </button>
                               ) : (
-                                (() => {
-                                  const cancelHrs = hoursUntil(b.event_date, b.event_time);
-                                  const cancelPct = refundPercentPreview(b.booking_type, cancelHrs);
-                                  const cancelRefund = Math.round(Number(b.deposit_amount) * (cancelPct / 100) * 100) / 100;
-                                  return (
-                                    <div className="border border-red-400/30 bg-red-500/10 rounded-lg p-2.5">
-                                      <p className="text-xs text-ink">
-                                        This cannot be undone. Based on your {BOOKING_TYPE_LABELS[b.booking_type]} booking
-                                        and the time left before your event, you'll get a{" "}
-                                        <span className="font-semibold">{cancelPct}% refund</span> of your deposit —{" "}
-                                        <span className="font-semibold">{inr(cancelRefund)}</span> of {inr(b.deposit_amount)} paid.
-                                      </p>
-                                      <p className="text-xs text-haze mt-1">
-                                        This refund will be credited to your original payment method within
-                                        7–10 business days.
-                                      </p>
-                                      {confirmedCancelError && (
-                                        <p className="text-xs text-red-300 mt-1.5">{confirmedCancelError}</p>
-                                      )}
-                                      <div className="flex gap-2 mt-2">
-                                        <button
-                                          type="button"
-                                          disabled={confirmedCancelBusy}
-                                          onClick={() => cancelConfirmedBooking(b)}
-                                          className="text-xs font-semibold bg-red-500/90 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
-                                        >
-                                          {confirmedCancelBusy ? "Cancelling…" : "Yes, cancel booking"}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          disabled={confirmedCancelBusy}
-                                          onClick={() => setConfirmedCancelConfirming(null)}
-                                          className="text-xs text-haze hover:text-ink"
-                                        >
-                                          Never mind
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                })()
+                                <CancelQuoteBox
+                                  quote={cancelQuotes[b.id]}
+                                  busy={confirmedCancelBusy}
+                                  error={confirmedCancelError}
+                                  onConfirm={() => cancelConfirmedBooking(b)}
+                                  onBack={() => setConfirmedCancelConfirming(null)}
+                                />
                               )}
                             </div>
                           );
@@ -5539,25 +5553,24 @@ export default function App() {
               </h2>
               <div className="flex flex-col gap-4 text-sm text-haze">
                 <div>
-                  <p className="font-medium text-ink mb-1">Standard Booking (event 7+ days away)</p>
+                  <p className="font-medium text-ink mb-1">Booked more than 72 hours before the event (20% deposit)</p>
                   <ul className="list-disc pl-4 flex flex-col gap-0.5">
-                    <li>Cancel more than 72 hours before your event → 100% refund of deposit</li>
-                    <li>Cancel 48–72 hours before → 50% refund of deposit</li>
+                    <li>Cancel more than 72 hours before your event → 100% of the deposit comes back</li>
+                    <li>Cancel 72 hours down to 48 hours before → 50% of the deposit comes back</li>
                     <li>Cancel less than 48 hours before, or no-show → no refund</li>
+                    <li>The payment gateway's actual fee is deducted from the refund when you cancel; you see the exact amount before you confirm</li>
                   </ul>
                 </div>
                 <div>
-                  <p className="font-medium text-ink mb-1">Secure Booking (event within a week, more than 48 hours away)</p>
+                  <p className="font-medium text-ink mb-1">Booked within 72 hours of the event (50% deposit)</p>
                   <ul className="list-disc pl-4 flex flex-col gap-0.5">
-                    <li>Cancel more than 96 hours before your event → 100% refund of deposit</li>
-                    <li>Cancel 72–96 hours before → 50% refund of deposit</li>
-                    <li>Cancel less than 72 hours before, or no-show → no refund</li>
+                    <li>The deposit is non-refundable</li>
                   </ul>
                 </div>
                 <div>
-                  <p className="font-medium text-ink mb-1">Instant Booking (event within 48 hours)</p>
+                  <p className="font-medium text-ink mb-1">If the venue cancels, declines or doesn't respond</p>
                   <ul className="list-disc pl-4 flex flex-col gap-0.5">
-                    <li>Non-refundable — no refund at any time once confirmed</li>
+                    <li>You get back everything you paid, with no deduction. If a request is declined or unanswered, you are not charged at all</li>
                   </ul>
                 </div>
                 <p className="text-xs text-haze/80 border-t border-white/10 pt-3">
