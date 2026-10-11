@@ -141,3 +141,95 @@ export function CancelQuoteBox({ quote, busy, error, onConfirm, onBack }) {
     </div>
   );
 }
+
+// ---------------- alcohol notice (one text, used everywhere) ----------------
+export const ALCOHOL_NOTICE =
+  "This package includes alcohol. Alcohol is served only to guests who are of legal drinking age under the law of the state where the venue is located. Please carry a valid government-issued photo ID (such as Aadhaar, passport, driving licence or voter ID). The venue may ask to see it and can refuse to serve alcohol if your age cannot be verified.";
+
+export function AlcoholNotice({ className = "" }) {
+  return (
+    <p className={`text-xs text-haze ${className}`} data-testid="alcohol-notice">
+      {ALCOHOL_NOTICE}
+    </p>
+  );
+}
+
+// ---------------- save feedback ----------------
+// "Mon, 12 Oct 2026, 8:00 pm" in India time, from the cut-off the database returns.
+export function fmtEditUntil(iso) {
+  const d = new Date(iso);
+  const wd = d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short" });
+  const dm = d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+  const t = d.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
+  return `${wd}, ${dm}, ${t}`;
+}
+export function fmtSavedAt(date = new Date()) {
+  return date.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
+}
+
+// What the customer is told when a save fails: the reason, then what to do.
+export function saveErr(prefix, e) {
+  const reason = (e?.message || "").trim();
+  const sentence = reason ? (/[.!?]$/.test(reason) ? reason : reason + ".") : "";
+  return `${prefix} ${sentence} Please try again, or contact PAXO support if this keeps happening.`.replace(/\s+/g, " ");
+}
+
+// The plain-words reason an edit is locked, from booking_edit_quote.lock_reason.
+export function lockMessage(q) {
+  switch (q?.lock_reason) {
+    case "too_close":
+      return "Your menu is now locked because your event is less than 24 hours away. To make a change, please contact PAXO support.";
+    case "late":
+      return "This booking was made within 72 hours of the event, so the menu can't be changed once it has been saved. To make a change, please contact PAXO support.";
+    case "untyped":
+      return "This booking's menu can't be changed online. To make a change, please contact PAXO support.";
+    case "not_confirmed":
+      return "Your menu can be chosen once your booking is confirmed.";
+    default:
+      return "Your menu can't be changed online right now. To make a change, please contact PAXO support.";
+  }
+}
+
+// The line shown above the menu: editable (with the exact cut-off), locked, or (nothing saved yet) what happens after saving.
+export function editNotice(q, { anyLocked }) {
+  if (!q) return null;
+  if (q.can_edit) return { kind: "open", text: `You can change your menu until ${fmtEditUntil(q.edit_until)}.` };
+  if (anyLocked || q.lock_reason === "not_confirmed") return { kind: "locked", text: lockMessage(q) };
+  const after = {
+    too_close: "Your event is less than 24 hours away, so once you save your menu it can't be changed online.",
+    late: "This booking was made within 72 hours of the event, so once you save your menu it can't be changed online.",
+    untyped: "Once you save your menu it can't be changed online.",
+  }[q.lock_reason];
+  return { kind: "info", text: `${after || "Once you save your menu it can't be changed online."} To make a change after that, please contact PAXO support.` };
+}
+
+const NOTICE_STYLE = {
+  open: "border-amber/30 bg-amber/10 text-ink",
+  info: "border-amber/30 bg-amber/10 text-ink",
+  locked: "border-white/20 bg-white/5 text-haze",
+  ok: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300",
+  err: "border-red-400/40 bg-red-500/10 text-red-200",
+};
+export function StatusNotice({ kind, children, className = "" }) {
+  return (
+    <div
+      role={kind === "err" ? "alert" : "status"}
+      className={`rounded-xl border px-3 py-2 text-sm ${NOTICE_STYLE[kind] || NOTICE_STYLE.info} ${className}`}
+      data-testid={`notice-${kind}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ---------------- success messages for the saves on the booking page ----------------
+export const disclosureOkText = (response) =>
+  response === "approved"
+    ? "Your response was saved. You approved going ahead, so you can now pay your deposit."
+    : "Your response was saved. You declined, so this request has been closed.";
+export const addonOkText = (decision) =>
+  decision === "confirmed" ? "Add-on accepted. You'll pay for it at the venue." : "Add-on declined. The rest of your booking is unchanged.";
+export const CANCEL_PENDING_OK = "Your request was cancelled. The venue has been told.";
+export const feedbackOkText = (status) =>
+  status === "skipped" ? "Feedback skipped. You can still add it later." : "Thank you. Your feedback was saved.";
+export const menuSavedText = (date = new Date()) => `Menu saved successfully. Last saved ${fmtSavedAt(date)}.`;

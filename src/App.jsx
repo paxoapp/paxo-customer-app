@@ -8,7 +8,11 @@ import {
   formatRupees,
   round2,
 } from "./tax";
-import { PolicySummary, PayNote, CancelQuoteBox, policyKind, RESPONSE_WINDOW_LABEL, money2 } from "./policy";
+import {
+  PolicySummary, PayNote, CancelQuoteBox, policyKind, RESPONSE_WINDOW_LABEL, money2,
+  AlcoholNotice, ALCOHOL_NOTICE, StatusNotice, editNotice, lockMessage, saveErr,
+  disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
+} from "./policy";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -223,24 +227,6 @@ const effectivePricePerHead = (pkg) => {
 // since there's no cron clearing it server-side.
 const isPackageFeatured = (pkg) =>
   !!pkg?.is_featured && (!pkg.featured_until || new Date(pkg.featured_until).getTime() > Date.now());
-
-// Legal minimum drinking age by city, per each state's own excise law — NOT
-// a PAXO policy, and not something PAXO enforces (the venue checks ID at the
-// door, same as always). Delhi's age has moved before: lowered to 21 in the
-// 2021 excise policy, then that policy was scrapped and it reverted to 25;
-// as of late 2025 a further change was under active review. This table is
-// the one place to update if any of these change again — confirm the
-// current figure before editing, don't just guess.
-const DRINKING_AGE_BY_CITY = {
-  "delhi": 25,
-  "new delhi": 25,
-  "noida": 21, // Uttar Pradesh
-  "greater noida": 21,
-  "gurugram": 21, // Haryana
-  "gurgaon": 21,
-  "faridabad": 21, // Haryana
-};
-const drinkingAgeFor = (city) => DRINKING_AGE_BY_CITY[(city || "").trim().toLowerCase()] ?? null;
 
 // Tax rates (food GST / alcohol VAT per city) from the `tax_rates` table, loaded
 // once and shared. `null` while loading (or if the load failed): packages that
@@ -1442,7 +1428,7 @@ function bookingMenuContext(booking) {
 // One "Your Menu" sub-section (Food or Beverage) — either the editable
 // disable-at-max checkbox picker, or (once locked) a read-only list of
 // whatever's currently selected.
-function MenuGroupSection({
+export function MenuGroupSection({
   title,
   rules,
   ctx,
@@ -1456,6 +1442,7 @@ function MenuGroupSection({
   onSave,
   onConfirmSubmit,
   onGoBack,
+  lockText,
 }) {
   if (rules.length === 0) {
     return (
@@ -1468,6 +1455,8 @@ function MenuGroupSection({
   return (
     <div className="bg-surface border border-white/10 rounded-2xl p-4 shadow-card flex flex-col gap-4">
       <h2 className="font-display text-lg font-semibold text-ink">{title}</h2>
+      {error && <StatusNotice kind="err">{error}</StatusNotice>}
+      {success && <StatusNotice kind="ok">{success}</StatusNotice>}
       {locked ? (
         <div className="flex flex-col gap-3">
           {rules.map((r) => {
@@ -1490,10 +1479,9 @@ function MenuGroupSection({
               </div>
             );
           })}
-          <p className="text-xs text-haze/70">
-            Changes are no longer available this close to your event — please contact PAXO
-            support for any assistance.
-          </p>
+          {lockText !== "" && (
+            <p className="text-xs text-haze/70">{lockText || "Your menu can't be changed online right now. To make a change, please contact PAXO support."}</p>
+          )}
         </div>
       ) : (
         <>
@@ -1542,9 +1530,6 @@ function MenuGroupSection({
             );
           })}
 
-          {error && <p className="text-red-300 text-sm">{error}</p>}
-          {success && <p className="text-emerald-400 text-sm">{success}</p>}
-
           <button
             type="button"
             disabled={busy}
@@ -1564,10 +1549,11 @@ function MenuGroupSection({
               <div className="flex gap-2 mt-2">
                 <button
                   type="button"
+                  disabled={busy}
                   onClick={onConfirmSubmit}
-                  className="text-sm font-semibold bg-amber text-[#170D0B] px-3 py-1.5 rounded-lg"
+                  className="text-sm font-semibold bg-amber text-[#170D0B] px-3 py-1.5 rounded-lg disabled:opacity-50"
                 >
-                  Submit anyway
+                  {busy ? "Saving…" : "Submit anyway"}
                 </button>
                 <button type="button" onClick={onGoBack} className="text-sm text-haze hover:text-ink">
                   Go back
@@ -2267,6 +2253,10 @@ const CUSTOMER_FAQ_SECTIONS = [
         q: "What if more guests show up than I booked for?",
         a: "That's handled at the venue's own discretion — extra charges may apply as per that venue's policy, on top of the amount you already booked and paid a deposit for.",
       },
+      {
+        q: "My package includes alcohol. Do I need to carry ID?",
+        a: ALCOHOL_NOTICE,
+      },
     ],
   },
 ];
@@ -2469,6 +2459,9 @@ export default function App() {
   const [payAckChecked, setPayAckChecked] = useState({}); // tick box before paying a late deposit, by booking id
   const [editQuotes, setEditQuotes] = useState({}); // booking id -> { can_edit } from the database
   const [cancelQuotes, setCancelQuotes] = useState({}); // booking id -> the exact refund quote from the database
+  // One visible message per booking for the last save (success or error); it stays until the next action on that booking.
+  const [notices, setNotices] = useState({});
+  const setNotice = (id, n) => setNotices((m) => ({ ...m, [id]: n }));
   useEffect(() => {
     if (!form.event_date || !form.event_time || !session?.token) {
       setTermsPreview(null);
@@ -2641,6 +2634,7 @@ export default function App() {
   // "submitted" (one-way — submitted rows are immutable).
   async function saveFeedback(booking, existing, payload) {
     setFbError((m) => ({ ...m, [booking.id]: "" }));
+    setNotice(booking.id, null);
     setFbBusyId(booking.id);
     try {
       if (existing?.id) {
@@ -2660,8 +2654,12 @@ export default function App() {
       }
       setFbOpenId(null);
       await loadMyBookings(session.token);
+      setNotice(booking.id, {
+        kind: "ok",
+        text: feedbackOkText(payload?.status),
+      });
     } catch (e) {
-      setFbError((m) => ({ ...m, [booking.id]: e.message || "Couldn't save your feedback. Please try again." }));
+      setFbError((m) => ({ ...m, [booking.id]: saveErr("Your feedback wasn't saved.", e) }));
     } finally {
       setFbBusyId(null);
     }
@@ -2698,6 +2696,7 @@ export default function App() {
     }
     setCancelBusy(true);
     setCancelError("");
+    setNotice(booking.id, null);
     try {
       await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
         method: "PATCH",
@@ -2707,8 +2706,9 @@ export default function App() {
       });
       closeCancel();
       await loadMyBookings(session.token);
+      setNotice(booking.id, { kind: "ok", text: CANCEL_PENDING_OK });
     } catch (e) {
-      setCancelError(e.message || "Couldn't cancel the request. Please try again.");
+      setCancelError(saveErr("Your request wasn't cancelled.", e));
     } finally {
       setCancelBusy(false);
     }
@@ -2720,6 +2720,7 @@ export default function App() {
   async function respondToDisclosure(booking, response) {
     setDisclosureBusy(`${booking.id}:${response}`);
     setDisclosureError((m) => ({ ...m, [booking.id]: "" }));
+    setNotice(booking.id, null);
     try {
       await sb(`/rest/v1/bookings?id=eq.${booking.id}`, {
         method: "PATCH",
@@ -2728,10 +2729,14 @@ export default function App() {
         body: { disclosure_response: response },
       });
       await loadMyBookings(session.token);
+      setNotice(booking.id, {
+        kind: "ok",
+        text: disclosureOkText(response),
+      });
     } catch (e) {
       setDisclosureError((m) => ({
         ...m,
-        [booking.id]: e.message || "Couldn't save your response. Please try again.",
+        [booking.id]: saveErr("Your response wasn't saved.", e),
       }));
     } finally {
       setDisclosureBusy(null);
@@ -2742,9 +2747,10 @@ export default function App() {
   // "confirmed" locks it in (paid at the venue, alongside the package);
   // "customer_declined" removes it from the request — the rest of the
   // booking is unaffected.
-  async function reviewAddonOffer(addonRequestId, decision) {
+  async function reviewAddonOffer(addonRequestId, decision, bookingId) {
     setAddonOfferBusy(`${addonRequestId}:${decision}`);
     setAddonOfferError((m) => ({ ...m, [addonRequestId]: "" }));
+    setNotice(bookingId, null);
     try {
       await sb(`/rest/v1/booking_addon_requests?id=eq.${addonRequestId}`, {
         method: "PATCH",
@@ -2753,10 +2759,14 @@ export default function App() {
         body: { status: decision },
       });
       await loadMyBookings(session.token);
+      setNotice(bookingId, {
+        kind: "ok",
+        text: addonOkText(decision),
+      });
     } catch (e) {
       setAddonOfferError((m) => ({
         ...m,
-        [addonRequestId]: e.message || "Couldn't save your response. Please try again.",
+        [addonRequestId]: saveErr("Your response wasn't saved.", e),
       }));
     } finally {
       setAddonOfferBusy(null);
@@ -2809,6 +2819,8 @@ export default function App() {
   // Disable-at-max, not auto-evict-oldest — the moment any item in a maxed-out
   // category is unchecked, the rest of that category becomes checkable again.
   function toggleFoodPick(kind, itemId, quota) {
+    setFoodSuccess("");
+    setFoodError("");
     setFoodPicks((m) => {
       const cur = m[kind] || [];
       if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
@@ -2817,6 +2829,8 @@ export default function App() {
     });
   }
   function toggleBevPick(kind, itemId, quota) {
+    setBevSuccess("");
+    setBevError("");
     setBevPicks((m) => {
       const cur = m[kind] || [];
       if (cur.includes(itemId)) return { ...m, [kind]: cur.filter((x) => x !== itemId) };
@@ -2835,6 +2849,7 @@ export default function App() {
     const setSuccess = isFood ? setFoodSuccess : setBevSuccess;
     const setConfirmKinds = isFood ? setFoodConfirmKinds : setBevConfirmKinds;
 
+    if (isFood ? foodBusy : bevBusy) return; // already saving: ignore a second click
     if (!skipConfirm) {
       const underfilled = rules.filter((r) => (picks[r.category_kind] || []).length < r.quota_count);
       if (underfilled.length > 0) {
@@ -2853,10 +2868,10 @@ export default function App() {
         category_group: group,
         selections,
       });
-      setSuccess(isFood ? "Food selections updated." : "Beverage selections updated.");
+      setSuccess(menuSavedText());
       await loadMyBookings(session.token);
     } catch (e) {
-      setError(e.message || "Couldn't save. Please try again.");
+      setError(saveErr("Your menu wasn't saved.", e));
     } finally {
       setBusy(false);
     }
@@ -4320,6 +4335,7 @@ export default function App() {
                         </>
                       );
                     })()}
+                    {p.includes_alcohol && <AlcoholNotice className="mt-2" />}
                     <p
                       className={`text-xs mt-2 ${p.includes_dj ? "text-indigo-300" : "text-haze/60"}`}
                     >
@@ -4640,6 +4656,7 @@ export default function App() {
                     ackChecked={lateAckCreate}
                     onAckChange={setLateAckCreate}
                   />
+                  {selectedPackage?.includes_alcohol && <AlcoholNotice className="mt-3" />}
                 </div>
               )}
 
@@ -4677,17 +4694,7 @@ export default function App() {
                     back everything you paid.
                   </li>
                   <li>Any Add-Ons you request are not guaranteed — they're reviewed and confirmed by the venue separately, and are chargeable in addition to your package.</li>
-                  {selectedPackage?.includes_alcohol &&
-                    (() => {
-                      const age = drinkingAgeFor(selectedVenue?.city);
-                      return (
-                        <li>
-                          {age
-                            ? `This package includes alcohol. The legal drinking age in ${selectedVenue.city} is ${age} — the venue may ask for valid ID.`
-                            : "This package includes alcohol. The venue applies the legal drinking age for its location and may ask for valid ID."}
-                        </li>
-                      );
-                    })()}
+                  {selectedPackage?.includes_alcohol && <li>{ALCOHOL_NOTICE}</li>}
                 </ul>
               </div>
               <label className="flex items-start gap-2 text-sm text-ink">
@@ -4831,6 +4838,12 @@ export default function App() {
                       )}
                     </div>
 
+                    {notices[b.id] && (
+                      <StatusNotice kind={notices[b.id].kind} className="mt-3">
+                        {notices[b.id].text}
+                      </StatusNotice>
+                    )}
+
                     {rejected ? (
                       <div className="mt-3 border border-red-400/30 bg-red-500/10 rounded-xl p-3">
                         <p className="text-sm font-semibold text-red-200">Booking declined</p>
@@ -4849,6 +4862,9 @@ export default function App() {
                       <>
                         <BookingStepper stage={stage} />
                         <p className="text-sm text-haze mt-3">{STAGE_MESSAGES[stage]}</p>
+                        {b.venue_packages?.includes_alcohol && ["pending", "accepted", "confirmed"].includes(b.status) && (
+                          <AlcoholNotice className="mt-3" />
+                        )}
 
                         {stage === 0 && (
                           <PartnerResponseCountdown
@@ -4893,7 +4909,7 @@ export default function App() {
                                         <button
                                           type="button"
                                           disabled={!!addonOfferBusy}
-                                          onClick={() => reviewAddonOffer(a.id, "confirmed")}
+                                          onClick={() => reviewAddonOffer(a.id, "confirmed", b.id)}
                                           className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 disabled:opacity-50"
                                         >
                                           {addonOfferBusy === `${a.id}:confirmed` ? "Accepting…" : "Accept — pay at venue"}
@@ -4901,7 +4917,7 @@ export default function App() {
                                         <button
                                           type="button"
                                           disabled={!!addonOfferBusy}
-                                          onClick={() => reviewAddonOffer(a.id, "customer_declined")}
+                                          onClick={() => reviewAddonOffer(a.id, "customer_declined", b.id)}
                                           className="text-xs font-medium px-2.5 py-1 rounded-full bg-white/5 text-haze border border-white/15 disabled:opacity-50"
                                         >
                                           {addonOfferBusy === `${a.id}:customer_declined` ? "Declining…" : "Decline"}
@@ -5481,6 +5497,9 @@ export default function App() {
             const { foodRules, bevRules } = menuGroupRules(b);
             const foodElig = groupEligibility(b, foodRules);
             const bevElig = groupEligibility(b, bevRules);
+            const eq = editQuotes[b.id];
+            const banner = editNotice(eq, { anyLocked: (foodRules.length > 0 && foodElig.locked) || (bevRules.length > 0 && bevElig.locked) });
+            const lockText = lockMessage(eq);
             return (
               <div className="max-w-lg">
                 <button
@@ -5497,6 +5516,11 @@ export default function App() {
                   {b.venue_packages?.name} at {b.venues?.name}
                   <span className="block text-amber font-medium">{b.booking_ref}</span>
                 </p>
+                {banner && (
+                  <StatusNotice kind={banner.kind} className="mb-5">
+                    {banner.text}
+                  </StatusNotice>
+                )}
 
                 <div className="flex flex-col gap-6">
                   <MenuGroupSection
@@ -5513,6 +5537,7 @@ export default function App() {
                     onSave={() => saveMenuGroup(b, "food")}
                     onConfirmSubmit={() => saveMenuGroup(b, "food", { skipConfirm: true })}
                     onGoBack={() => setFoodConfirmKinds(null)}
+                    lockText={banner?.kind === "locked" ? "" : lockText}
                   />
                   <MenuGroupSection
                     title="Beverage"
@@ -5528,6 +5553,7 @@ export default function App() {
                     onSave={() => saveMenuGroup(b, "beverage")}
                     onConfirmSubmit={() => saveMenuGroup(b, "beverage", { skipConfirm: true })}
                     onGoBack={() => setBevConfirmKinds(null)}
+                    lockText={banner?.kind === "locked" ? "" : lockText}
                   />
                 </div>
               </div>
