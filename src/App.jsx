@@ -86,6 +86,87 @@ async function sb(path, { method = "GET", body, token, prefer } = {}) {
   return data;
 }
 
+// ---------------- PAXO coupons (welcome coupon + referral credit) ----------------
+// Everything about a coupon is decided by the database; this app only shows it. A shared link looks like mypaxo.in/?ref=CODE:
+// the code is remembered here (before the URL is cleaned) and handed to the server right after the new account signs in.
+const REF_KEY = "paxo_ref";
+try {
+  const refParam = new URLSearchParams(window.location.search).get("ref");
+  if (refParam && /^[A-Za-z0-9]{4,16}$/.test(refParam)) window.localStorage.setItem(REF_KEY, refParam.toUpperCase());
+} catch (_e) {
+  /* storage may be unavailable; the referral is simply not remembered */
+}
+const rs = (n) => `Rs ${Number(n || 0).toLocaleString("en-IN")}`;
+const fmtCouponDate = (iso) =>
+  new Date(iso).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
+const couponLabel = (type) => (type === "referral" ? "Referral credit" : "Welcome coupon");
+
+// What the customer will pay for an accepted booking: the coupon line and the "applied" note (numbers come from coupon_quote).
+function CouponPayLines({ quote }) {
+  if (!quote?.applies) return null;
+  return (
+    <div className="w-full rounded-xl border border-amber/30 bg-amber/10 px-3 py-2 text-sm" data-testid="coupon-pay-lines">
+      <div className="flex justify-between gap-3 text-ink">
+        <span>{`${couponLabel(quote.type)} -${rs(quote.discount)}`}</span>
+        <span className="font-semibold">You pay {rs(quote.pay_now)} now</span>
+      </div>
+      <p className="text-xs text-haze mt-1">{`${rs(quote.discount)} coupon applied. The venue still receives its full amount.`}</p>
+    </div>
+  );
+}
+
+function ReferralCard({ status }) {
+  const [copied, setCopied] = useState(false);
+  if (!status?.referral_code) return null;
+  const code = status.referral_code;
+  const link = `https://mypaxo.in/?ref=${code}`;
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (_e) {
+      /* clipboard blocked: the link is shown on screen to copy by hand */
+    }
+  }
+  async function share() {
+    try {
+      if (navigator.share) await navigator.share({ title: "PAXO", text: `Join PAXO with my code ${code}`, url: link });
+      else await copy();
+    } catch (_e) {
+      /* the share sheet was closed */
+    }
+  }
+  const credits = status.referral_credits || [];
+  return (
+    <div className="bg-surface border border-white/10 rounded-2xl p-5 shadow-card mb-4" data-testid="referral-card">
+      <p className="text-sm font-medium mb-1">Refer a friend</p>
+      <p className="text-sm text-ink">
+        Share your code <span className="font-bold tracking-widest text-amber">{code}</span>. When a friend's first booking is
+        completed, you get {rs(status.referral_credit_amount)} off your next booking of {status.min_guests}+ guests.
+      </p>
+      <p className="text-xs text-haze mt-2 break-all">{link}</p>
+      <div className="flex gap-2 mt-3">
+        <button type="button" onClick={copy} className="text-sm font-medium bg-white/10 border border-white/15 rounded-lg px-3 py-1.5 hover:bg-white/15 transition-colors">
+          {copied ? "Copied" : "Copy link"}
+        </button>
+        <button type="button" onClick={share} className="text-sm font-semibold bg-amber text-[#170D0B] rounded-lg px-3 py-1.5 hover:brightness-110 transition">
+          Share
+        </button>
+      </div>
+      <p className="text-xs text-haze mt-3">
+        Referral credits earned: {status.referrals_completed || 0} of {status.referral_max}
+        {status.referrals_pending > 0 ? ` · ${status.referrals_pending} friend${status.referrals_pending === 1 ? "" : "s"} waiting for a first booking` : ""}
+      </p>
+      {credits.map((c, i) => (
+        <p key={i} className="text-xs text-ink mt-1">
+          {`Referral credit ${rs(c.amount)}, valid until ${fmtCouponDate(c.expires_at)}`}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 const AVATARS_BUCKET = "avatars";
 
 // Upload a File to the public avatars bucket, shared with the partner app.
@@ -336,7 +417,7 @@ function TaxBreakdownModal({ pkg, view, onClose }) {
 // Booking summary before the deposit: package, taxes (taxes-extra packages only),
 // total, what to pay now and what's left for the venue. Matches the amounts the
 // database stores on the booking (see computeBookingTax in tax.js).
-function BookingSummaryLines({ pkg, venue, headcount, depositPct, policy, ackChecked, onAckChange }) {
+function BookingSummaryLines({ pkg, venue, headcount, depositPct, policy, ackChecked, onAckChange, couponPreview, couponStatus }) {
   const rates = useTaxRates();
   const view = packageTaxView(pkg, rates, venue?.city);
   const perHead = effectivePricePerHead(pkg);
@@ -395,6 +476,19 @@ function BookingSummaryLines({ pkg, venue, headcount, depositPct, policy, ackChe
       <div className="border-t border-white/10 mt-2 pt-2">
         <Row k={`Pay now to book (${Math.round(depositPct * 100)}%)`} v={payNow} strong />
         <Row k="Pay at the venue on the day" v={atVenue} />
+        {couponPreview?.applies && (
+          <div className="mt-1" data-testid="coupon-summary-line">
+            <div className="flex justify-between gap-4 text-ink">
+              <span>{`${couponLabel(couponPreview.type)} -${rs(couponPreview.amount)}`}</span>
+            </div>
+            <p className="text-xs text-haze/80">The exact amount is confirmed when you pay. The venue still receives its full amount.</p>
+          </div>
+        )}
+        {couponPreview && !couponPreview.applies && couponPreview.reason === "guests_below_min" && (
+          <p className="text-xs text-amber mt-1" data-testid="coupon-needs-guests">
+            {couponStatus?.welcome ? "Welcome offer" : "Referral credit"} needs {couponPreview.min_guests || couponStatus?.min_guests || 25}+ guests
+          </p>
+        )}
       </div>
       {policy && (
         <PolicySummary kind={policy} percent={Math.round(depositPct * 100)} amount={payNow} ack={ackChecked} onAck={onAckChange} />
@@ -1678,10 +1772,10 @@ function CheckinCode({ booking, token, onChanged, remainingPct }) {
   );
 }
 
-function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
+function ReceiptBody({ booking, amountPaid, couponAmount = 0, paymentRef, onFinalize }) {
   const b = booking;
   const total = Number(b.total_amount || 0);
-  const remaining = Math.max(0, total - amountPaid);
+  const remaining = Math.max(0, total - amountPaid - couponAmount);
   const tierLabel =
     b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50%" : "20%";
   const fullRef = useRef(null);
@@ -1836,6 +1930,7 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
             <p className="text-xs text-stone-500 py-1.5">All taxes included.</p>
           )
         )}
+        {couponAmount > 0 && <Row k="PAXO coupon (paid by PAXO)" v={`−${formatRupees(couponAmount)}`} />}
         <Row k="Remaining balance (payable at venue)" v={formatRupees(remaining)} />
         <p className="text-xs text-stone-500 py-1.5">The venue issues the final bill.</p>
         <Row k="Payment reference" v={paymentRef} />
@@ -2336,6 +2431,9 @@ export default function App() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [couponStatus, setCouponStatus] = useState(null); // from coupon_my_status (welcome offer, referral code and credits)
+  const [couponQuotes, setCouponQuotes] = useState({}); // booking id -> coupon_quote for accepted bookings
+  const [couponPreview, setCouponPreview] = useState(null); // request summary, by guest count
   const [profileForm, setProfileForm] = useState({ full_name: "", phone: "" });
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -2435,7 +2533,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
+          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted,coupon_discount)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
@@ -3353,6 +3451,71 @@ export default function App() {
   const maleNum = parseInt(form.male_count, 10) || 0;
   const femaleNum = parseInt(form.female_count, 10) || 0;
   const headcountNum = maleNum + femaleNum;
+
+  // PAXO coupons. All of this is best effort: if the coupon functions are unavailable the app works exactly as before.
+  const loadCouponStatus = useCallback(async (token) => {
+    try {
+      setCouponStatus(await sb("/rest/v1/rpc/coupon_my_status", { method: "POST", token, body: {} }));
+    } catch (_e) {
+      setCouponStatus(null);
+    }
+  }, []);
+  const issueCoupons = useCallback(
+    async (token) => {
+      try {
+        let ref = null;
+        try { ref = window.localStorage.getItem(REF_KEY); } catch (_e) { /* ignore */ }
+        if (ref) {
+          try { await sb("/rest/v1/rpc/coupon_claim_referral", { method: "POST", token, body: { p_code: ref } }); } catch (_e) { /* not eligible: ignored */ }
+          try { window.localStorage.removeItem(REF_KEY); } catch (_e) { /* ignore */ }
+        }
+        await sb("/rest/v1/rpc/coupon_issue_for_user", { method: "POST", token, body: {} });
+      } catch (_e) {
+        /* the account simply has no coupon */
+      }
+      await loadCouponStatus(token);
+    },
+    [loadCouponStatus]
+  );
+  useEffect(() => {
+    if (session?.token) issueCoupons(session.token);
+    else setCouponStatus(null);
+  }, [session?.token, issueCoupons]);
+  useEffect(() => {
+    if (session?.token && (screen === "browse" || screen === "profile" || screen === "myBookings")) loadCouponStatus(session.token);
+  }, [screen, session?.token, loadCouponStatus]);
+  useEffect(() => {
+    if (!session?.token) return;
+    myBookings
+      .filter((x) => x.status === "accepted")
+      .forEach(async (x) => {
+        try {
+          const q = await sb("/rest/v1/rpc/coupon_quote", { method: "POST", token: session.token, body: { p_booking_id: x.id } });
+          setCouponQuotes((m) => ({ ...m, [x.id]: q }));
+        } catch (_e) {
+          /* no quote: the full deposit is shown */
+        }
+      });
+  }, [myBookings, session?.token]);
+  useEffect(() => {
+    if (!session?.token || screen !== "request" || !(headcountNum > 0)) {
+      setCouponPreview(null);
+      return undefined;
+    }
+    let live = true;
+    const t = setTimeout(async () => {
+      try {
+        const r = await sb("/rest/v1/rpc/coupon_preview", { method: "POST", token: session.token, body: { p_headcount: headcountNum } });
+        if (live) setCouponPreview(r);
+      } catch (_e) {
+        if (live) setCouponPreview(null);
+      }
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [session?.token, screen, headcountNum]);
   const preview =
     headcountNum > 0 && termsPreview && termsPreview.hours_to_event >= 4
       ? { bookingCase: termsPreview.booking_case, pct: termsPreview.deposit_percent / 100 }
@@ -3810,6 +3973,12 @@ export default function App() {
               Book <span className="text-amber">venues</span> without a wait
             </h1>
             <p className="text-haze text-sm mb-5">Restaurants, cafés, bars, lounges and clubs — ready for your celebration.</p>
+
+            {couponStatus?.welcome && (
+              <div className="rounded-xl border border-amber/30 bg-amber/10 px-4 py-3 mb-5 text-sm text-ink" data-testid="welcome-banner">
+                {`Welcome offer: ${rs(couponStatus.welcome.min_amount)} to ${rs(couponStatus.welcome.max_amount)} off your first booking of ${couponStatus.min_guests}+ guests. Valid until ${fmtCouponDate(couponStatus.welcome.expires_at)}.`}
+              </div>
+            )}
 
             {venues.length > 0 && (
               <div
@@ -4568,6 +4737,8 @@ export default function App() {
                     policy={preview.bookingCase}
                     ackChecked={lateAckCreate}
                     onAckChange={setLateAckCreate}
+                    couponPreview={couponPreview}
+                    couponStatus={couponStatus}
                   />
                   {selectedPackage?.includes_alcohol && <AlcoholNotice className="mt-3" />}
                 </div>
@@ -4948,6 +5119,18 @@ export default function App() {
                                 <dt className="text-haze">Booking ID</dt>
                                 <dd className="font-medium">{b.booking_ref}</dd>
                               </div>
+                              {(() => {
+                                const cd = (b.payments || []).filter((x) => x.status === "paid").reduce((t, x) => t + Number(x.coupon_discount || 0), 0);
+                                return cd > 0 ? (
+                                  <div className="flex justify-between gap-4" data-testid="booking-coupon">
+                                    <dt className="text-haze">PAXO coupon</dt>
+                                    <dd className="text-right">
+                                      {`-${rs(cd)}`}
+                                      <span className="block text-xs text-haze/70">{`${rs(cd)} coupon applied. The venue still receives its full amount.`}</span>
+                                    </dd>
+                                  </div>
+                                ) : null;
+                              })()}
                               <div className="flex justify-between gap-4">
                                 <dt className="text-haze">Date &amp; slot</dt>
                                 <dd className="text-right">{whenLine}</dd>
@@ -4999,13 +5182,14 @@ export default function App() {
                                     </p>
                                   );
                                 })()}
+                                <CouponPayLines quote={couponQuotes[b.id]} />
                                 <button
                                   type="button"
                                   disabled={payingBookingId === b.id}
                                   onClick={() => setPayAckId(payAckId === b.id ? null : b.id)}
                                   className="bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                 >
-                                  {`Pay ${pct}% now — ${inr(b.deposit_amount)}`}
+                                  {`Pay ${pct}% now — ${inr(couponQuotes[b.id]?.applies ? couponQuotes[b.id].pay_now : b.deposit_amount)}`}
                                 </button>
                                 {payAckId === b.id && (
                                   <div className="border border-amber/30 bg-amber/10 rounded-xl p-3 w-full">
@@ -5023,7 +5207,7 @@ export default function App() {
                                           onChange={(e) => setPayAckChecked((m) => ({ ...m, [b.id]: e.target.checked }))}
                                           data-testid="late-ack-pay"
                                         />
-                                        <span>I understand this {inr(b.deposit_amount)} deposit is non-refundable.</span>
+                                        <span>I understand this {inr(couponQuotes[b.id]?.applies ? couponQuotes[b.id].pay_now : b.deposit_amount)} deposit is non-refundable.</span>
                                       </label>
                                     ) : (
                                       <PayNote />
@@ -5286,6 +5470,7 @@ export default function App() {
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Profile</h1>
             <p className="text-haze text-sm mb-6">Keep your details up to date for smoother bookings.</p>
+            <ReferralCard status={couponStatus} />
             <div className="flex items-center gap-4 bg-surface border border-white/10 rounded-2xl p-5 shadow-card mb-4">
               <div className="w-16 h-16 rounded-full bg-white/10 border border-white/15 overflow-hidden flex items-center justify-center text-xl font-semibold shrink-0">
                 {profile?.avatar_url ? (
@@ -5531,12 +5716,14 @@ export default function App() {
           if (!b) return null;
           const paid = (b.payments || []).filter((p) => p.status === "paid");
           const amountPaid = paid.reduce((s, p) => s + Number(p.amount || 0), 0);
+          const couponAmount = paid.reduce((s, p) => s + Number(p.coupon_discount || 0), 0);
           const paymentRef = paid.find((p) => p.razorpay_payment_id)?.razorpay_payment_id || null;
           return (
             <Modal title="Receipt" className="receipt-modal" onClose={() => setReceiptId(null)}>
               <ReceiptBody
                 booking={b}
                 amountPaid={amountPaid}
+                couponAmount={couponAmount}
                 paymentRef={paymentRef}
                 onFinalize={() => openYourMenu(b)}
               />
