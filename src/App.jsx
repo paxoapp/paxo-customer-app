@@ -101,6 +101,32 @@ const fmtCouponDate = (iso) =>
   new Date(iso).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
 const couponLabel = (type) => (type === "referral" ? "Referral credit" : "Welcome coupon");
 
+// The offer ladder line on the request summary. Every number (guests still needed, the next amount) is worked out by the
+// database from the offer tiers; this only turns the server's answer into the words.
+const guestsWord = (n) => (Number(n) === 1 ? "1 more guest" : `${n} more guests`);
+function ladderText(ladder, discount, type) {
+  if (!ladder) return null;
+  switch (ladder.kind) {
+    case "applied_next":
+      return `${couponLabel(type)} -${rs(discount)} applied. Add ${guestsWord(ladder.more_guests)} to get ${rs(ladder.next_amount)}.`;
+    case "applied_top":
+    case "applied_referral":
+      return `${couponLabel(type)} -${rs(discount)} applied.`;
+    case "needs_guests_welcome":
+      return `Add ${guestsWord(ladder.more_guests)} to use your welcome offer (${rs(ladder.amount)}).`;
+    case "needs_guests_referral":
+      return `Referral credit needs ${ladder.min_guests}+ guests.`;
+    default:
+      return null;
+  }
+}
+// Shown on the cancel screen once a coupon has been used by a PAID booking: cancelling forfeits it.
+const cancelCouponNote = (q) =>
+  q?.applies && q.reserved && (q.redemption_status === "paid" || q.redemption_status === "completed")
+    ? `If you cancel, your ${couponLabel(q.type)} (${rs(q.discount)}) will not be returned.`
+    : null;
+const COUPON_NOT_RETURNED = "The coupon is not returned if you cancel after paying.";
+
 // What the customer will pay for an accepted booking: the coupon line and the "applied" note (numbers come from coupon_quote).
 function CouponPayLines({ quote }) {
   if (!quote?.applies) return null;
@@ -108,9 +134,10 @@ function CouponPayLines({ quote }) {
     <div className="w-full rounded-xl border border-amber/30 bg-amber/10 px-3 py-2 text-sm" data-testid="coupon-pay-lines">
       <div className="flex justify-between gap-3 text-ink">
         <span>{`${couponLabel(quote.type)} -${rs(quote.discount)}`}</span>
-        <span className="font-semibold">You pay {rs(quote.pay_now)} now</span>
+        <span className="font-semibold">{`You save ${rs(quote.saved ?? quote.discount)}`}</span>
       </div>
-      <p className="text-xs text-haze mt-1">{`${rs(quote.discount)} coupon applied. The venue still receives its full amount.`}</p>
+      <p className="text-xs text-haze mt-1">{`${rs(quote.discount)} coupon applied.`}</p>
+      <p className="text-xs text-haze/80 mt-1" data-testid="coupon-not-returned">{COUPON_NOT_RETURNED}</p>
     </div>
   );
 }
@@ -459,8 +486,24 @@ function BookingSummaryLines({ pkg, venue, headcount, depositPct, policy, ackChe
       note = "+ applicable taxes, confirmed on the venue's final bill";
     }
   }
-  const payNow = round2(total * depositPct);
-  const atVenue = round2(total - payNow);
+  // Every money figure below comes from the database (coupon_preview). The local sums above are only the fallback
+  // while the answer loads; if the two ever disagree the database's package / taxes / total are shown.
+  const server = couponPreview?.ok ? couponPreview : null;
+  if (server && Math.abs(total - Number(server.total)) > 0.005) {
+    total = Number(server.total);
+    lines = [
+      { k: `Package, ${headcount} guests × ${formatRupees(perHead)}`, v: Number(server.package_value) },
+      Number(server.tax_amount) > 0 && { k: "Taxes", v: Number(server.tax_amount) },
+      { k: "Total", v: Number(server.total), strong: true },
+    ].filter(Boolean);
+  }
+  const localPayNow = round2(total * depositPct);
+  const payNowBase = server ? Number(server.deposit) : localPayNow; // before any coupon
+  const payNow = server ? Number(server.pay_now) : localPayNow;
+  const atVenue = server ? Number(server.pay_at_venue) : round2(total - localPayNow);
+  const saved = server && server.applies ? Number(server.saved) : 0;
+  const depositPctShown = server ? Number(server.deposit_percent) : Math.round(depositPct * 100);
+  const ladderLine = server ? ladderText(server.ladder, server.discount, server.type) : null;
   const Row = ({ k, v, strong }) => (
     <div className={`flex justify-between gap-4 mb-1 ${strong ? "font-semibold text-ink pt-1" : ""}`}>
       <span className={strong ? "" : "text-haze"}>{k}</span>
@@ -474,20 +517,35 @@ function BookingSummaryLines({ pkg, venue, headcount, depositPct, policy, ackChe
       ))}
       {note && <p className="text-xs text-haze/80 mb-1">{note}</p>}
       <div className="border-t border-white/10 mt-2 pt-2">
-        <Row k={`Pay now to book (${Math.round(depositPct * 100)}%)`} v={payNow} strong />
-        <Row k="Pay at the venue on the day" v={atVenue} />
-        {couponPreview?.applies && (
-          <div className="mt-1" data-testid="coupon-summary-line">
-            <div className="flex justify-between gap-4 text-ink">
-              <span>{`${couponLabel(couponPreview.type)} -${rs(couponPreview.amount)}`}</span>
-            </div>
-            <p className="text-xs text-haze/80">The exact amount is confirmed when you pay. The venue still receives its full amount.</p>
-          </div>
-        )}
-        {couponPreview && !couponPreview.applies && couponPreview.reason === "guests_below_min" && (
-          <p className="text-xs text-amber mt-1" data-testid="coupon-needs-guests">
-            {couponStatus?.welcome ? "Welcome offer" : "Referral credit"} needs {couponPreview.min_guests || couponStatus?.min_guests || 25}+ guests
+        <div className="flex justify-between gap-4 mb-1 font-semibold text-ink pt-1">
+          <span>{`Pay now to book (${depositPctShown}%)`}</span>
+          <span className="text-amber">
+            {saved > 0 && (
+              <s className="text-haze/70 font-normal mr-2" data-testid="pay-now-old">
+                {formatRupees(payNowBase)}
+              </s>
+            )}
+            <span data-testid="pay-now-amount">{formatRupees(payNow)}</span>
+          </span>
+        </div>
+        {saved > 0 && (
+          <p className="text-xs text-emerald-500 font-semibold mb-1" data-testid="coupon-saving">
+            {`You save ${rs(saved)}`}
           </p>
+        )}
+        <Row k="Pay at the venue on the day" v={atVenue} />
+        {ladderLine && (
+          <p className={`text-xs mt-1 ${saved > 0 ? "text-ink" : "text-amber"}`} data-testid="coupon-ladder">
+            {ladderLine}
+          </p>
+        )}
+        {saved > 0 && (
+          <p className="text-xs text-haze/80 mt-1" data-testid="coupon-not-returned">
+            {COUPON_NOT_RETURNED}
+          </p>
+        )}
+        {!server && couponStatus?.welcome && (
+          <p className="text-xs text-haze/80 mt-1">Your final amount is confirmed when you pay.</p>
         )}
       </div>
       {policy && (
@@ -2576,6 +2634,22 @@ export default function App() {
         acknowledged_non_refundable: payAckChecked[booking.id] === true,
       });
 
+      // The app never sends an amount. The order's amount (in paise) must equal the figure the customer is looking at;
+      // if it does not, nothing is opened: the screen is refreshed to the real figure and the customer taps pay again.
+      if (paymentType === "deposit") {
+        const cq = couponQuotes[booking.id];
+        const shown = cq?.applies ? Number(cq.pay_now) : Number(booking.deposit_amount);
+        if (Math.round(Number(order.amount)) !== Math.round(shown * 100)) {
+          try {
+            const fresh = await sb("/rest/v1/rpc/coupon_quote", { method: "POST", token: session.token, body: { p_booking_id: booking.id } });
+            setCouponQuotes((m) => ({ ...m, [booking.id]: fresh }));
+          } catch (_e) {
+            /* the next load shows the real figure */
+          }
+          throw new Error(`The amount to pay is now ${inr(Number(order.amount) / 100)}. Please check it and tap pay again.`);
+        }
+      }
+
       const rzp = new window.Razorpay({
         key: order.key_id,
         amount: order.amount,
@@ -3487,7 +3561,7 @@ export default function App() {
   useEffect(() => {
     if (!session?.token) return;
     myBookings
-      .filter((x) => x.status === "accepted")
+      .filter((x) => x.status === "accepted" || x.status === "confirmed")
       .forEach(async (x) => {
         try {
           const q = await sb("/rest/v1/rpc/coupon_quote", { method: "POST", token: session.token, body: { p_booking_id: x.id } });
@@ -3497,16 +3571,25 @@ export default function App() {
         }
       });
   }, [myBookings, session?.token]);
+  // The summary figures (total, deposit, coupon, pay now, pay at the venue, offer ladder) all come from coupon_preview.
+  // The answer is tagged with the inputs it was asked for; an answer for older inputs is never shown.
+  const couponPreviewKey = [form.package_id, headcountNum, form.event_date, form.event_time].join("|");
+  const couponPreviewNow = couponPreview && couponPreview._key === couponPreviewKey ? couponPreview : null;
   useEffect(() => {
-    if (!session?.token || screen !== "request" || !(headcountNum > 0)) {
+    if (!session?.token || screen !== "request" || !(headcountNum > 0) || !form.package_id || !form.event_date || !form.event_time) {
       setCouponPreview(null);
       return undefined;
     }
     let live = true;
+    const key = couponPreviewKey;
     const t = setTimeout(async () => {
       try {
-        const r = await sb("/rest/v1/rpc/coupon_preview", { method: "POST", token: session.token, body: { p_headcount: headcountNum } });
-        if (live) setCouponPreview(r);
+        const r = await sb("/rest/v1/rpc/coupon_preview", {
+          method: "POST",
+          token: session.token,
+          body: { p_package_id: form.package_id, p_headcount: headcountNum, p_event_date: form.event_date, p_event_time: form.event_time },
+        });
+        if (live) setCouponPreview({ ...r, _key: key });
       } catch (_e) {
         if (live) setCouponPreview(null);
       }
@@ -3515,7 +3598,7 @@ export default function App() {
       live = false;
       clearTimeout(t);
     };
-  }, [session?.token, screen, headcountNum]);
+  }, [session?.token, screen, headcountNum, form.package_id, form.event_date, form.event_time, couponPreviewKey]);
   const preview =
     headcountNum > 0 && termsPreview && termsPreview.hours_to_event >= 4
       ? { bookingCase: termsPreview.booking_case, pct: termsPreview.deposit_percent / 100 }
@@ -4737,7 +4820,7 @@ export default function App() {
                     policy={preview.bookingCase}
                     ackChecked={lateAckCreate}
                     onAckChange={setLateAckCreate}
-                    couponPreview={couponPreview}
+                    couponPreview={couponPreviewNow}
                     couponStatus={couponStatus}
                   />
                   {selectedPackage?.includes_alcohol && <AlcoholNotice className="mt-3" />}
@@ -5126,7 +5209,7 @@ export default function App() {
                                     <dt className="text-haze">PAXO coupon</dt>
                                     <dd className="text-right">
                                       {`-${rs(cd)}`}
-                                      <span className="block text-xs text-haze/70">{`${rs(cd)} coupon applied. The venue still receives its full amount.`}</span>
+                                      <span className="block text-xs text-haze/70">{`${rs(cd)} coupon applied.`}</span>
                                     </dd>
                                   </div>
                                 ) : null;
@@ -5154,11 +5237,25 @@ export default function App() {
                                 <dt className="text-haze">
                                   {b.deposit_tier === "full" ? "Full payment" : b.deposit_tier === "50pct" ? "50% deposit" : "20% deposit"} due now
                                 </dt>
-                                <dd className="font-semibold text-amber">{inr(b.deposit_amount)}</dd>
+                                <dd className="font-semibold text-amber text-right">
+                                  {!anyPaid && couponQuotes[b.id]?.applies ? (
+                                    <>
+                                      <s className="text-haze/70 font-normal mr-2" data-testid="due-old">{inr(b.deposit_amount)}</s>
+                                      <span data-testid="due-now">{inr(couponQuotes[b.id].pay_now)}</span>
+                                      <span className="block text-xs text-emerald-500 font-semibold">{`You save ${rs(couponQuotes[b.id].saved ?? couponQuotes[b.id].discount)}`}</span>
+                                    </>
+                                  ) : (
+                                    inr(b.deposit_amount)
+                                  )}
+                                </dd>
                               </div>
                             </dl>
                             {!anyPaid && b.deposit_tier !== "full" && (
-                              <PolicySummary kind={policyKind(b.booking_type)} percent={pct} amount={b.deposit_amount} />
+                              <PolicySummary
+                                kind={policyKind(b.booking_type)}
+                                percent={pct}
+                                amount={couponQuotes[b.id]?.applies ? couponQuotes[b.id].pay_now : b.deposit_amount}
+                              />
                             )}
 
                             {anyPaid ? (
@@ -5295,6 +5392,7 @@ export default function App() {
                                 </button>
                               ) : (
                                 <CancelQuoteBox
+                                  couponNote={cancelCouponNote(couponQuotes[b.id])}
                                   quote={cancelQuotes[b.id]}
                                   busy={confirmedCancelBusy}
                                   error={confirmedCancelError}

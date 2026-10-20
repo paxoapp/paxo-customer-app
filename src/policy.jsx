@@ -66,7 +66,7 @@ export function PayNote() {
 }
 
 // The cancel screen: the exact refund from the database function, with the gateway-fee line, before the customer confirms.
-export function CancelQuoteBox({ quote, busy, error, onConfirm, onBack }) {
+export function CancelQuoteBox({ quote, busy, error, onConfirm, onBack, couponNote }) {
   if (!quote) {
     return (
       <div className="border border-white/15 bg-white/5 rounded-lg p-2.5 text-xs text-haze">
@@ -108,6 +108,11 @@ export function CancelQuoteBox({ quote, busy, error, onConfirm, onBack }) {
         )}
         <Line k="You'll get back" v={money2(quote.refund_amount)} strong />
       </div>
+      {couponNote && (
+        <p className="text-xs text-ink mt-2 font-medium" data-testid="cancel-coupon-note">
+          {couponNote}
+        </p>
+      )}
       {quote.next_change_at && (
         <p className="text-xs text-haze mt-2">
           This amount changes after{" "}
