@@ -1135,6 +1135,8 @@ const BEVERAGE_MENU_SECTIONS = [
   { kind: "rum", label: "Rum" },
   { kind: "beer", label: "Beer" },
   { kind: "wine", label: "Wine" },
+  { kind: "mocktails", label: "Mocktails" },
+  { kind: "soft_beverages", label: "Soft Beverages" },
 ];
 // Free-text inclusion lines worth surfacing under "Also available".
 const SOFT_DRINK_INCLUSION_RE = /cocktail|mocktail|soft/i;
@@ -1156,14 +1158,12 @@ function VenueFullMenu({ venue }) {
       .map((it) => it.name)
       .sort(byName);
 
-  // Deduplicated union of every brand pooled by ANY of this venue's packages.
-  const pooledIds = new Set(
-    packages.flatMap((p) => (p.package_item_pool || []).map((r) => r.menu_item_id))
-  );
+  // Every available drink of a kind (same rule as the food menu). This is the venue-wide menu: it does NOT depend on
+  // which brands a package pools; per-package choices and quotas stay on each package's "Drinks Included".
   const brandNames = (kind) => {
     const seen = new Set();
     return itemsOfKind(kind)
-      .filter((it) => pooledIds.has(it.id) && !seen.has(it.id) && seen.add(it.id))
+      .filter((it) => it.is_available && !seen.has(it.id) && seen.add(it.id))
       .map((it) => it.name)
       .sort(byName);
   };
