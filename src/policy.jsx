@@ -143,8 +143,7 @@ export function CancelQuoteBox({ quote, busy, error, onConfirm, onBack }) {
 }
 
 // ---------------- alcohol notice (one text, used everywhere) ----------------
-export const ALCOHOL_NOTICE =
-  "This package includes alcohol. Alcohol is served only to guests who are of legal drinking age under the law of the state where the venue is located. Please carry a valid government-issued photo ID (such as Aadhaar, passport, driving licence or voter ID). The venue may ask to see it and can refuse to serve alcohol if your age cannot be verified.";
+export const ALCOHOL_NOTICE = "Alcohol is served only to guests of legal drinking age. Please carry a valid photo ID.";
 
 export function AlcoholNotice({ className = "" }) {
   return (
