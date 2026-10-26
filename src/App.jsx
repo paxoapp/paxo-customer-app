@@ -4252,8 +4252,13 @@ export default function App() {
                     <p
                       className={`text-xs mt-2 ${p.includes_dj ? "text-indigo-300" : "text-haze/60"}`}
                     >
-                      {p.includes_dj ? "🎧 DJ & sound system included" : "DJ not included with this package"}
+                      {p.includes_dj ? "🎧 In-house DJ included" : "DJ not included with this package"}
                     </p>
+                    {p.includes_dj && p.dj_notes?.trim() && (
+                      <p className="text-xs mt-0.5 text-indigo-300/80" data-testid="dj-notes">
+                        {p.dj_notes.trim()}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-2">
                     {p.discount_percent > 0 ? (
