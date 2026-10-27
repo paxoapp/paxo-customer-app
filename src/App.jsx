@@ -13,6 +13,7 @@ import {
   AlcoholNotice, ALCOHOL_NOTICE, StatusNotice, editNotice, lockMessage, saveErr,
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
+import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink } from "./whatsapp";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -5356,6 +5357,7 @@ export default function App() {
                 {profileLoading ? "Saving…" : "Save changes"}
               </button>
             </form>
+            <WhatsAppRow className="mt-4" />
           </div>
         )}
 
@@ -5517,10 +5519,12 @@ export default function App() {
       </main>
 
       <footer className="bg-black/90 border-t border-white/10">
-        <div className="max-w-4xl mx-auto px-5 pb-10 pt-4 flex items-center justify-center gap-3">
+        <div className="max-w-4xl mx-auto px-5 pb-10 pt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
           <span className="text-xs text-haze/40">Find us elsewhere</span>
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
+          <WhatsAppFooterLink />
         </div>
+
       </footer>
 
       {reviewPkg && screen === "venue" && selectedVenue && (
@@ -5571,6 +5575,12 @@ export default function App() {
           Find my venue
         </button>
       )}
+
+      {(() => {
+        const ctx = whatsappContext({ screen, selectedVenue, myBookings, yourMenuId, receiptId, refundReceiptId });
+        const findVisible = screen !== "auth" && screen !== "setNewPassword" && venues.length > 0;
+        return <WhatsAppFloat message={ctx.message} pageType={ctx.pageType} aboveFind={findVisible} hasTabBar={!!session} />;
+      })()}
 
       {quizOpen && (
         <VenueQuiz
