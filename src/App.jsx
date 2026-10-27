@@ -40,6 +40,15 @@ const SOCIAL_LINKS = [
   },
 ];
 
+// The official business address: plain small text, shown in the footer and on the sign-in screens.
+function SiteAddress({ className = "" }) {
+  return (
+    <address className={`text-center not-italic text-xs text-haze/40 ${className}`}>
+      PAXO, G-53, Ground Floor, Tower A, Ansal Corporate Plaza, Carterpuri Road, Palam Vihar, Gurugram, Haryana 122017
+    </address>
+  );
+}
+
 function SocialLinks({ className = "", linkClass = "" }) {
   return (
     <div className={`flex items-center gap-4 ${className}`}>
@@ -3557,6 +3566,7 @@ export default function App() {
               Become a Partner
             </a>
           </p>
+          <SiteAddress className="mt-8" />
         </div>
       </div>
     );
@@ -3677,6 +3687,7 @@ export default function App() {
               </button>
             </form>
           )}
+          <SiteAddress className="mt-8" />
         </div>
       </div>
     );
@@ -3715,6 +3726,7 @@ export default function App() {
               {newPasswordLoading ? "Saving…" : "Save new password"}
             </button>
           </form>
+          <SiteAddress className="mt-8" />
         </div>
       </div>
     );
@@ -5523,9 +5535,7 @@ export default function App() {
           <span className="text-xs text-haze/40">Find us elsewhere</span>
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
           <WhatsAppFooterLink />
-          <address className="basis-full text-center not-italic text-xs text-haze/40">
-            PAXO, G-53, Ground Floor, Tower A, Ansal Corporate Plaza, Carterpuri Road, Palam Vihar, Gurugram, Haryana 122017
-          </address>
+          <SiteAddress className="basis-full" />
         </div>
 
       </footer>
