@@ -5523,6 +5523,9 @@ export default function App() {
           <span className="text-xs text-haze/40">Find us elsewhere</span>
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
           <WhatsAppFooterLink />
+          <address className="basis-full text-center not-italic text-xs text-haze/40">
+            PAXO, G-53, Ground Floor, Tower A, Ansal Corporate Plaza, Carterpuri Road, Palam Vihar, Gurugram, Haryana 122017
+          </address>
         </div>
 
       </footer>

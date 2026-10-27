@@ -9,6 +9,8 @@
       content="Paxo makes booking restaurants, cafés, bars, lounges and clubs easy — browse verified venues in your city, request a slot, and get confirmed. No waitlists, no back-and-forth."
     />
     <meta name="robots" content="index, follow" />
+    <!-- Google Search Console verification: replace TOKEN_TO_BE_ADDED with the real token from Search Console -->
+    <meta name="google-site-verification" content="TOKEN_TO_BE_ADDED" />
     <link rel="canonical" href="https://www.mypaxo.in/" />
 
     <!-- Open Graph / WhatsApp / Facebook link preview -->
@@ -34,7 +36,7 @@
     />
     <meta name="twitter:image" content="https://www.mypaxo.in/og-image.png" />
 
-    <!-- Structured data: tells Google what Paxo is, its logo, and its
+    <!-- Structured data: tells Google what PAXO is, its logo, its business address and its
          official social profiles -->
     <script type="application/ld+json">
       {
@@ -42,9 +44,17 @@
         "@graph": [
           {
             "@type": "Organization",
-            "name": "Paxo",
-            "url": "https://www.mypaxo.in/",
+            "name": "PAXO",
+            "url": "https://www.mypaxo.in",
             "logo": "https://www.mypaxo.in/paxo-icon.png",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "G-53, Ground Floor, Tower A, Ansal Corporate Plaza, Carterpuri Road, Palam Vihar",
+              "addressLocality": "Gurugram",
+              "addressRegion": "Haryana",
+              "postalCode": "122017",
+              "addressCountry": "IN"
+            },
             "sameAs": [
               "https://x.com/Mypaxo",
               "https://www.facebook.com/profile.php?id=61592804842088",
