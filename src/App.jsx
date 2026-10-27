@@ -13,6 +13,7 @@ import {
   AlcoholNotice, ALCOHOL_NOTICE, StatusNotice, editNotice, lockMessage, saveErr,
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
+import LeadForm from "./leadForm";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink } from "./whatsapp";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
@@ -2334,6 +2335,7 @@ export default function App() {
   const COMING_SOON_CITIES = ["Dehradun", "Jaipur", "Indore", "Pune", "Mumbai", "Goa"];
   const CITIES = [...LAUNCHED_CITIES, ...COMING_SOON_CITIES];
   const [quizOpen, setQuizOpen] = useState(false);
+  const [leadOpen, setLeadOpen] = useState(false); // "Find my venue" enquiry form
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -5568,7 +5570,7 @@ export default function App() {
       {screen !== "auth" && screen !== "setNewPassword" && venues.length > 0 && (
         <button
           type="button"
-          onClick={() => setQuizOpen(true)}
+          onClick={() => setLeadOpen(true)}
           className="fixed z-30 right-5 bottom-24 sm:bottom-6 bg-amber text-[#170D0B] rounded-full pl-4 pr-5 py-3 text-sm font-semibold shadow-hero flex items-center gap-2"
         >
           <Sparkles size={16} strokeWidth={2.5} />
@@ -5581,6 +5583,18 @@ export default function App() {
         const findVisible = screen !== "auth" && screen !== "setNewPassword" && venues.length > 0;
         return <WhatsAppFloat message={ctx.message} pageType={ctx.pageType} aboveFind={findVisible} hasTabBar={!!session} />;
       })()}
+
+      {leadOpen && (
+        <LeadForm
+          session={session}
+          profile={profile}
+          onClose={() => setLeadOpen(false)}
+          onOpenQuiz={() => {
+            setLeadOpen(false);
+            setQuizOpen(true);
+          }}
+        />
+      )}
 
       {quizOpen && (
         <VenueQuiz
