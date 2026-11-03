@@ -13,7 +13,7 @@ import {
   AlcoholNotice, ALCOHOL_NOTICE, StatusNotice, editNotice, lockMessage, saveErr,
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
-import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink } from "./whatsapp";
+import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -3363,6 +3363,7 @@ export default function App() {
   // Live preview near the date/time fields — updates as soon as both are filled,
   // independent of guest count (unlike `preview` above, used in the summary panel).
   const selectedPackage = selectedVenue?.venue_packages?.find((p) => p.id === form.package_id);
+  const negotiateGuests = (Number(form.male_count) || 0) + (Number(form.female_count) || 0);
   const selectedBookingType = bookingTypes.find((t) => t.id === form.booking_type_id);
 
   const statusColor = {
@@ -4302,6 +4303,7 @@ export default function App() {
                     >
                       Drinks Included
                     </button>
+                    <NegotiateButton venue={selectedVenue} pkg={p} guests={negotiateGuests} date={form.event_date} />
                   </div>
                 </div>
               ))}
@@ -5532,6 +5534,9 @@ export default function App() {
       {reviewPkg && screen === "venue" && selectedVenue && (
         <Modal title={`${reviewPkg.name} — what's on the menu`} onClose={() => setReviewPkg(null)}>
           <ReviewMenuBody pkg={reviewPkg} venue={selectedVenue} />
+          <div className="mt-4 flex justify-end">
+            <NegotiateButton venue={selectedVenue} pkg={reviewPkg} guests={negotiateGuests} date={form.event_date} />
+          </div>
         </Modal>
       )}
 

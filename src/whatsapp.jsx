@@ -8,6 +8,36 @@ export function whatsappLink(message = GENERIC_MESSAGE) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
+// "Negotiate price": shown only for venues with open_to_negotiation = true. Opens the same PAXO WhatsApp with the
+// package and venue name, plus guests and date when the customer has already chosen them (blank otherwise).
+// No price, commission or fee text is ever put near this button or in the message.
+export function negotiateMessage({ packageName, venueName, guests, date }) {
+  const g = Number(guests) > 0 ? `${Number(guests)}.` : "";
+  let d = "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date || "")) {
+    d = new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) + ".";
+  }
+  return `Hi PAXO, I want to negotiate the price for ${packageName} at ${venueName}.
+Guests: ${g}
+Date: ${d}`;
+}
+
+export function NegotiateButton({ venue, pkg, guests, date, className = "" }) {
+  if (!venue?.open_to_negotiation || !pkg) return null;
+  const href = whatsappLink(negotiateMessage({ packageName: pkg.name, venueName: venue.name, guests, date }));
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid="negotiate-price"
+      className={`inline-block text-center border border-amber/50 text-amber font-medium hover:bg-amber/10 text-sm px-4 py-2 rounded-xl transition ${className}`}
+    >
+      Negotiate price
+    </a>
+  );
+}
+
 // Which message to pre-fill, from where the customer is right now.
 //   venue page (and the booking request form for a venue) -> the venue name
 //   a booking's own screens (Your Menu, receipts)         -> that booking's reference
