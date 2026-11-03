@@ -418,6 +418,7 @@ const QUOTA_LABELS = {
   vodka: ["Vodka", "Vodkas"],
   rum: ["Rum", "Rums"],
   gin: ["Gin", "Gins"],
+  spirits: ["Spirits", "Spirits"],
   classic_cocktails: ["Classic Cocktail", "Classic Cocktails"],
   mocktails: ["Mocktail", "Mocktails"],
   soft_beverages: ["Soft Beverage", "Soft Beverages"],
@@ -444,7 +445,7 @@ const FOOD_QUOTA_KINDS = [
   "dessert",
 ];
 // Hard-liquor categories where a package restricts choice to a specific brand pool.
-const POOL_QUOTA_KINDS = ["single_malt", "whisky", "vodka", "gin", "rum", "beer", "wine"];
+const POOL_QUOTA_KINDS = ["single_malt", "whisky", "vodka", "gin", "rum", "spirits", "beer", "wine"];
 
 // Lowest price among a venue's published packages (RLS only returns published
 // packages to customers), or null if it has none.
@@ -1134,6 +1135,7 @@ const BEVERAGE_MENU_SECTIONS = [
   { kind: "vodka", label: "Vodka" },
   { kind: "gin", label: "Gin" },
   { kind: "rum", label: "Rum" },
+  { kind: "spirits", label: "Spirits" },
   { kind: "beer", label: "Beer" },
   { kind: "wine", label: "Wine" },
   { kind: "mocktails", label: "Mocktails" },
