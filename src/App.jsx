@@ -3817,6 +3817,12 @@ export default function App() {
           ) : (
             <div className="flex items-center gap-4">
               <button
+                className={`hidden sm:inline text-sm transition-colors ${screen === "browse" ? "text-ink" : "text-haze hover:text-ink"}`}
+                onClick={() => setScreen("browse")}
+              >
+                Venues
+              </button>
+              <button
                 className={`hidden sm:inline text-sm transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
                 onClick={() => setScreen("parties")}
               >
