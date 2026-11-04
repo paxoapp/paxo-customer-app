@@ -14,7 +14,7 @@ import {
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
-import { PartiesScreen, PartyDetailScreen } from "./parties";
+import { PartiesScreen, PartyDetailScreen, PartyBookingsSection } from "./parties";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -3859,6 +3859,9 @@ export default function App() {
             party={parties.find((p) => p.id === selectedPartyId) || null}
             loading={partiesLoading}
             onBack={() => setScreen("parties")}
+            api={{ session, sb, callFn }}
+            onNeedLogin={() => setScreen("auth")}
+            onChanged={loadParties}
           />
         )}
 
@@ -4750,6 +4753,17 @@ export default function App() {
           <div>
             <h1 className="font-display text-3xl font-bold mb-1">My requests</h1>
             <p className="text-haze text-sm mb-4">Track the status of every booking you've requested.</p>
+
+            {session && (
+              <PartyBookingsSection
+                api={{ session, sb, callFn }}
+                onOpenParty={(id) => {
+                  setSelectedPartyId(id);
+                  setScreen("party");
+                  window.scrollTo(0, 0);
+                }}
+              />
+            )}
 
             <div className="flex flex-wrap gap-2 mb-6">
               {BOOKINGS_TABS.map((t) => (
