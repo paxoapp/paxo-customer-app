@@ -88,6 +88,43 @@ function Cover({ party, className }) {
 // ---- payment (one entry point for join, top-up and balance) ----------------------------------------------------------
 // Asks the party-payment function to create the payment (the database checks every rule and holds the seats), opens
 // Razorpay Checkout, then asks the function to verify. `kind` is "join" or "balance".
+const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
+
+function PartyInfo({ party }) {
+  const hi = lines(party.highlights);
+  const inc = lines(party.inclusions);
+  return (
+    <div className="mt-4 space-y-4" data-testid="party-info">
+      {hi.length > 0 && (
+        <div data-testid="party-highlights-list">
+          <p className="text-xs text-haze mb-1">Highlights</p>
+          <ul className="text-sm text-ink space-y-1">{hi.map((x, i) => <li key={i}>✦ {x}</li>)}</ul>
+        </div>
+      )}
+      {inc.length > 0 && (
+        <div data-testid="party-inclusions-list">
+          <p className="text-xs text-haze mb-1">What is included</p>
+          <ul className="text-sm text-ink space-y-1">{inc.map((x, i) => <li key={i}>✓ {x}</li>)}</ul>
+        </div>
+      )}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        {party.min_age ? (
+          <div>
+            <dt className="text-xs text-haze">Age limit</dt>
+            <dd className="text-ink" data-testid="party-age">{party.min_age}+ only</dd>
+          </div>
+        ) : null}
+        {party.dress_code ? (
+          <div>
+            <dt className="text-xs text-haze">Dress code</dt>
+            <dd className="text-ink" data-testid="party-dress-code">{party.dress_code}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </div>
+  );
+}
+
 export async function startPartyPayment({ api, party, kind, genders, termsVersion, description, prefill, onDone, onError, onDismiss }) {
   try {
     if (!window.Razorpay) throw new Error("Payment library didn't load — please refresh and try again.");
@@ -520,6 +557,8 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
           </dl>
 
           {party.description && <p className="text-ink/90 text-sm mt-4 whitespace-pre-line">{party.description}</p>}
+
+          <PartyInfo party={party} />
 
           <div className="mt-5 pt-4 border-t border-white/10">
             <Counter party={party} />
