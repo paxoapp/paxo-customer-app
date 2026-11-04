@@ -213,6 +213,48 @@ function BalanceBox({ mine, busy, onPay, error }) {
   );
 }
 
+function CancelBox({ party, mine, api, onChanged }) {
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!mine || mine.status !== "active" || !mine.can_cancel || !(mine.seats_paid > 0)) return null;
+  const paid = Number(mine.paid_amount || 0);
+  async function cancel() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.sb("/rest/v1/rpc/party_cancel_my_booking", { method: "POST", token: api.session.token, body: { p_party_id: party.id } });
+      setAsk(false);
+      await onChanged();
+    } catch (e) {
+      setError(e.message || "Could not cancel. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-4 text-sm" data-testid="party-cancel-box">
+      {!ask ? (
+        <button type="button" onClick={() => setAsk(true)} className="text-rose-400 underline" data-testid="party-cancel-open">Cancel my booking</button>
+      ) : (
+        <div className="rounded-xl bg-rose-500/10 border border-rose-500/30 p-4">
+          <p className="text-ink font-semibold">Cancel your whole booking?</p>
+          <p className="text-haze mt-1">
+            Your {mine.seats_paid} seat{mine.seats_paid > 1 ? "s are" : " is"} released and you get back everything you paid ({inr2(paid)}) in 7 to 10 working days.
+            You cannot join this party again afterwards.
+          </p>
+          <div className="mt-3 flex gap-4 items-center">
+            <button type="button" onClick={cancel} disabled={busy} className="rounded-full bg-rose-500 text-white font-semibold px-5 py-2 disabled:opacity-60" data-testid="party-cancel-confirm">{busy ? "Cancelling…" : "Yes, cancel"}</button>
+            <button type="button" onClick={() => setAsk(false)} className="text-haze underline" data-testid="party-cancel-close">Keep my booking</button>
+          </div>
+          {error && <p className="text-rose-400 mt-2" data-testid="party-cancel-error">{error}</p>}
+        </div>
+      )}
+      <p className="text-xs text-haze mt-2">You can cancel until {fmtCloses(mine.cancel_until)}.</p>
+    </div>
+  );
+}
+
 function MyBookingSummary({ mine }) {
   if (!mine) return null;
   if (mine.status === "forfeited") {
@@ -243,8 +285,8 @@ function MyBookingSummary({ mine }) {
           Refund of {inr2(refunded)} sent{mine.refunded_on ? ` on ${fmtDay(mine.refunded_on)}` : ""}.
         </p>
       )}
-      {mine.seats_paid > 0 && refundDue === 0 && refunded === 0 && mine.status === "active" && (
-        <p className="text-xs text-haze mt-2">There is no cancel option. The 30% deposit is non-refundable.</p>
+      {mine.status === "cancelled" && (
+        <p className="text-ink font-semibold" data-testid="party-cancelled">You cancelled your booking.</p>
       )}
     </div>
   );
@@ -569,13 +611,14 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
 
           <MyBookingSummary mine={mine} />
           {!blocked && <BalanceBox mine={mine} busy={balBusy} onPay={payBalance} error={balError} />}
+          <CancelBox party={party} mine={mine} api={api} onChanged={changed} />
 
           {party.joining_open && !blocked ? (
             <JoinBox key={`${party.id}-${mine?.seats_paid || 0}`} party={party} mine={mine} api={api} onNeedLogin={onNeedLogin} onChanged={changed} />
           ) : (
             <div className="mt-5 rounded-xl bg-white/5 border border-white/10 p-4 text-sm" data-testid="party-join-note">
               {blocked ? (
-                <p className="text-haze">You can no longer join this party.</p>
+                <p className="text-haze">{mine?.status === "cancelled" ? "You cancelled your booking, so you cannot join this party again." : "You can no longer join this party."}</p>
               ) : party.status === "completed" ? (
                 <p className="text-haze">This party has ended.</p>
               ) : (
