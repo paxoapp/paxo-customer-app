@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MapPin, CalendarCheck, User, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
+import { MapPin, CalendarCheck, User, PartyPopper, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
 import {
   packageTaxView,
   computeBookingTax,
@@ -14,6 +14,7 @@ import {
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
+import { PartiesScreen, PartyDetailScreen } from "./parties";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -2229,6 +2230,11 @@ export default function App() {
   }, []);
 
   const [screen, setScreen] = useState("browse");
+  // Party Pool: the safe public list from party_public() (paid-seat counts only)
+  const [parties, setParties] = useState([]);
+  const [partiesLoading, setPartiesLoading] = useState(false);
+  const [partiesError, setPartiesError] = useState("");
+  const [selectedPartyId, setSelectedPartyId] = useState(null);
   // Every screen renders in normal document flow (window/document is the
   // scroll owner, no inner scrollable container) — without this, a screen
   // change keeps whatever scroll offset the previous screen was at (e.g. the
@@ -2856,7 +2862,21 @@ export default function App() {
     window.history.replaceState(null, "", "/");
   }, [venues, pendingDeepLink]);
 
+  const loadParties = useCallback(async () => {
+    setPartiesLoading(true);
+    setPartiesError("");
+    try {
+      const rows = await sb("/rest/v1/rpc/party_public", { method: "POST", body: {} });
+      setParties(rows || []);
+    } catch (e) {
+      setPartiesError("Could not load parties. Please try again.");
+    } finally {
+      setPartiesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
+    if (screen === "parties" || screen === "party") loadParties();
     if (screen === "browse") loadVenues();
     if (screen === "request") loadBookingTypes();
     if (screen === "myBookings" && session) loadMyBookings(session.token);
@@ -3742,6 +3762,12 @@ export default function App() {
                   Venues
                 </button>
                 <button
+                  className={`transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
+                  onClick={() => setScreen("parties")}
+                >
+                  Parties
+                </button>
+                <button
                   className={`transition-colors ${screen === "myBookings" ? "text-ink" : "text-haze hover:text-ink"}`}
                   onClick={() => setScreen("myBookings")}
                 >
@@ -3790,6 +3816,12 @@ export default function App() {
             </nav>
           ) : (
             <div className="flex items-center gap-4">
+              <button
+                className={`hidden sm:inline text-sm transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
+                onClick={() => setScreen("parties")}
+              >
+                Parties
+              </button>
               <a
                 href="https://partner.mypaxo.in"
                 className="text-xs text-haze/60 hover:text-haze transition-colors"
@@ -3808,12 +3840,48 @@ export default function App() {
       </header>
 
       <main key={screen} className="max-w-4xl mx-auto px-5 py-8">
+        {screen === "parties" && (
+          <PartiesScreen
+            parties={parties}
+            loading={partiesLoading}
+            error={partiesError}
+            onRetry={loadParties}
+            onOpen={(p) => {
+              setSelectedPartyId(p.id);
+              setScreen("party");
+              window.scrollTo(0, 0);
+            }}
+          />
+        )}
+
+        {screen === "party" && (
+          <PartyDetailScreen
+            party={parties.find((p) => p.id === selectedPartyId) || null}
+            loading={partiesLoading}
+            onBack={() => setScreen("parties")}
+          />
+        )}
+
         {screen === "browse" && (
           <div>
             <h1 className="font-display text-3xl font-bold mb-1">
               Book <span className="text-amber">venues</span> without a wait
             </h1>
             <p className="text-haze text-sm mb-5">Restaurants, cafés, bars, lounges and clubs — ready for your celebration.</p>
+
+            <button
+              type="button"
+              onClick={() => setScreen("parties")}
+              className="w-full flex items-center gap-3 text-left rounded-2xl bg-surface border border-white/10 hover:border-amber/50 transition-colors shadow-card px-4 py-3 mb-5"
+              data-testid="parties-entry"
+            >
+              <PartyPopper size={22} className="text-amber shrink-0" />
+              <span className="flex-1">
+                <span className="block text-sm font-semibold text-ink">Parties</span>
+                <span className="block text-xs text-haze">Themed group nights at top venues. Grab a seat.</span>
+              </span>
+              <span className="text-haze">→</span>
+            </button>
 
             {venues.length > 0 && (
               <div
@@ -5609,6 +5677,7 @@ export default function App() {
         >
           {[
             { key: "browse", label: "Venues", Icon: MapPin },
+            { key: "parties", label: "Parties", Icon: PartyPopper },
             { key: "myBookings", label: "Bookings", Icon: CalendarCheck },
             { key: "profile", label: "Profile", Icon: User },
           ].map(({ key, label, Icon }) => {
