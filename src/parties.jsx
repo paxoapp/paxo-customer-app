@@ -60,6 +60,20 @@ function Counter({ party }) {
   );
 }
 
+// the two "type" facts of a party (package and liquor), shown as small badges and used for filtering
+function TypeBadges({ party }) {
+  const items = [party.package_type, party.liquor_type].filter(Boolean);
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2" data-testid="party-types">
+      {items.map((t) => (
+        <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 text-ink border border-white/15">{t}</span>
+      ))}
+    </div>
+  );
+}
+const seatsLeft = (p) => Math.max(Number(p.male_left || 0), 0) + Math.max(Number(p.female_left || 0), 0);
+
 function Cover({ party, className }) {
   return (
     <div className={`relative bg-gradient-to-br from-surface to-[#2A1512] ${className}`}>
@@ -338,12 +352,42 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
 }
 
 export function PartiesScreen({ parties, loading, error, onOpen, onRetry }) {
+  const [city, setCity] = useState("all");
+  const [type, setType] = useState("all");
+  const cities = [...new Set(parties.map((p) => p.venue_city).filter(Boolean))].sort();
+  const types = [...new Set(parties.flatMap((p) => [p.package_type, p.liquor_type]).filter(Boolean))].sort();
+  const shown = parties.filter(
+    (p) => (city === "all" || p.venue_city === city) && (type === "all" || p.package_type === type || p.liquor_type === type)
+  );
+  const chip = (active) =>
+    `text-sm px-3 py-1.5 rounded-full border transition-colors ${active ? "bg-ink text-[#170D0B] border-ink" : "border-white/15 text-haze hover:text-ink"}`;
   return (
     <div>
       <h1 className="font-display text-3xl font-bold mb-1">
         <span className="text-amber">Parties</span>
       </h1>
-      <p className="text-haze text-sm mb-6">Themed group parties at top venues. Grab a seat and celebrate together.</p>
+      <p className="text-haze text-sm mb-5">Themed group parties at top venues. Grab a seat and celebrate together.</p>
+
+      {parties.length > 0 && (cities.length > 1 || types.length > 1) && (
+        <div className="mb-6 flex flex-col gap-2" data-testid="party-filters">
+          {cities.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={chip(city === "all")} onClick={() => setCity("all")}>All cities</button>
+              {cities.map((c) => (
+                <button key={c} type="button" className={chip(city === c)} onClick={() => setCity(c)} data-testid={`party-city-${c}`}>{c}</button>
+              ))}
+            </div>
+          )}
+          {types.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={chip(type === "all")} onClick={() => setType("all")}>All types</button>
+              {types.map((t) => (
+                <button key={t} type="button" className={chip(type === t)} onClick={() => setType(t)} data-testid={`party-type-${t}`}>{t}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {error ? (
         <div className="text-sm text-red-300">
@@ -354,9 +398,14 @@ export function PartiesScreen({ parties, loading, error, onOpen, onRetry }) {
         <p className="text-haze text-sm">Loading parties…</p>
       ) : parties.length === 0 ? (
         <p className="text-haze text-sm" data-testid="parties-empty">No parties are open right now. Check back soon.</p>
+      ) : shown.length === 0 ? (
+        <p className="text-haze text-sm" data-testid="parties-none-match">
+          No parties match these filters.{" "}
+          <button className="underline" onClick={() => { setCity("all"); setType("all"); }}>Clear filters</button>
+        </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {parties.map((p) => (
+          {shown.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -380,6 +429,12 @@ export function PartiesScreen({ parties, loading, error, onOpen, onRetry }) {
                 <p className="text-amber font-semibold mt-1">
                   {inr(p.price_per_person)} <span className="text-haze font-normal text-xs">per person</span>
                 </p>
+                <TypeBadges party={p} />
+                {p.joining_open && (
+                  <p className="text-xs text-haze mt-2" data-testid="party-card-left">
+                    {seatsLeft(p) > 0 ? `${seatsLeft(p)} seats left · joining closes ${fmtCloses(p.closes_at)}` : "All seats taken right now"}
+                  </p>
+                )}
                 <div className="mt-3">
                   <Counter party={p} />
                 </div>
@@ -425,10 +480,10 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
   const blocked = mine && mine.status !== "active";
 
   return (
-    <div className="max-w-2xl" data-testid="party-detail">
+    <div className="max-w-xl mx-auto" data-testid="party-detail">
       <button className="text-sm text-haze hover:text-ink mb-4" onClick={onBack}>← All parties</button>
       <div className="rounded-2xl overflow-hidden bg-surface border border-white/10 shadow-card">
-        <Cover party={party} className="h-56" />
+        <Cover party={party} className={party.cover_photo_url ? "h-48" : "h-24"} />
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <h1 className="font-display text-2xl font-bold text-ink leading-tight">{party.title}</h1>
@@ -438,6 +493,8 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
             {party.venue_name}
             {party.venue_area || party.venue_city ? ` · ${[party.venue_area, party.venue_city].filter(Boolean).join(", ")}` : ""}
           </p>
+
+          <TypeBadges party={party} />
 
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div>
@@ -452,18 +509,10 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
               <dt className="text-xs text-haze">Price</dt>
               <dd className="text-amber font-semibold">{inr(party.price_per_person)} <span className="text-haze font-normal text-xs">per person</span></dd>
             </div>
-            {party.package_type && (
-              <div>
-                <dt className="text-xs text-haze">Package</dt>
-                <dd className="text-ink">{party.package_type}</dd>
-              </div>
-            )}
-            {party.liquor_type && (
-              <div>
-                <dt className="text-xs text-haze">Liquor</dt>
-                <dd className="text-ink">{party.liquor_type}</dd>
-              </div>
-            )}
+            <div>
+              <dt className="text-xs text-haze">City</dt>
+              <dd className="text-ink">{party.venue_city || "—"}</dd>
+            </div>
             <div>
               <dt className="text-xs text-haze">Joining closes</dt>
               <dd className="text-ink">{fmtCloses(party.closes_at)}</dd>
