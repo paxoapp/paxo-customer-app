@@ -4,6 +4,7 @@
 // customer. A customer's own booking comes from party_my_booking(). Every amount shown here is computed again by the
 // database when the payment is created, so a changed screen can never change what is charged.
 import { useCallback, useEffect, useState } from "react";
+import { PartyMenuSection, PartyInvoicesSection } from "./partyMenu";
 
 const inr = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const inr2 = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -627,6 +628,8 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
             </div>
           )}
 
+          <PartyMenuSection party={party} api={api} />
+
           <p className="text-xs text-haze mt-4" data-testid="party-provider">Services are provided by {party.venue_name}.</p>
           <p className="text-xs text-haze mt-1" data-testid="party-alcohol">Guests confirm that they are eligible to be served alcohol.</p>
 
@@ -672,6 +675,7 @@ export function PartyBookingsSection({ api, onOpenParty, refreshKey }) {
   }
 
   return (
+    <>
     <div className="mb-8" data-testid="party-bookings">
       <h2 className="font-display text-xl font-semibold mb-3">Party bookings</h2>
       <div className="flex flex-col gap-3">
@@ -712,5 +716,7 @@ export function PartyBookingsSection({ api, onOpenParty, refreshKey }) {
         })}
       </div>
     </div>
+    <PartyInvoicesSection api={api} refreshKey={refreshKey} />
+    </>
   );
 }
