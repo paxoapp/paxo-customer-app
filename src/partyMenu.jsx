@@ -135,7 +135,7 @@ export function PartyInvoicesSection({ api, refreshKey }) {
         {rows.map((i) => (
           <div key={i.id} className="rounded-2xl bg-surface border border-white/10 p-4 text-sm flex justify-between gap-3" data-testid={`party-invoice-${i.invoice_no}`}>
             <div>
-              <p className="text-ink font-semibold">{i.invoice_no}{i.status === "void" ? " (cancelled)" : ""}</p>
+              <p className="text-ink font-semibold">{i.invoice_no}{i.status === "void" ? " (void)" : ""}</p>
               <p className="text-haze">{i.party_title} · {i.venue_name}</p>
               <p className="text-haze text-xs">{i.seats} seats · issued {new Date(i.issued_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}</p>
             </div>
