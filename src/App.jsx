@@ -14,6 +14,8 @@ import {
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
 import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "./aboutCopy";
+import { LEGAL_PAGES } from "./legalCopy.js";
+import { LegalPage, LegalLinks } from "./legalPages.jsx";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
@@ -2229,17 +2231,27 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // /about is a real URL (also served as static HTML by scripts/make-about.mjs); every other screen keeps the app's own screen state
-  const isAboutPath = () => window.location.pathname.replace(/\/+$/, "") === "/about";
-  const [screen, setScreen] = useState(() => (isAboutPath() ? "about" : "browse"));
+  // /about, /terms, /privacy, /refund and /contact are real URLs (also served as static HTML by scripts/make-about.mjs);
+  // every other screen keeps the app's own screen state
+  const PAGE_PATHS = { about: "/about", terms: "/terms", privacy: "/privacy", refund: "/refund", contact: "/contact" };
+  const pathScreen = () => {
+    const p = window.location.pathname.replace(/\/+$/, "");
+    return Object.keys(PAGE_PATHS).find((k) => PAGE_PATHS[k] === p) || null;
+  };
+  const [screen, setScreen] = useState(() => pathScreen() || "browse");
   useEffect(() => {
-    const here = isAboutPath();
-    if (screen === "about" && !here) window.history.pushState(null, "", "/about");
-    if (screen !== "about" && here) window.history.replaceState(null, "", "/");
+    const here = pathScreen();
+    const isPage = Object.prototype.hasOwnProperty.call(PAGE_PATHS, screen);
+    if (isPage && here !== screen) window.history.pushState(null, "", PAGE_PATHS[screen]);
+    if (!isPage && here) window.history.replaceState(null, "", "/");
     const desc = document.querySelector('meta[name="description"]');
     if (screen === "about") {
       document.title = ABOUT_PAGE_TITLE;
       if (desc) desc.setAttribute("content", ABOUT_DESCRIPTION);
+      window.scrollTo(0, 0);
+    } else if (LEGAL_PAGES[screen]) {
+      document.title = LEGAL_PAGES[screen].pageTitle;
+      if (desc) desc.setAttribute("content", LEGAL_PAGES[screen].description);
       window.scrollTo(0, 0);
     } else {
       document.title = "Paxo — Book venues without the wait";
@@ -2247,7 +2259,7 @@ export default function App() {
     }
   }, [screen]);
   useEffect(() => {
-    const onPop = () => setScreen((s) => (isAboutPath() ? "about" : s === "about" ? "browse" : s));
+    const onPop = () => setScreen((s) => pathScreen() || (Object.prototype.hasOwnProperty.call(PAGE_PATHS, s) ? "browse" : s));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -3582,6 +3594,9 @@ export default function App() {
               Become a Partner
             </a>
           </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="legal-links-bar">
+            <LegalLinks />
+          </div>
         </div>
       </div>
     );
@@ -3702,6 +3717,9 @@ export default function App() {
               </button>
             </form>
           )}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="legal-links-bar">
+            <LegalLinks />
+          </div>
         </div>
       </div>
     );
@@ -3740,6 +3758,9 @@ export default function App() {
               {newPasswordLoading ? "Saving…" : "Save new password"}
             </button>
           </form>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="legal-links-bar">
+            <LegalLinks />
+          </div>
         </div>
       </div>
     );
@@ -5506,6 +5527,8 @@ export default function App() {
           </div>
         )}
 
+        {LEGAL_PAGES[screen] && <LegalPage page={screen} />}
+
         {screen === "help" && (
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Help &amp; support</h1>
@@ -5569,6 +5592,7 @@ export default function App() {
           >
             About
           </a>
+          <LegalLinks go={setScreen} />
           <span className="text-xs text-haze/40">Find us elsewhere</span>
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
           <WhatsAppFooterLink />
