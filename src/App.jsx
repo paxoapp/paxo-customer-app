@@ -13,6 +13,7 @@ import {
   AlcoholNotice, ALCOHOL_NOTICE, StatusNotice, editNotice, lockMessage, saveErr,
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
+import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "./aboutCopy";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
@@ -2228,7 +2229,28 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const [screen, setScreen] = useState("browse");
+  // /about is a real URL (also served as static HTML by scripts/make-about.mjs); every other screen keeps the app's own screen state
+  const isAboutPath = () => window.location.pathname.replace(/\/+$/, "") === "/about";
+  const [screen, setScreen] = useState(() => (isAboutPath() ? "about" : "browse"));
+  useEffect(() => {
+    const here = isAboutPath();
+    if (screen === "about" && !here) window.history.pushState(null, "", "/about");
+    if (screen !== "about" && here) window.history.replaceState(null, "", "/");
+    const desc = document.querySelector('meta[name="description"]');
+    if (screen === "about") {
+      document.title = ABOUT_PAGE_TITLE;
+      if (desc) desc.setAttribute("content", ABOUT_DESCRIPTION);
+      window.scrollTo(0, 0);
+    } else {
+      document.title = "Paxo — Book venues without the wait";
+      if (desc) desc.setAttribute("content", "PAXO lets groups book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi NCR.");
+    }
+  }, [screen]);
+  useEffect(() => {
+    const onPop = () => setScreen((s) => (isAboutPath() ? "about" : s === "about" ? "browse" : s));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // Every screen renders in normal document flow (window/document is the
   // scroll owner, no inner scrollable container) — without this, a screen
   // change keeps whatever scroll offset the previous screen was at (e.g. the
@@ -5472,6 +5494,18 @@ export default function App() {
             );
           })()}
 
+        {screen === "about" && (
+          <div className="max-w-xl" data-testid="about-page">
+            <h1 className="font-display text-3xl font-bold mb-3">{ABOUT_TITLE}</h1>
+            <p className="text-lg font-semibold text-ink mb-4">{ABOUT_LEAD}</p>
+            <div className="flex flex-col gap-4 text-haze leading-relaxed">
+              {ABOUT_PARAGRAPHS.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
         {screen === "help" && (
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Help &amp; support</h1>
@@ -5524,6 +5558,17 @@ export default function App() {
 
       <footer className="bg-black/90 border-t border-white/10">
         <div className="max-w-4xl mx-auto px-5 pb-10 pt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          <a
+            href="/about"
+            onClick={(e) => {
+              e.preventDefault();
+              setScreen("about");
+            }}
+            className="text-xs text-haze/60 hover:text-amber transition-colors"
+            data-testid="footer-about"
+          >
+            About
+          </a>
           <span className="text-xs text-haze/40">Find us elsewhere</span>
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
           <WhatsAppFooterLink />
