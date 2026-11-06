@@ -42,12 +42,13 @@ Deno.serve(async (req: Request) => {
 
     const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // The switch. This function refuses to run unless the setting says Cashfree.
+    // The keys are checked first (so a deploy can be verified while the switch is still Razorpay), then the switch itself:
+    // this function refuses to run unless the setting says Cashfree.
     const { data: prov } = await serviceClient.rpc("get_payment_provider");
-    if (prov?.provider !== "cashfree") return jsonRes({ error: "Cashfree is not switched on." }, 409);
-    const mode: Mode = prov.mode === "production" ? "production" : "sandbox";
+    const mode: Mode = prov?.mode === "production" ? "production" : "sandbox";
     const env = envFor(mode, (n) => Deno.env.get(n));
     if (!env) return jsonRes({ error: `Cashfree ${mode} keys are not set up yet.` }, 503);
+    if (prov?.provider !== "cashfree") return jsonRes({ error: "Cashfree is not switched on." }, 409);
 
     const callerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const { data: booking, error: bookingError } = await callerClient
