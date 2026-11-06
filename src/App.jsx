@@ -141,6 +141,37 @@ async function callFn(slug, token, body) {
   return data;
 }
 
+// Which payment gateway is switched on (a setting in the database; Razorpay unless it says otherwise).
+// Any failure (offline, setting not there yet) means Razorpay, so a problem here can never block the existing flow.
+async function getPaymentProvider() {
+  try {
+    const r = await sb("/rest/v1/rpc/get_payment_provider", { method: "POST", body: {} });
+    if (r && r.provider === "cashfree") return { provider: "cashfree", mode: r.mode === "production" ? "production" : "sandbox" };
+  } catch (_e) { /* fall through */ }
+  return { provider: "razorpay", mode: null };
+}
+
+// Cashfree's checkout script is loaded only when a customer actually pays with Cashfree.
+function loadCashfreeSdk() {
+  if (window.Cashfree) return Promise.resolve(window.Cashfree);
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    el.async = true;
+    el.onload = () => (window.Cashfree ? resolve(window.Cashfree) : reject(new Error("Payment library didn't load — please refresh and try again.")));
+    el.onerror = () => reject(new Error("Payment library didn't load — please refresh and try again."));
+    document.head.appendChild(el);
+  });
+}
+
+function TestModeNote() {
+  return (
+    <p className="mt-2 text-xs font-semibold text-amber border border-amber/40 bg-amber/10 rounded-lg px-2.5 py-1.5" data-testid="payment-test-mode">
+      Test mode — payments here are not real. No money is charged.
+    </p>
+  );
+}
+
 // Same style as the partner app's own response-window countdown.
 function minutesLeft(deadline) {
   if (!deadline) return null;
@@ -2320,6 +2351,7 @@ export default function App() {
   const [myBookings, setMyBookings] = useState([]);
   const [myBookingsError, setMyBookingsError] = useState("");
   const [payingBookingId, setPayingBookingId] = useState(null);
+  const [payProvider, setPayProvider] = useState({ provider: "razorpay", mode: null });
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
   const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
@@ -2472,7 +2504,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
+          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,cashfree_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
@@ -2499,6 +2531,43 @@ export default function App() {
     }
   }, []);
 
+  // After Cashfree's checkout closes (or the customer comes back from a redirect) we do NOT believe the browser:
+  // the server asks Cashfree whether the order was paid. A few short re-checks cover the moment between "paid" and "reported".
+  async function confirmCashfreeOrder(orderId, bookingId) {
+    const say = (msg) => setPayError((m) => ({ ...m, [bookingId]: msg }));
+    for (let i = 0; i < 4; i++) {
+      const result = await callFn("verify-cashfree-payment", session.token, { order_id: orderId });
+      if (result.verified) { say(""); await loadMyBookings(session.token); return true; }
+      if (!result.pending) { say(result.error || "The payment was not completed."); return false; }
+      say(result.message || "Confirming your payment…");
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+    say("Your payment is still being confirmed. If money was taken, your booking will confirm on its own — check My Bookings in a minute.");
+    await loadMyBookings(session.token);
+    return false;
+  }
+
+  async function startCashfreePayment(booking, paymentType, prov) {
+    const order = await callFn("create-cashfree-order", session.token, {
+      booking_id: booking.id,
+      payment_type: paymentType,
+      acknowledged_non_refundable: payAckChecked[booking.id] === true,
+    });
+    const Cashfree = await loadCashfreeSdk();
+    const cashfree = Cashfree({ mode: order.mode === "production" ? "production" : "sandbox" });
+    // Modal checkout. When it closes we always ask the server what really happened.
+    const outcome = await cashfree.checkout({ paymentSessionId: order.payment_session_id, redirectTarget: "_modal" });
+    try {
+      const ok = await confirmCashfreeOrder(order.order_id, booking.id);
+      if (!ok && outcome?.error && !outcome.error.message?.toLowerCase().includes("order")) {
+        // closed or declined: the booking is unchanged and can be paid again
+        setPayError((m) => ({ ...m, [booking.id]: m[booking.id] || outcome.error.message || "The payment didn't go through. Please try again." }));
+      }
+    } finally {
+      setPayingBookingId(null);
+    }
+  }
+
   // Razorpay Checkout. `paymentType` is "deposit" or "full"; the amount is
   // computed server-side by create-razorpay-order — never sent from here.
   async function startPayment(booking, paymentType) {
@@ -2506,6 +2575,12 @@ export default function App() {
     setPayError((m) => ({ ...m, [booking.id]: "" }));
     setPayingBookingId(booking.id);
     try {
+      const prov = await getPaymentProvider();
+      setPayProvider(prov);
+      if (prov.provider === "cashfree") {
+        await startCashfreePayment(booking, paymentType, prov);
+        return;
+      }
       if (!window.Razorpay) {
         throw new Error("Payment library didn't load — please refresh and try again.");
       }
@@ -2896,6 +2971,28 @@ export default function App() {
     if (screen === "myBookings" && session) loadMyBookings(session.token);
     if (screen === "profile" && session) loadProfile(session.token, session.userId);
   }, [screen, session, loadVenues, loadBookingTypes, loadMyBookings, loadProfile]);
+
+  // Which gateway is on (drives the "Test mode" label). Refreshed whenever the customer opens My Bookings.
+  useEffect(() => {
+    let alive = true;
+    getPaymentProvider().then((p) => alive && setPayProvider(p));
+    return () => { alive = false; };
+  }, [screen]);
+
+  // Back from a Cashfree redirect (UPI app / 3-D Secure): ?cf_order=<order id>. Ask the server, then tidy the address bar.
+  const cfReturnDone = useRef(false);
+  useEffect(() => {
+    if (!session || cfReturnDone.current) return;
+    const orderId = new URLSearchParams(window.location.search).get("cf_order");
+    if (!orderId) return;
+    cfReturnDone.current = true;
+    window.history.replaceState(null, "", window.location.pathname);
+    setScreen("myBookings");
+    (async () => {
+      try { await callFn("verify-cashfree-payment", session.token, { order_id: orderId }); } catch (_e) { /* the list below shows the truth */ }
+      await loadMyBookings(session.token);
+    })();
+  }, [session, loadMyBookings]);
 
   // Keep the profile loaded in the background once signed in, so the booking form
   // can prefill the customer's name without a separate round trip.
@@ -5081,6 +5178,7 @@ export default function App() {
                                     ) : (
                                       <PayNote />
                                     )}
+                                    {payProvider.provider === "cashfree" && payProvider.mode === "sandbox" && <TestModeNote />}
                                     <button
                                       type="button"
                                       disabled={payingBookingId === b.id || (policyKind(b.booking_type) === "late" && payAckChecked[b.id] !== true)}
@@ -5616,7 +5714,7 @@ export default function App() {
           if (!b) return null;
           const paid = (b.payments || []).filter((p) => p.status === "paid");
           const amountPaid = paid.reduce((s, p) => s + Number(p.amount || 0), 0);
-          const paymentRef = paid.find((p) => p.razorpay_payment_id)?.razorpay_payment_id || null;
+          const paymentRef = paid.find((p) => p.razorpay_payment_id || p.cashfree_payment_id)?.razorpay_payment_id || paid.find((p) => p.cashfree_payment_id)?.cashfree_payment_id || null;
           return (
             <Modal title="Receipt" className="receipt-modal" onClose={() => setReceiptId(null)}>
               <ReceiptBody
