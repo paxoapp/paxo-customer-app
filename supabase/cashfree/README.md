@@ -10,7 +10,9 @@ Nothing here is applied, deployed or merged. Razorpay code, tables and functions
 | Verify | `functions/verify-cashfree-payment.ts` | Browser only says "check order X". Server asks Cashfree for order status + payments, then calls the database function. |
 | Webhook | `functions/cashfree-webhook.ts` | Raw-body signature check, event dedupe, re-confirms with Cashfree itself, always 200 for a valid signed event. **Not deployed.** |
 | Shared | `functions/cashfree.ts` | Each function is deployed as `index.ts` + this file. 20 checks in `cashfree.test.mts`. |
-| Refunds | `functions/process-booking-refund.patch.md` | Manual at launch; cancelling a Cashfree-paid booking records a pending refund + urgent alert with the Cashfree payment id. Not deployed. |
+| Refunds | `functions/process-booking-refund.ts` (full patched file) | Manual at launch; cancelling a Cashfree-paid booking cancels it, records a pending refund with no retry time + urgent alert with the Cashfree payment id. Razorpay path byte-for-byte the same behaviour: `tests/refund/harness.mjs` runs the deployed original and the patched file side by side (14 checks). **Not deployed.** |
+| Mark refunded | `refund-admin.sql` (migration `cashfree_refund_admin`, **not applied**) + admin app branch `cashfree-refund-admin` | `admin_mark_cashfree_refund_processed(payment, optional Cashfree refund id)`: admin only, Cashfree payments only, pending refunds only; fires the normal refund email / settlement triggers. Button on the admin dashboard alert. |
+| Environment fix | `cashfree.ts` (`confirmOrderAnyEnv`, `processWebhook`) + the three function files | A payment is confirmed in the Cashfree environment it was created in (signature secret for the webhook, "order not found" fallback for verify), whatever provider/mode is set at that moment. 19 more checks in `cashfree.env.test.mts`. **Not deployed.** |
 | App | `src/App.jsx` | Reads the setting at pay time; Cashfree modal checkout; "Test mode" label when sandbox; return-from-redirect check; receipt shows the Cashfree payment id. |
 
 ## Cashfree facts used (docs read 2026-11-06)

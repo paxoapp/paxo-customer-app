@@ -93,7 +93,15 @@ Deno.serve(async (req: Request) => {
       .from("payments").select("id, provider, cashfree_order_id, amount")
       .eq("booking_id", booking_id).eq("payment_type", "deposit").eq("status", "created");
     const same = (open ?? []).find((p) => p.provider === "cashfree" && p.cashfree_order_id && Math.round(Number(p.amount) * 100) === amountPaise);
-    if (same) return await reply(same.cashfree_order_id);
+    if (same) {
+      // Reuse it only if it still exists in the Cashfree environment we are in now (an order made in sandbox is unknown to production).
+      const still = await cfFetch(env, `/orders/${same.cashfree_order_id}`);
+      if (still.ok && still.data?.order_status === "PAID") {
+        // Money was taken but not recorded yet: never open a second order on top of it. The webhook / verify call will record it.
+        return jsonRes({ error: "Your payment is being confirmed. Please wait a moment and check My Bookings." }, 409);
+      }
+      if (still.ok && still.data?.order_status === "ACTIVE" && still.data?.payment_session_id) return await reply(same.cashfree_order_id);
+    }
     for (const old of open ?? []) await serviceClient.from("payments").update({ status: "failed" }).eq("id", old.id);
 
     const phone = tenDigits(booking.contact_mobile);

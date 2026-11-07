@@ -1,8 +1,10 @@
 // verify-cashfree-payment  (verify_jwt = true)  — deployed as index.ts together with cashfree.ts
 // The browser says "I think order X was paid". We do not believe it: we ask Cashfree, then record via the database function.
+// The order is looked up in whichever Cashfree environment it exists in (the stored mode first), so a provider or mode switch in the
+// middle of a payment cannot leave a paid order unconfirmed.
 // A cancelled/failed/abandoned payment changes nothing (the booking stays 'accepted' and can be paid again).
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { envFor, confirmOrder, corsHeaders, jsonRes, type Mode } from "./cashfree.ts";
+import { envsPreferring, confirmOrderAnyEnv, corsHeaders, jsonRes, type Mode } from "./cashfree.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -23,12 +25,12 @@ Deno.serve(async (req: Request) => {
     const { data: mine } = await callerClient.from("bookings").select("id").eq("id", pay.booking_id).maybeSingle();
     if (!mine) return jsonRes({ error: "Not your booking" }, 403);
 
-    const { data: prov } = await serviceClient.rpc("get_payment_provider");
-    const mode: Mode = prov?.mode === "production" ? "production" : "sandbox";
-    const env = envFor(mode, (n) => Deno.env.get(n));
-    if (!env) return jsonRes({ error: `Cashfree ${mode} keys are not set up yet.` }, 503);
+    const { data: s } = await serviceClient.from("platform_settings").select("cashfree_mode").limit(1).maybeSingle();
+    const preferred: Mode = s?.cashfree_mode === "production" ? "production" : "sandbox";
+    const envs = envsPreferring(preferred, (n) => Deno.env.get(n));
+    if (envs.length === 0) return jsonRes({ error: "Cashfree keys are not set up yet." }, 503);
 
-    const r = await confirmOrder(env, order_id, (fn, args) => serviceClient.rpc(fn, args) as any);
+    const r = await confirmOrderAnyEnv(envs, order_id, (fn, args) => serviceClient.rpc(fn, args) as any);
     if (r.status === "paid") return jsonRes({ verified: true });
     if (r.status === "pending") return jsonRes({ verified: false, pending: true, message: "Your payment is still being confirmed. This page will update shortly." });
     if (r.status === "error") { console.error("verify-cashfree-payment", r.message); return jsonRes({ verified: false, pending: true, message: "We couldn't reach the payment provider just now. If money was taken, your booking will confirm automatically." }, 200); }

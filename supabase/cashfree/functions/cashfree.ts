@@ -48,7 +48,7 @@ export type Confirm =
   | { status: "paid"; result: string }
   | { status: "pending" } // Cashfree has not (yet) reported a successful payment
   | { status: "not_paid"; order_status: string } // active/expired/terminated with no successful payment
-  | { status: "error"; message: string }; // could not ask Cashfree: caller must NOT treat this as "not paid"
+  | { status: "error"; message: string; notFound?: boolean }; // could not ask Cashfree: caller must NOT treat this as "not paid"
 
 // Asks Cashfree (never the browser) whether the order is paid, then records it through the one database function.
 // The amount and currency written to the database come from Cashfree's reply.
@@ -60,7 +60,7 @@ export async function confirmOrder(
 ): Promise<Confirm> {
   if (!ORDER_ID_RE.test(orderId)) return { status: "error", message: "not a PAXO order" };
   const o = await cfFetch(env, `/orders/${orderId}`, {}, doFetch);
-  if (!o.ok) return { status: "error", message: `Cashfree order lookup failed (${o.status})` };
+  if (!o.ok) return { status: "error", message: `Cashfree order lookup failed (${o.status})`, notFound: o.status === 404 };
   const orderStatus = String(o.data?.order_status ?? "");
   const p = await cfFetch(env, `/orders/${orderId}/payments`, {}, doFetch);
   if (!p.ok || !Array.isArray(p.data)) return { status: "error", message: `Cashfree payment lookup failed (${p.status})` };
@@ -80,6 +80,75 @@ export async function confirmOrder(
   }
   if (orderStatus === "PAID" || payments.some((x) => x?.payment_status === "PENDING")) return { status: "pending" };
   return { status: "not_paid", order_status: orderStatus || "UNKNOWN" };
+}
+
+// Which Cashfree environments are configured, the one named in platform_settings.cashfree_mode first. A payment is confirmed in
+// the environment it was CREATED in (asked of Cashfree itself: an order exists in only one of them), not the one that is "current"
+// when the confirmation happens, so switching provider or mode in the middle of a payment cannot leave a paid order unconfirmed.
+export function envsPreferring(preferred: Mode, get: Getter): Env[] {
+  const order: Mode[] = preferred === "sandbox" ? ["sandbox", "production"] : ["production", "sandbox"];
+  return order.map((m) => envFor(m, get)).filter((e): e is Env => e !== null);
+}
+
+type Rpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: any; error: { message: string } | null }>;
+
+// Browser-initiated check: no signature to tell us the environment, so ask each configured one; "order not found" moves on to the next.
+export async function confirmOrderAnyEnv(envs: Env[], orderId: string, rpc: Rpc, doFetch: typeof fetch = fetch): Promise<Confirm> {
+  if (envs.length === 0) return { status: "error", message: "no Cashfree keys configured" };
+  let last: Confirm = { status: "error", message: "order not found in any configured Cashfree environment", notFound: true };
+  for (const env of envs) {
+    const r = await confirmOrder(env, orderId, rpc, doFetch);
+    if (r.status === "error" && r.notFound) { last = r; continue; }
+    return r;
+  }
+  return last;
+}
+
+// The whole webhook, testable without Deno. Returns the HTTP status and text to answer with.
+export async function processWebhook(
+  d: { raw: string; ts: string | null; sig: string | null; envs: Env[]; rpc: Rpc },
+  doFetch: typeof fetch = fetch,
+): Promise<{ status: number; text: string }> {
+  // The signing secret tells us which Cashfree environment sent it.
+  let env: Env | null = null;
+  for (const e of d.envs) {
+    if (await verifyWebhook(d.raw, d.ts, d.sig, e.clientSecret)) { env = e; break; }
+  }
+  if (!env) return { status: 401, text: "invalid signature" };
+
+  let body: any;
+  try { body = JSON.parse(d.raw); } catch { return { status: 200, text: "ok (not json)" }; }
+  const type = String(body?.type ?? "");
+  const orderId = String(body?.data?.order?.order_id ?? "");
+  const cfPaymentId = String(body?.data?.payment?.cf_payment_id ?? body?.data?.refund?.cf_payment_id ?? "");
+  const eventKey = await sha256Hex([env.mode, type, orderId, cfPaymentId, String(body?.event_time ?? d.ts ?? "")].join("|"));
+
+  const rec = await d.rpc("cashfree_record_event", { p_key: eventKey, p_type: type, p_payload: body });
+  if (rec.error) return { status: 500, text: "retry" };
+  if (rec.data === "done") return { status: 200, text: "ok (already processed)" };
+
+  let result = "ignored";
+  try {
+    if (!ORDER_ID_RE.test(orderId)) {
+      result = "ignored: not a PAXO order";
+    } else if (type === "PAYMENT_SUCCESS_WEBHOOK" || type === "PAYMENT_FAILED_WEBHOOK" || type === "PAYMENT_USER_DROPPED_WEBHOOK") {
+      // The body is only a hint to go and look; the answer comes from Cashfree, in the environment that signed this event.
+      const r = await confirmOrder(env, orderId, d.rpc, doFetch);
+      if (r.status === "error" && r.notFound) result = `ignored: order not found in Cashfree ${env.mode}`;
+      else if (r.status === "error") return { status: 500, text: "retry" };
+      else result = r.status === "paid" ? `paid: ${r.result}` : r.status === "pending" ? "pending" : `not paid: ${r.order_status}`;
+    } else if (type === "PAYMENT_CHARGES_WEBHOOK") {
+      const sc = Number(body?.data?.charges_details?.service_charge), st = Number(body?.data?.charges_details?.service_tax);
+      const { data } = await d.rpc("cashfree_apply_charges", { p_order_id: orderId, p_service_charge: sc, p_service_tax: st });
+      result = `charges: ${data?.result ?? "?"}`;
+    } else {
+      result = `ignored: ${type || "no type"}`; // refunds are manual at launch; refund status events are only logged
+    }
+  } catch (_e) {
+    return { status: 500, text: "retry" };
+  }
+  await d.rpc("cashfree_finish_event", { p_key: eventKey, p_result: result });
+  return { status: 200, text: "ok" };
 }
 
 // ---- webhook signature (raw body, constant time) -------------------------------------------------------------------
