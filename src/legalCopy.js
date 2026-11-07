@@ -12,6 +12,8 @@ export const LEGAL_PAGES = {
     description: "The terms that apply to every booking made on mypaxo.in, the PAXO group booking platform for venues in Delhi NCR.",
     blocks: [
       { t: "p", text: "These terms apply to every booking made on mypaxo.in." },
+      { t: "h", text: "Role of PAXO" },
+      { t: "p", text: "PAXO is an online booking platform that connects customers with independent partner restaurants, bars and venues. PAXO does not own or operate any venue and does not prepare, sell, serve or deliver food or drinks. All food, drinks and services are provided by the venue, which is solely responsible for them, including holding every licence required by law (such as FSSAI and the excise licences needed to serve alcohol) and following the laws of its state. PAXO does not sell alcohol online. Customers pay a booking deposit through PAXO to confirm a booking, and the balance is paid directly to the venue. Alcohol is served by the venue only to guests who are legally permitted to consume it, and guests confirm their eligibility." },
       {
         t: "ol",
         items: [
