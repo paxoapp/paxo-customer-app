@@ -8,7 +8,7 @@ export function LegalPage({ page }) {
   return (
     <div className="max-w-2xl" data-testid={`legal-${page}`}>
       <h1 className="font-display text-3xl font-bold mb-1">{p.title}</h1>
-      <p className="text-xs text-haze/70 mb-6" data-testid="legal-updated">{LEGAL_UPDATED}</p>
+      <p className="text-xs text-haze/70 mb-6" data-testid="legal-updated">{p.updated ?? LEGAL_UPDATED}</p>
       <div className="flex flex-col gap-4 text-haze leading-relaxed">
         {p.blocks.map((b, i) => {
           if (b.t === "p") return <p key={i}>{b.text}</p>;
