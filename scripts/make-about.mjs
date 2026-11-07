@@ -71,6 +71,6 @@ for (const p of Object.values(LEGAL_PAGES)) {
     p.path,
     p.pageTitle,
     p.description,
-    `<h1 style="font-size:32px;margin:0 0 4px">${esc(p.title)}</h1><p style="font-size:12px;color:#9a8e86;margin:0 0 20px">${esc(LEGAL_UPDATED)}</p>` + legalBody(p)
+    `<h1 style="font-size:32px;margin:0 0 4px">${esc(p.title)}</h1><p style="font-size:12px;color:#9a8e86;margin:0 0 20px">${esc(p.updated ?? LEGAL_UPDATED)}</p>` + legalBody(p)
   );
 }

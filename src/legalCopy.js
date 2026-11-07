@@ -9,6 +9,7 @@ export const LEGAL_PAGES = {
     path: "/terms",
     title: "Terms of Service",
     pageTitle: "Terms of Service — PAXO",
+    updated: "Last updated: 7 November 2026",
     description: "The terms that apply to every booking made on mypaxo.in, the PAXO group booking platform for venues in Delhi NCR.",
     blocks: [
       { t: "p", text: "These terms apply to every booking made on mypaxo.in." },
