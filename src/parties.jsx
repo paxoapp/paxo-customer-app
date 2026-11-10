@@ -87,8 +87,8 @@ function Cover({ party, className }) {
 }
 
 // ---- payment (one entry point for join, top-up and balance) ----------------------------------------------------------
-// Asks the party-payment function to create the payment (the database checks every rule and holds the seats), opens
-// Razorpay Checkout, then asks the function to verify. `kind` is "join" or "balance".
+// Asks the payment function of the active gateway (party-cashfree or party-payment) to create the payment (the database checks every
+// rule and holds the seats), opens that gateway's checkout, then verifies with the server. `kind` is "join" or "balance".
 const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
 
 function PartyInfo({ party }) {
@@ -126,17 +126,70 @@ function PartyInfo({ party }) {
   );
 }
 
-export async function startPartyPayment({ api, party, kind, genders, termsVersion, description, prefill, onDone, onError, onDismiss }) {
+// ---- Cashfree helpers (the checkout script loads only when a customer actually pays with Cashfree) ------------------------
+function loadCashfreeSdk() {
+  if (window.Cashfree) return Promise.resolve(window.Cashfree);
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    el.async = true;
+    el.onload = () => (window.Cashfree ? resolve(window.Cashfree) : reject(new Error("Payment library didn't load — please refresh and try again.")));
+    el.onerror = () => reject(new Error("Payment library didn't load — please refresh and try again."));
+    document.head.appendChild(el);
+  });
+}
+
+// Which gateway is switched on (a database setting; Razorpay unless it says otherwise, and on any failure).
+export async function getPartyProvider(api) {
   try {
-    if (!window.Razorpay) throw new Error("Payment library didn't load — please refresh and try again.");
-    const order = await api.callFn("party-payment", api.session.token, {
-      action: "create",
-      party_id: party.id,
-      kind,
-      genders: kind === "join" ? genders : undefined,
+    const r = await api.sb("/rest/v1/rpc/get_payment_provider", { method: "POST", body: {} });
+    if (r && r.provider === "cashfree") return { provider: "cashfree", mode: r.mode === "production" ? "production" : "sandbox" };
+  } catch (_e) { /* fall through */ }
+  return { provider: "razorpay", mode: null };
+}
+
+// After Cashfree's checkout closes (or the customer returns from a redirect) the browser is NOT believed: the server asks
+// Cashfree whether the order was paid. A few short re-checks cover the moment between "paid" and "reported".
+export async function confirmPartyCashfree(api, orderId, onWait) {
+  for (let i = 0; i < 4; i++) {
+    let r;
+    try {
+      r = await api.callFn("party-cashfree", api.session.token, { action: "verify", order_id: orderId });
+    } catch (err) {
+      return { verified: false, error: err.message || "We couldn't confirm that payment." };
+    }
+    if (r.verified || !r.pending) return r;
+    if (onWait) onWait(r.message || "Confirming your payment…");
+    await new Promise((res) => setTimeout(res, 4000));
+  }
+  return { verified: false, pending: true, message: "Your payment is still being confirmed. If money was taken, your seats will confirm on their own. Check My requests in a minute." };
+}
+
+// guests = [{ name, age, gender }] for a join; nothing for a balance payment.
+export async function startPartyPayment({ api, party, kind, guests, termsVersion, contactMobile, description, prefill, onDone, onError, onDismiss, onWait }) {
+  try {
+    const prov = await getPartyProvider(api);
+    const joinFields = {
+      guests: kind === "join" ? guests : undefined,
       accept_terms: kind === "join" ? true : undefined,
       terms_version: kind === "join" ? termsVersion : undefined,
-    });
+    };
+
+    if (prov.provider === "cashfree") {
+      const order = await api.callFn("party-cashfree", api.session.token, {
+        action: "create", party_id: party.id, kind, contact_mobile: contactMobile || undefined, ...joinFields,
+      });
+      const Cashfree = await loadCashfreeSdk();
+      const cashfree = Cashfree({ mode: order.mode === "production" ? "production" : "sandbox" });
+      const outcome = await cashfree.checkout({ paymentSessionId: order.payment_session_id, redirectTarget: "_modal" });
+      const r = await confirmPartyCashfree(api, order.order_id, onWait);
+      if (r.verified) onDone({ result: r.result === "late" ? "late" : "paid", message: r.message });
+      else onError(r.error || r.message || outcome?.error?.message || "The payment didn't go through. Please try again.");
+      return;
+    }
+
+    if (!window.Razorpay) throw new Error("Payment library didn't load — please refresh and try again.");
+    const order = await api.callFn("party-payment", api.session.token, { action: "create", party_id: party.id, kind, ...joinFields });
     const rzp = new window.Razorpay({
       key: order.key_id,
       amount: order.amount,
@@ -233,6 +286,19 @@ function MyBookingSummary({ mine }) {
           Your seats: {mine.seats_paid} ({mine.male_paid} male · {mine.female_paid} female)
         </p>
       )}
+      {Array.isArray(mine.guests) && mine.guests.length > 0 && (
+        <ul className="text-haze mt-1" data-testid="party-my-guests">
+          {mine.guests.map((g, i) => (
+            <li key={i}>{g.name}{g.age ? `, ${g.age}` : ""} · <span className="capitalize">{g.gender}</span></li>
+          ))}
+        </ul>
+      )}
+      {Number(mine.total_amount) > 0 && (
+        <p className="text-haze mt-1" data-testid="party-my-total">
+          Total {inr2(mine.total_amount)}
+          {Number(mine.tax_amount) > 0 ? ` (${mine.tax_included ? "includes" : "includes added"} GST ${inr2(mine.tax_amount)})` : ""}
+        </p>
+      )}
       {Number(mine.paid_amount) > 0 && <p className="text-haze mt-1">Paid so far: {inr2(mine.paid_amount)}</p>}
       {refundDue > 0 && (
         <p className="text-amber mt-2" data-testid="party-refund-due">
@@ -251,31 +317,59 @@ function MyBookingSummary({ mine }) {
   );
 }
 
+const blankGuest = () => ({ name: "", age: "", gender: "" });
+const tenDigits = (raw) => {
+  const d = String(raw || "").replace(/\D/g, "");
+  const n = d.length > 10 ? d.slice(-10) : d;
+  return /^[6-9]\d{9}$/.test(n) ? n : "";
+};
+
 function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
   const cap = Math.max(party.max_seats_per_booking - Number(mine?.seats_paid || 0), 0);
-  const [people, setPeople] = useState([""]);
+  const [people, setPeople] = useState([blankGuest()]);
   const [accept, setAccept] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [quote, setQuote] = useState(null);
+  const [prov, setProv] = useState({ provider: "razorpay", mode: null });
+  const [phone, setPhone] = useState(() => tenDigits(api?.profile?.phone));
 
   const confirmed = party.status === "confirmed";
-  const chosenM = people.filter((g) => g === "male").length;
-  const chosenF = people.filter((g) => g === "female").length;
-  const complete = people.length >= 1 && people.every((g) => g === "male" || g === "female");
-  const share = confirmed ? 1 : 0.3;
-  const amount = Math.round(people.length * Number(party.price_per_person) * share * 100) / 100;
+  const minAge = Number(party.min_age || 0);
+  const chosenM = people.filter((g) => g.gender === "male").length;
+  const chosenF = people.filter((g) => g.gender === "female").length;
+  const guestOk = (g) =>
+    g.name.trim().length >= 2 && g.name.trim().length <= 60 && /^\d{1,3}$/.test(String(g.age)) &&
+    Number(g.age) >= Math.max(minAge, 1) && Number(g.age) <= 120 && (g.gender === "male" || g.gender === "female");
+  const complete = people.length >= 1 && people.every(guestOk);
+  const needsPhone = prov.provider === "cashfree";
+  const holdMinutes = prov.provider === "cashfree" ? 16 : 10;
+
+  useEffect(() => {
+    let alive = true;
+    getPartyProvider(api).then((p) => alive && setProv(p));
+    return () => { alive = false; };
+  }, [api]);
+
+  // The amount comes from the database (party_quote); this screen never works out money itself.
+  useEffect(() => {
+    let alive = true;
+    setQuote(null);
+    api.sb("/rest/v1/rpc/party_quote", { method: "POST", body: { p_party_id: party.id, p_seats: people.length } })
+      .then((q) => alive && setQuote(q || null))
+      .catch(() => alive && setQuote(null));
+    return () => { alive = false; };
+  }, [api, party.id, people.length, party.status]);
 
   function setCount(n) {
     const next = Math.min(Math.max(n, 1), Math.max(cap, 1));
-    setPeople((p) => (next > p.length ? [...p, ...Array(next - p.length).fill("")] : p.slice(0, next)));
+    setPeople((p) => (next > p.length ? [...p, ...Array.from({ length: next - p.length }, blankGuest)] : p.slice(0, next)));
   }
-  function pick(i, g) {
-    setPeople((p) => p.map((x, j) => (j === i ? g : x)));
-  }
+  const edit = (i, patch) => setPeople((p) => p.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   // a gender with no seats left (counting the other choices already made) cannot be chosen
   function disabledFor(i, g) {
-    const others = people.filter((x, j) => j !== i && x === g).length;
+    const others = people.filter((x, j) => j !== i && x.gender === g).length;
     const left = g === "male" ? party.male_left : party.female_left;
     return left - others <= 0;
   }
@@ -296,7 +390,7 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
     );
   }
   if (party.male_left <= 0 && party.female_left <= 0) {
-    return <div className="mt-5 rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-haze" data-testid="party-full">All seats are taken right now. Seats held by other guests are released after 10 minutes if they do not pay, so check back soon.</div>;
+    return <div className="mt-5 rounded-xl bg-white/5 border border-white/10 p-4 text-sm text-haze" data-testid="party-full">All seats are taken right now. Seats held by other guests are released if they do not pay in time, so check back soon.</div>;
   }
 
   async function pay() {
@@ -304,18 +398,23 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
     setNotice("");
     setBusy(true);
     await startPartyPayment({
-      api, party, kind: "join", genders: people, termsVersion: party.terms_version,
+      api, party, kind: "join",
+      guests: people.map((g) => ({ name: g.name.trim(), age: Number(g.age), gender: g.gender })),
+      termsVersion: party.terms_version,
+      contactMobile: needsPhone ? phone : undefined,
       description: `${mine?.seats_paid ? "Add seats" : "Seats"} — ${party.title}`,
       prefill: { email: api.session.email || "" },
+      onWait: (m) => setNotice(m),
       onDone: async (r) => {
         setBusy(false);
-        setNotice(r.result === "paid" ? (r.party_confirmed ? "Payment received. The party is confirmed!" : "Payment received. Your seats are booked.") : "We got your payment, but the seats could not be kept. A full refund is on the way.");
-        setPeople([""]);
+        setNotice(r.result === "paid" ? (r.party_confirmed ? "Payment received. The party is confirmed!" : "Payment received. Your seats are booked.") : (r.message || "We got your payment, but the seats could not be kept. A full refund is on the way."));
+        setPeople([blankGuest()]);
         setAccept(false);
         await onChanged();
       },
       onError: async (m) => {
         setBusy(false);
+        setNotice("");
         setError(m);
         await onChanged();
       },
@@ -323,6 +422,8 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
     });
   }
 
+  const payNow = quote ? Number(quote.pay_now) : null;
+  const canPay = !busy && complete && accept && quote && (!needsPhone || phone);
   return (
     <div className="mt-5 rounded-xl bg-white/5 border border-white/10 p-4 text-sm" data-testid="party-join-box">
       <p className="text-ink font-semibold">{mine?.seats_paid ? "Add more seats" : "Join this party"}</p>
@@ -331,58 +432,112 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
         <button type="button" aria-label="Fewer seats" onClick={() => setCount(people.length - 1)} disabled={people.length <= 1} className="w-8 h-8 rounded-full border border-white/20 disabled:opacity-40">−</button>
         <span className="text-ink font-semibold w-6 text-center" data-testid="party-seat-count">{people.length}</span>
         <button type="button" aria-label="More seats" onClick={() => setCount(people.length + 1)} disabled={people.length >= cap} className="w-8 h-8 rounded-full border border-white/20 disabled:opacity-40">+</button>
-        <span className="text-xs text-haze">up to {cap}</span>
+        <span className="text-xs text-haze">up to {cap} (max {party.max_seats_per_booking} per account)</span>
       </div>
-      <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-3 flex flex-col gap-3">
         {people.map((g, i) => (
-          <div key={i} className="flex items-center gap-3" data-testid={`party-person-${i}`}>
-            <span className="text-haze w-20">{i === 0 && !mine?.seats_paid ? "You" : `Guest ${i + 1}`}</span>
-            {["male", "female"].map((opt) => {
-              const dis = disabledFor(i, opt) && g !== opt;
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  disabled={dis}
-                  onClick={() => pick(i, opt)}
-                  data-testid={`party-person-${i}-${opt}`}
-                  className={`px-3 py-1 rounded-full border capitalize ${g === opt ? "bg-amber text-[#170D0B] border-amber" : "border-white/20 text-ink"} ${dis ? "opacity-40 line-through" : ""}`}
-                >
-                  {opt}{dis ? " (full)" : ""}
-                </button>
-              );
-            })}
+          <div key={i} className="rounded-lg border border-white/10 p-3" data-testid={`party-person-${i}`}>
+            <p className="text-haze text-xs mb-2">{i === 0 && !mine?.seats_paid ? "You" : `Guest ${i + 1}`}</p>
+            <div className="flex gap-2">
+              <input
+                value={g.name}
+                onChange={(e) => edit(i, { name: e.target.value })}
+                placeholder="Full name"
+                maxLength={60}
+                autoComplete="off"
+                className="flex-1 min-w-0 rounded-lg bg-black/20 border border-white/15 px-3 py-2 text-ink"
+                data-testid={`party-person-${i}-name`}
+              />
+              <input
+                value={g.age}
+                onChange={(e) => edit(i, { age: e.target.value.replace(/\D/g, "").slice(0, 3) })}
+                placeholder="Age"
+                inputMode="numeric"
+                className="w-20 rounded-lg bg-black/20 border border-white/15 px-3 py-2 text-ink"
+                data-testid={`party-person-${i}-age`}
+              />
+            </div>
+            {g.age !== "" && minAge > 0 && Number(g.age) < minAge && (
+              <p className="text-rose-400 text-xs mt-1">Every guest must be at least {minAge} years old.</p>
+            )}
+            <div className="flex gap-2 mt-2">
+              {["male", "female"].map((opt) => {
+                const dis = disabledFor(i, opt) && g.gender !== opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    disabled={dis}
+                    onClick={() => edit(i, { gender: opt })}
+                    data-testid={`party-person-${i}-${opt}`}
+                    className={`px-3 py-1 rounded-full border capitalize ${g.gender === opt ? "bg-amber text-[#170D0B] border-amber" : "border-white/20 text-ink"} ${dis ? "opacity-40 line-through" : ""}`}
+                  >
+                    {opt}{dis ? " (full)" : ""}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
-      <p className="text-xs text-haze mt-2">Choose male or female for every person. Seats left: Male {Math.max(party.male_left - chosenM, 0)} · Female {Math.max(party.female_left - chosenF, 0)}</p>
+      <p className="text-xs text-haze mt-2">Enter the name, age and gender of every person. Seats left: Male {Math.max(party.male_left - chosenM, 0)} · Female {Math.max(party.female_left - chosenF, 0)}</p>
+
+      {needsPhone && (
+        <label className="block mt-3">
+          <span className="text-xs text-haze">Your mobile number (needed by the payment page)</span>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(-10))}
+            inputMode="numeric"
+            placeholder="10-digit mobile number"
+            className="mt-1 w-full rounded-lg bg-black/20 border border-white/15 px-3 py-2 text-ink"
+            data-testid="party-phone"
+          />
+          {phone && !tenDigits(phone) && <span className="text-rose-400 text-xs">Enter a valid 10-digit Indian mobile number.</span>}
+        </label>
+      )}
 
       <div className="mt-4 rounded-lg bg-black/20 p-3" data-testid="party-amount">
-        {confirmed ? (
-          <p className="text-ink">Pay now: <span className="font-semibold text-amber">{inr2(amount)}</span> <span className="text-haze">(100%, the party is confirmed)</span></p>
+        {!quote ? (
+          <p className="text-haze">Working out the amount…</p>
         ) : (
           <>
-            <p className="text-ink">Pay now: <span className="font-semibold text-amber">{inr2(amount)}</span> <span className="text-haze">(30% deposit)</span></p>
-            <p className="text-xs text-haze mt-1">The balance of {inr2(people.length * Number(party.price_per_person) - amount)} is due after the party is confirmed. The deposit is non-refundable.</p>
+            <p className="text-ink">{quote.seats} × {inr2(quote.price_per_person)}{quote.tax_included ? "" : ` = ${inr2(quote.seats * quote.price_per_person)}`}</p>
+            {Number(quote.tax_percent) > 0 && (
+              <p className="text-xs text-haze mt-1" data-testid="party-tax-line">
+                {quote.tax_included ? `Price includes GST of ${inr2(quote.tax_amount)} (${Number(quote.tax_percent)}%)` : `+ GST ${Number(quote.tax_percent)}%: ${inr2(quote.tax_amount)}`}
+              </p>
+            )}
+            <p className="text-ink mt-1">Total: <span className="font-semibold">{inr2(quote.total)}</span></p>
+            {confirmed ? (
+              <p className="text-ink mt-2">Pay now: <span className="font-semibold text-amber">{inr2(payNow)}</span> <span className="text-haze">(100%, the party is confirmed)</span></p>
+            ) : (
+              <>
+                <p className="text-ink mt-2">Pay now: <span className="font-semibold text-amber">{inr2(payNow)}</span> <span className="text-haze">(30% deposit)</span></p>
+                <p className="text-xs text-haze mt-1">The balance of {inr2(quote.pay_later)} is due after the party is confirmed. The deposit is non-refundable.</p>
+              </>
+            )}
           </>
         )}
       </div>
 
       <label className="flex items-start gap-2 mt-3 text-haze cursor-pointer">
         <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} className="mt-1" data-testid="party-accept" />
-        <span>I have read and accept the terms &amp; conditions (version {party.terms_version}) below.</span>
+        <span>
+          I confirm the names and ages above are correct{minAge ? `, every guest is at least ${minAge} years old,` : ""} and I accept the terms &amp; conditions (version {party.terms_version}) below.
+        </span>
       </label>
 
       <button
         type="button"
         onClick={pay}
-        disabled={busy || !complete || !accept}
+        disabled={!canPay}
         className="mt-4 rounded-full bg-amber text-[#170D0B] font-semibold px-6 py-2.5 disabled:opacity-50"
         data-testid="party-pay"
       >
-        {busy ? "Opening payment…" : `Pay ${inr2(amount)}`}
+        {busy ? "Opening payment…" : quote ? `Pay ${inr2(payNow)}` : "Pay"}
       </button>
-      <p className="text-xs text-haze mt-2">Your seats are held for 10 minutes while you pay.</p>
+      <p className="text-xs text-haze mt-2">Your seats are held for {holdMinutes} minutes while you pay.</p>
       {error && <p className="text-rose-400 mt-2" data-testid="party-pay-error">{error}</p>}
       {notice && <p className="text-emerald-400 mt-2" data-testid="party-pay-notice">{notice}</p>}
     </div>

@@ -17,7 +17,7 @@ import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PAR
 import { LEGAL_PAGES, REFUND_TIMELINE } from "./legalCopy.js";
 import { LegalPage, LegalLinks } from "./legalPages.jsx";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
-import { PartiesScreen, PartyDetailScreen, PartyBookingsSection } from "./parties";
+import { PartiesScreen, PartyDetailScreen, PartyBookingsSection, confirmPartyCashfree } from "./parties";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -3033,6 +3033,21 @@ export default function App() {
     })();
   }, [session, loadMyBookings]);
 
+  // Back from a Cashfree redirect for PARTY seats (UPI app / 3-D Secure): ?cf_party_order=<order id>.
+  const cfPartyReturnDone = useRef(false);
+  useEffect(() => {
+    if (!session || cfPartyReturnDone.current) return;
+    const orderId = new URLSearchParams(window.location.search).get("cf_party_order");
+    if (!orderId) return;
+    cfPartyReturnDone.current = true;
+    window.history.replaceState(null, "", window.location.pathname);
+    setScreen("myBookings");
+    (async () => {
+      try { await confirmPartyCashfree({ session, callFn }, orderId); } catch (_e) { /* the list below shows the truth */ }
+      await loadMyBookings(session.token);
+    })();
+  }, [session, loadMyBookings]);
+
   // Keep the profile loaded in the background once signed in, so the booking form
   // can prefill the customer's name without a separate round trip.
   useEffect(() => {
@@ -4024,7 +4039,7 @@ export default function App() {
             party={parties.find((p) => p.id === selectedPartyId) || null}
             loading={partiesLoading}
             onBack={() => setScreen("parties")}
-            api={{ session, sb, callFn }}
+            api={{ session, sb, callFn, profile }}
             onNeedLogin={() => setScreen("auth")}
             onChanged={loadParties}
           />
@@ -4921,7 +4936,7 @@ export default function App() {
 
             {session && (
               <PartyBookingsSection
-                api={{ session, sb, callFn }}
+                api={{ session, sb, callFn, profile }}
                 onOpenParty={(id) => {
                   setSelectedPartyId(id);
                   setScreen("party");

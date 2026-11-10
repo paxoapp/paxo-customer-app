@@ -14,7 +14,10 @@ export type Mode = "sandbox" | "production";
 export type Env = { mode: Mode; base: string; clientId: string; clientSecret: string };
 export type Getter = (name: string) => string | undefined;
 
-export const ORDER_ID_RE = /^PX[a-f0-9]{32}$/; // the ids PAXO creates; anything else in the Cashfree account is ignored
+export const ORDER_ID_RE = /^PX[a-f0-9]{32}$/; // the ids PAXO creates for booking deposits; anything else in the Cashfree account is ignored
+export const PARTY_ORDER_ID_RE = /^PY[a-f0-9]{32}$/; // Party Pool seat payments: same webhook, their own database functions
+export const isPaxoOrder = (id: string) => ORDER_ID_RE.test(id) || PARTY_ORDER_ID_RE.test(id);
+const isPartyOrder = (id: string) => PARTY_ORDER_ID_RE.test(id);
 
 // Four secret names so sandbox and production keys can both be set and a mode/keys mismatch can never happen:
 //   CASHFREE_SANDBOX_CLIENT_ID  CASHFREE_SANDBOX_CLIENT_SECRET  CASHFREE_PROD_CLIENT_ID  CASHFREE_PROD_CLIENT_SECRET
@@ -58,7 +61,7 @@ export async function confirmOrder(
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: any; error: { message: string } | null }>,
   doFetch: typeof fetch = fetch,
 ): Promise<Confirm> {
-  if (!ORDER_ID_RE.test(orderId)) return { status: "error", message: "not a PAXO order" };
+  if (!isPaxoOrder(orderId)) return { status: "error", message: "not a PAXO order" };
   const o = await cfFetch(env, `/orders/${orderId}`, {}, doFetch);
   if (!o.ok) return { status: "error", message: `Cashfree order lookup failed (${o.status})`, notFound: o.status === 404 };
   const orderStatus = String(o.data?.order_status ?? "");
@@ -67,7 +70,7 @@ export async function confirmOrder(
   const payments = p.data as any[];
   const success = payments.find((x) => x?.payment_status === "SUCCESS");
   if (orderStatus === "PAID" && success) {
-    const { data, error } = await rpc("cashfree_apply_payment", {
+    const { data, error } = await rpc(isPartyOrder(orderId) ? "party_cashfree_apply_payment" : "cashfree_apply_payment", {
       p_order_id: orderId,
       p_cf_payment_id: String(success.cf_payment_id),
       p_amount: Number(success.payment_amount),
@@ -129,7 +132,7 @@ export async function processWebhook(
 
   let result = "ignored";
   try {
-    if (!ORDER_ID_RE.test(orderId)) {
+    if (!isPaxoOrder(orderId)) {
       result = "ignored: not a PAXO order";
     } else if (type === "PAYMENT_SUCCESS_WEBHOOK" || type === "PAYMENT_FAILED_WEBHOOK" || type === "PAYMENT_USER_DROPPED_WEBHOOK") {
       // The body is only a hint to go and look; the answer comes from Cashfree, in the environment that signed this event.
@@ -139,7 +142,7 @@ export async function processWebhook(
       else result = r.status === "paid" ? `paid: ${r.result}` : r.status === "pending" ? "pending" : `not paid: ${r.order_status}`;
     } else if (type === "PAYMENT_CHARGES_WEBHOOK") {
       const sc = Number(body?.data?.charges_details?.service_charge), st = Number(body?.data?.charges_details?.service_tax);
-      const { data } = await d.rpc("cashfree_apply_charges", { p_order_id: orderId, p_service_charge: sc, p_service_tax: st });
+      const { data } = await d.rpc(isPartyOrder(orderId) ? "party_cashfree_apply_charges" : "cashfree_apply_charges", { p_order_id: orderId, p_service_charge: sc, p_service_tax: st });
       result = `charges: ${data?.result ?? "?"}`;
     } else {
       result = `ignored: ${type || "no type"}`; // refunds are manual at launch; refund status events are only logged
