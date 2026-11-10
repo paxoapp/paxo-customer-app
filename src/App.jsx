@@ -13,6 +13,9 @@ import {
   AlcoholNotice, ALCOHOL_NOTICE, StatusNotice, editNotice, lockMessage, saveErr,
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
+import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "./aboutCopy";
+import { LEGAL_PAGES, REFUND_TIMELINE } from "./legalCopy.js";
+import { LegalPage, LegalLinks } from "./legalPages.jsx";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
 import { PartiesScreen, PartyDetailScreen, PartyBookingsSection } from "./parties";
 
@@ -137,6 +140,37 @@ async function callFn(slug, token, body) {
     throw err;
   }
   return data;
+}
+
+// Which payment gateway is switched on (a setting in the database; Razorpay unless it says otherwise).
+// Any failure (offline, setting not there yet) means Razorpay, so a problem here can never block the existing flow.
+async function getPaymentProvider() {
+  try {
+    const r = await sb("/rest/v1/rpc/get_payment_provider", { method: "POST", body: {} });
+    if (r && r.provider === "cashfree") return { provider: "cashfree", mode: r.mode === "production" ? "production" : "sandbox" };
+  } catch (_e) { /* fall through */ }
+  return { provider: "razorpay", mode: null };
+}
+
+// Cashfree's checkout script is loaded only when a customer actually pays with Cashfree.
+function loadCashfreeSdk() {
+  if (window.Cashfree) return Promise.resolve(window.Cashfree);
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    el.async = true;
+    el.onload = () => (window.Cashfree ? resolve(window.Cashfree) : reject(new Error("Payment library didn't load — please refresh and try again.")));
+    el.onerror = () => reject(new Error("Payment library didn't load — please refresh and try again."));
+    document.head.appendChild(el);
+  });
+}
+
+function TestModeNote() {
+  return (
+    <p className="mt-2 text-xs font-semibold text-amber border border-amber/40 bg-amber/10 rounded-lg px-2.5 py-1.5" data-testid="payment-test-mode">
+      Test mode — payments here are not real. No money is charged.
+    </p>
+  );
 }
 
 // Same style as the partner app's own response-window countdown.
@@ -1853,27 +1887,53 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   );
 }
 
-function RefundReceiptBody({ booking, onFinalize }) {
+export function RefundReceiptBody({ booking, onFinalize }) {
   const b = booking;
-  // The refund fields live on the deposit payment row itself — written by
-  // process-booking-refund at cancellation time, so these are the actual
-  // Razorpay-processed values, not a pre-cancellation preview.
-  const depositPayment = (b.payments || []).find((p) => p.payment_type === "deposit");
+  // The refund fields live on the PAID deposit payment row — written by process-booking-refund at
+  // cancellation time (Razorpay or Cashfree), so these are the actual processed values. A booking can
+  // also have failed or abandoned deposit attempts; those carry no refund and must not be read.
+  const deposits = (b.payments || []).filter((p) => p.payment_type === "deposit");
+  const depositPayment = deposits.find((p) => p.status === "paid") || deposits[0];
   const refundPercent = Number(depositPayment?.refund_percent ?? 0);
   const depositPaid = Number(depositPayment?.amount || 0);
   const refundAmount = Number(depositPayment?.refund_amount ?? 0);
   const feeDeducted = Number(depositPayment?.gateway_fee_deducted || 0);
   const refundPending = depositPayment?.refund_status === "pending";
   const noRefund = refundPercent === 0 && refundAmount === 0;
+  // Same rows on screen and in the PDF. Nothing here restates the refund tiers: those live on the /refund page.
   const refundDetail = () => (
     <>
-      <Row k="Refund under the cancellation policy" v={`${money2(refundAmount + feeDeducted)} (${refundPercent}%)`} />
+      <Row k="Deposit paid" v={money2(depositPaid)} />
+      <Row k="Refund percentage applied" v={`${refundPercent}%`} />
+      <Row k="Refund under the cancellation policy" v={money2(refundAmount + feeDeducted)} />
       {feeDeducted > 0 && <Row k="Payment gateway fee deducted" v={`−${money2(feeDeducted)}`} />}
       <Row k="Refund amount" v={money2(refundAmount)} />
       {refundPending && (
-        <p className="text-sm text-stone-600 py-1.5">Your refund is being processed. It can take a few hours longer than usual.</p>
+        <p className="text-sm text-stone-600 py-1.5">
+          {depositPayment?.provider === "cashfree"
+            ? "Your refund has been approved and is being processed."
+            : "Your refund is being processed. It can take a few hours longer than usual."}
+        </p>
       )}
+      <p className="text-sm text-stone-600 py-1.5" data-testid="refund-timeline">{REFUND_TIMELINE}</p>
     </>
+  );
+  const noRefundDetail = () => (
+    <>
+      <Row k="Deposit paid" v={money2(depositPaid)} />
+      <p className="text-sm text-stone-600 py-1.5" data-testid="no-refund-reason">
+        No refund applies to this cancellation:{" "}
+        {b.booking_type === "late"
+          ? "a late booking's deposit is not refundable."
+          : "it was cancelled too close to the event for a refund under our policy."}
+      </p>
+    </>
+  );
+  const policyPointer = (
+    <p className="text-xs text-stone-500 mt-4" data-testid="refund-policy-pointer">
+      For our full cancellation and refund policy, see{" "}
+      <a href="https://www.mypaxo.in/refund" target="_blank" rel="noopener noreferrer" className="underline">www.mypaxo.in/refund</a>.
+    </p>
   );
   const cancelledOn = b.cancelled_at
     ? new Date(b.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
@@ -1946,11 +2006,8 @@ function RefundReceiptBody({ booking, onFinalize }) {
         <Row k="Venue" v={b.venues?.name} />
         <Row k="Event date" v={fmtDate(b.event_date)} />
         <Row k="Cancelled on" v={cancelledOn} />
-        {noRefund ? (
-          <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
-        ) : (
-          refundDetail()
-        )}
+        {noRefund ? noRefundDetail() : refundDetail()}
+        {policyPointer}
 
         {pdfError && <p className="text-xs text-red-600 mt-3">{pdfError}</p>}
         <div className="flex flex-wrap gap-2 mt-5">
@@ -1975,17 +2032,13 @@ function RefundReceiptBody({ booking, onFinalize }) {
         <Row k="Cancelled on" v={cancelledOn} />
 
         <div className="h-3" />
-        <Row k="Deposit paid" v={inr(depositPaid)} />
-        {noRefund ? (
-          <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
-        ) : (
-          refundDetail()
-        )}
+        {noRefund ? noRefundDetail() : refundDetail()}
 
         <div className="h-3" />
         <Row k="Name" v={b.contact_name} />
         <Row k="Mobile" v={b.contact_mobile} />
         <Row k="Email" v={b.contact_email} />
+        {policyPointer}
       </div>
     </div>
   );
@@ -2229,7 +2282,38 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const [screen, setScreen] = useState("browse");
+  // /about, /terms, /privacy, /refund and /contact are real URLs (also served as static HTML by scripts/make-about.mjs);
+  // every other screen keeps the app's own screen state
+  const PAGE_PATHS = { about: "/about", terms: "/terms", privacy: "/privacy", refund: "/refund", contact: "/contact" };
+  const pathScreen = () => {
+    const p = window.location.pathname.replace(/\/+$/, "");
+    return Object.keys(PAGE_PATHS).find((k) => PAGE_PATHS[k] === p) || null;
+  };
+  const [screen, setScreen] = useState(() => pathScreen() || "browse");
+  useEffect(() => {
+    const here = pathScreen();
+    const isPage = Object.prototype.hasOwnProperty.call(PAGE_PATHS, screen);
+    if (isPage && here !== screen) window.history.pushState(null, "", PAGE_PATHS[screen]);
+    if (!isPage && here) window.history.replaceState(null, "", "/");
+    const desc = document.querySelector('meta[name="description"]');
+    if (screen === "about") {
+      document.title = ABOUT_PAGE_TITLE;
+      if (desc) desc.setAttribute("content", ABOUT_DESCRIPTION);
+      window.scrollTo(0, 0);
+    } else if (LEGAL_PAGES[screen]) {
+      document.title = LEGAL_PAGES[screen].pageTitle;
+      if (desc) desc.setAttribute("content", LEGAL_PAGES[screen].description);
+      window.scrollTo(0, 0);
+    } else {
+      document.title = "Paxo — Book venues without the wait";
+      if (desc) desc.setAttribute("content", "PAXO lets groups book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi NCR.");
+    }
+  }, [screen]);
+  useEffect(() => {
+    const onPop = () => setScreen((s) => pathScreen() || (Object.prototype.hasOwnProperty.call(PAGE_PATHS, s) ? "browse" : s));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // Party Pool: the safe public list from party_public() (paid-seat counts only)
   const [parties, setParties] = useState([]);
   const [partiesLoading, setPartiesLoading] = useState(false);
@@ -2292,6 +2376,7 @@ export default function App() {
   const [myBookings, setMyBookings] = useState([]);
   const [myBookingsError, setMyBookingsError] = useState("");
   const [payingBookingId, setPayingBookingId] = useState(null);
+  const [payProvider, setPayProvider] = useState({ provider: "razorpay", mode: null });
   const [payError, setPayError] = useState({}); // keyed by booking id
   const [payAckId, setPayAckId] = useState(null); // booking id showing the partial-payment acknowledgement
   const [fbDraft, setFbDraft] = useState({}); // { [bookingId]: { rating, comment } }
@@ -2444,7 +2529,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
+          "payments(payment_type,status,provider,amount,paid_at,razorpay_payment_id,cashfree_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
@@ -2471,6 +2556,43 @@ export default function App() {
     }
   }, []);
 
+  // After Cashfree's checkout closes (or the customer comes back from a redirect) we do NOT believe the browser:
+  // the server asks Cashfree whether the order was paid. A few short re-checks cover the moment between "paid" and "reported".
+  async function confirmCashfreeOrder(orderId, bookingId) {
+    const say = (msg) => setPayError((m) => ({ ...m, [bookingId]: msg }));
+    for (let i = 0; i < 4; i++) {
+      const result = await callFn("verify-cashfree-payment", session.token, { order_id: orderId });
+      if (result.verified) { say(""); await loadMyBookings(session.token); return true; }
+      if (!result.pending) { say(result.error || "The payment was not completed."); return false; }
+      say(result.message || "Confirming your payment…");
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+    say("Your payment is still being confirmed. If money was taken, your booking will confirm on its own — check My Bookings in a minute.");
+    await loadMyBookings(session.token);
+    return false;
+  }
+
+  async function startCashfreePayment(booking, paymentType, prov) {
+    const order = await callFn("create-cashfree-order", session.token, {
+      booking_id: booking.id,
+      payment_type: paymentType,
+      acknowledged_non_refundable: payAckChecked[booking.id] === true,
+    });
+    const Cashfree = await loadCashfreeSdk();
+    const cashfree = Cashfree({ mode: order.mode === "production" ? "production" : "sandbox" });
+    // Modal checkout. When it closes we always ask the server what really happened.
+    const outcome = await cashfree.checkout({ paymentSessionId: order.payment_session_id, redirectTarget: "_modal" });
+    try {
+      const ok = await confirmCashfreeOrder(order.order_id, booking.id);
+      if (!ok && outcome?.error && !outcome.error.message?.toLowerCase().includes("order")) {
+        // closed or declined: the booking is unchanged and can be paid again
+        setPayError((m) => ({ ...m, [booking.id]: m[booking.id] || outcome.error.message || "The payment didn't go through. Please try again." }));
+      }
+    } finally {
+      setPayingBookingId(null);
+    }
+  }
+
   // Razorpay Checkout. `paymentType` is "deposit" or "full"; the amount is
   // computed server-side by create-razorpay-order — never sent from here.
   async function startPayment(booking, paymentType) {
@@ -2478,6 +2600,12 @@ export default function App() {
     setPayError((m) => ({ ...m, [booking.id]: "" }));
     setPayingBookingId(booking.id);
     try {
+      const prov = await getPaymentProvider();
+      setPayProvider(prov);
+      if (prov.provider === "cashfree") {
+        await startCashfreePayment(booking, paymentType, prov);
+        return;
+      }
       if (!window.Razorpay) {
         throw new Error("Payment library didn't load — please refresh and try again.");
       }
@@ -2882,6 +3010,28 @@ export default function App() {
     if (screen === "myBookings" && session) loadMyBookings(session.token);
     if (screen === "profile" && session) loadProfile(session.token, session.userId);
   }, [screen, session, loadVenues, loadBookingTypes, loadMyBookings, loadProfile]);
+
+  // Which gateway is on (drives the "Test mode" label). Refreshed whenever the customer opens My Bookings.
+  useEffect(() => {
+    let alive = true;
+    getPaymentProvider().then((p) => alive && setPayProvider(p));
+    return () => { alive = false; };
+  }, [screen]);
+
+  // Back from a Cashfree redirect (UPI app / 3-D Secure): ?cf_order=<order id>. Ask the server, then tidy the address bar.
+  const cfReturnDone = useRef(false);
+  useEffect(() => {
+    if (!session || cfReturnDone.current) return;
+    const orderId = new URLSearchParams(window.location.search).get("cf_order");
+    if (!orderId) return;
+    cfReturnDone.current = true;
+    window.history.replaceState(null, "", window.location.pathname);
+    setScreen("myBookings");
+    (async () => {
+      try { await callFn("verify-cashfree-payment", session.token, { order_id: orderId }); } catch (_e) { /* the list below shows the truth */ }
+      await loadMyBookings(session.token);
+    })();
+  }, [session, loadMyBookings]);
 
   // Keep the profile loaded in the background once signed in, so the booking form
   // can prefill the customer's name without a separate round trip.
@@ -3580,6 +3730,9 @@ export default function App() {
               Become a Partner
             </a>
           </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="legal-links-bar">
+            <LegalLinks />
+          </div>
         </div>
       </div>
     );
@@ -3700,6 +3853,9 @@ export default function App() {
               </button>
             </form>
           )}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="legal-links-bar">
+            <LegalLinks />
+          </div>
         </div>
       </div>
     );
@@ -3738,6 +3894,9 @@ export default function App() {
               {newPasswordLoading ? "Saving…" : "Save new password"}
             </button>
           </form>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="legal-links-bar">
+            <LegalLinks />
+          </div>
         </div>
       </div>
     );
@@ -5126,6 +5285,7 @@ export default function App() {
                                     ) : (
                                       <PayNote />
                                     )}
+                                    {payProvider.provider === "cashfree" && payProvider.mode === "sandbox" && <TestModeNote />}
                                     <button
                                       type="button"
                                       disabled={payingBookingId === b.id || (policyKind(b.booking_type) === "late" && payAckChecked[b.id] !== true)}
@@ -5560,6 +5720,20 @@ export default function App() {
             );
           })()}
 
+        {screen === "about" && (
+          <div className="max-w-xl" data-testid="about-page">
+            <h1 className="font-display text-3xl font-bold mb-3">{ABOUT_TITLE}</h1>
+            <p className="text-lg font-semibold text-ink mb-4">{ABOUT_LEAD}</p>
+            <div className="flex flex-col gap-4 text-haze leading-relaxed">
+              {ABOUT_PARAGRAPHS.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {LEGAL_PAGES[screen] && <LegalPage page={screen} />}
+
         {screen === "help" && (
           <div className="max-w-lg">
             <h1 className="font-display text-3xl font-bold mb-1">Help &amp; support</h1>
@@ -5612,6 +5786,18 @@ export default function App() {
 
       <footer className="bg-black/90 border-t border-white/10">
         <div className="max-w-4xl mx-auto px-5 pb-10 pt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          <a
+            href="/about"
+            onClick={(e) => {
+              e.preventDefault();
+              setScreen("about");
+            }}
+            className="text-xs text-haze/60 hover:text-amber transition-colors"
+            data-testid="footer-about"
+          >
+            About
+          </a>
+          <LegalLinks go={setScreen} />
           <span className="text-xs text-haze/40">Find us elsewhere</span>
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
           <WhatsAppFooterLink />
@@ -5635,7 +5821,7 @@ export default function App() {
           if (!b) return null;
           const paid = (b.payments || []).filter((p) => p.status === "paid");
           const amountPaid = paid.reduce((s, p) => s + Number(p.amount || 0), 0);
-          const paymentRef = paid.find((p) => p.razorpay_payment_id)?.razorpay_payment_id || null;
+          const paymentRef = paid.find((p) => p.razorpay_payment_id || p.cashfree_payment_id)?.razorpay_payment_id || paid.find((p) => p.cashfree_payment_id)?.cashfree_payment_id || null;
           return (
             <Modal title="Receipt" className="receipt-modal" onClose={() => setReceiptId(null)}>
               <ReceiptBody
