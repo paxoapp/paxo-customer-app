@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // Party page: menu voting for guests with a paid seat, and the final menu once PAXO has locked it.
 // Everything comes from database functions: a guest only ever gets their own vote plus aggregate bars, never who voted.
@@ -54,15 +54,18 @@ export function PartyMenuSection({ party, api }) {
   const [error, setError] = useState("");
   const signedIn = !!api?.session;
 
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const token = api?.session?.token || null;
   const load = useCallback(async () => {
     try {
-      const [voting, fin] = await Promise.all([rpcCall(api, "party_menu_voting", { p_party_id: party.id }), rpcCall(api, "party_menu_final", { p_party_id: party.id })]);
+      const [voting, fin] = await Promise.all([rpcCall(apiRef.current, "party_menu_voting", { p_party_id: party.id }), rpcCall(apiRef.current, "party_menu_final", { p_party_id: party.id })]);
       setV(voting);
       setFinal(fin);
     } catch (_e) {
       setV(null);
     }
-  }, [api, party.id]);
+  }, [token, party.id]);
   useEffect(() => {
     load();
   }, [load, signedIn]);

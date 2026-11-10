@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { MapPin, CalendarCheck, User, PartyPopper, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
 import {
   packageTaxView,
@@ -3003,6 +3003,11 @@ export default function App() {
     }
   }, []);
 
+  // One api object for the party screens. It used to be a fresh {...} on every App render (the hero carousel and other
+  // timers re-render App), and the party screens re-fetched and redrew whenever it changed. Now it changes only when the
+  // sign-in or profile does.
+  const partyApi = useMemo(() => ({ session, sb, callFn, profile }), [session, profile]);
+
   useEffect(() => {
     if (screen === "parties" || screen === "party") loadParties();
     if (screen === "browse") loadVenues();
@@ -4039,7 +4044,7 @@ export default function App() {
             party={parties.find((p) => p.id === selectedPartyId) || null}
             loading={partiesLoading}
             onBack={() => setScreen("parties")}
-            api={{ session, sb, callFn, profile }}
+            api={partyApi}
             onNeedLogin={() => setScreen("auth")}
             onChanged={loadParties}
           />
@@ -4936,7 +4941,7 @@ export default function App() {
 
             {session && (
               <PartyBookingsSection
-                api={{ session, sb, callFn, profile }}
+                api={partyApi}
                 onOpenParty={(id) => {
                   setSelectedPartyId(id);
                   setScreen("party");

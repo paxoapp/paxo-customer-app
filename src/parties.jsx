@@ -3,7 +3,7 @@
 // Counters come from the database function party_public(): PAID seats only, nothing about the venue deal or any other
 // customer. A customer's own booking comes from party_my_booking(). Every amount shown here is computed again by the
 // database when the payment is created, so a changed screen can never change what is charged.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PartyMenuSection, PartyInvoicesSection } from "./partyMenu";
 
 const inr = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
@@ -224,19 +224,24 @@ export async function startPartyPayment({ api, party, kind, guests, termsVersion
 
 function useMyBooking(api, partyId) {
   const [mine, setMine] = useState(null);
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const token = api?.session?.token || null;
   const reload = useCallback(async () => {
-    if (!api?.session || !partyId) {
+    const a = apiRef.current;
+    if (!a?.session || !partyId) {
       setMine(null);
       return null;
     }
     try {
-      const row = await api.sb("/rest/v1/rpc/party_my_booking", { method: "POST", token: api.session.token, body: { p_party_id: partyId } });
-      setMine(row || null);
+      const row = await a.sb("/rest/v1/rpc/party_my_booking", { method: "POST", token: a.session.token, body: { p_party_id: partyId } });
+      // keep the same object when nothing changed, so an unchanged answer redraws nothing
+      setMine((old) => (JSON.stringify(old) === JSON.stringify(row || null) ? old : row || null));
       return row || null;
     } catch (_e) {
       return null;
     }
-  }, [api, partyId]);
+  }, [token, partyId]);
   useEffect(() => {
     reload();
   }, [reload]);
@@ -346,21 +351,26 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
   const needsPhone = prov.provider === "cashfree";
   const holdMinutes = prov.provider === "cashfree" ? 16 : 10;
 
+  // The effects below read api through a ref and depend only on plain values, so a new api object (or any parent
+  // re-render) can never re-run them: the provider is read once and the quote is asked for only when it can change.
+  const apiRef = useRef(api);
+  apiRef.current = api;
   useEffect(() => {
     let alive = true;
-    getPartyProvider(api).then((p) => alive && setProv(p));
+    getPartyProvider(apiRef.current).then((p) => alive && setProv((old) => (old.provider === p.provider && old.mode === p.mode ? old : p)));
     return () => { alive = false; };
-  }, [api]);
+  }, []);
 
   // The amount comes from the database (party_quote); this screen never works out money itself.
+  // Asked again ONLY when the seat count, the party or its status changes - never on a timer.
   useEffect(() => {
     let alive = true;
     setQuote(null);
-    api.sb("/rest/v1/rpc/party_quote", { method: "POST", body: { p_party_id: party.id, p_seats: people.length } })
+    apiRef.current.sb("/rest/v1/rpc/party_quote", { method: "POST", body: { p_party_id: party.id, p_seats: people.length } })
       .then((q) => alive && setQuote(q || null))
       .catch(() => alive && setQuote(null));
     return () => { alive = false; };
-  }, [api, party.id, people.length, party.status]);
+  }, [party.id, people.length, party.status]);
 
   function setCount(n) {
     const next = Math.min(Math.max(n, 1), Math.max(cap, 1));
