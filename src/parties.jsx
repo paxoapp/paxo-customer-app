@@ -5,6 +5,7 @@
 // database when the payment is created, so a changed screen can never change what is charged.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PartyMenuSection, PartyInvoicesSection } from "./partyMenu";
+import { PartyGallery } from "./partyGallery";
 
 const inr = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const inr2 = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -687,6 +688,7 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
       <button className="text-sm text-haze hover:text-ink mb-4" onClick={onBack}>← All parties</button>
       <div className="rounded-2xl overflow-hidden bg-surface border border-white/10 shadow-card">
         <Cover party={party} className={party.cover_photo_url ? "h-48" : "h-24"} />
+        <PartyGallery venueId={party.venue_id} api={api} />
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <h1 className="font-display text-2xl font-bold text-ink leading-tight">{party.title}</h1>
