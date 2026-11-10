@@ -1908,7 +1908,11 @@ export function RefundReceiptBody({ booking, onFinalize }) {
       {feeDeducted > 0 && <Row k="Payment gateway fee deducted" v={`−${money2(feeDeducted)}`} />}
       <Row k="Refund amount" v={money2(refundAmount)} />
       {refundPending && (
-        <p className="text-sm text-stone-600 py-1.5">Your refund is being processed. It can take a few hours longer than usual.</p>
+        <p className="text-sm text-stone-600 py-1.5">
+          {depositPayment?.provider === "cashfree"
+            ? "Your refund has been approved and is being processed."
+            : "Your refund is being processed. It can take a few hours longer than usual."}
+        </p>
       )}
       <p className="text-sm text-stone-600 py-1.5" data-testid="refund-timeline">{REFUND_TIMELINE}</p>
     </>
@@ -2519,7 +2523,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,cashfree_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
+          "payments(payment_type,status,provider,amount,paid_at,razorpay_payment_id,cashfree_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
