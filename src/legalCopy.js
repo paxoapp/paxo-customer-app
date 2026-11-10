@@ -3,6 +3,8 @@
 // Block types: p (paragraph), h (small heading), ol ([head|null, text] items), ul (text items),
 // table (head + rows), contact ({label, value, href?} items).
 export const LEGAL_UPDATED = "Last updated: 5 November 2026";
+// The refund timeline sentence. The /refund page and the customer's refund receipt both read it from here, so they cannot drift.
+export const REFUND_TIMELINE = "Approved refunds reach your original payment method within 7 to 10 business days.";
 
 export const LEGAL_PAGES = {
   terms: {
@@ -98,7 +100,7 @@ export const LEGAL_PAGES = {
           [null, "If the venue declines your request or does not respond in time, nothing is charged."],
           [null, "If the venue cancels or cannot honour a confirmed booking, you receive 100% of the booking amount, even on a late booking."],
           [null, "When you cancel, the payment gateway fee is deducted from your refund. In every other case PAXO bears it."],
-          [null, "Approved refunds reach your original payment method within 7 to 10 business days."],
+          [null, REFUND_TIMELINE],
           [null, "You cannot cancel after you have checked in at the venue."],
           [null, "The balance is paid directly to the venue at the event, and the venue issues the final bill. PAXO does not collect the balance."],
           [null, "Party Pool parties have their own rules, shown on each party page. Their deposits are not refundable once paid, unless PAXO or the venue cancels the party or the minimum number of guests is not reached. Then you receive a 100% refund within 7 to 10 working days."],

@@ -14,7 +14,7 @@ import {
   disclosureOkText, addonOkText, CANCEL_PENDING_OK, feedbackOkText, menuSavedText,
 } from "./policy";
 import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "./aboutCopy";
-import { LEGAL_PAGES } from "./legalCopy.js";
+import { LEGAL_PAGES, REFUND_TIMELINE } from "./legalCopy.js";
 import { LegalPage, LegalLinks } from "./legalPages.jsx";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
 
@@ -1886,27 +1886,53 @@ function ReceiptBody({ booking, amountPaid, paymentRef, onFinalize }) {
   );
 }
 
-function RefundReceiptBody({ booking, onFinalize }) {
+export function RefundReceiptBody({ booking, onFinalize }) {
   const b = booking;
-  // The refund fields live on the deposit payment row itself — written by
-  // process-booking-refund at cancellation time, so these are the actual
-  // Razorpay-processed values, not a pre-cancellation preview.
-  const depositPayment = (b.payments || []).find((p) => p.payment_type === "deposit");
+  // The refund fields live on the PAID deposit payment row — written by process-booking-refund at
+  // cancellation time (Razorpay or Cashfree), so these are the actual processed values. A booking can
+  // also have failed or abandoned deposit attempts; those carry no refund and must not be read.
+  const deposits = (b.payments || []).filter((p) => p.payment_type === "deposit");
+  const depositPayment = deposits.find((p) => p.status === "paid") || deposits[0];
   const refundPercent = Number(depositPayment?.refund_percent ?? 0);
   const depositPaid = Number(depositPayment?.amount || 0);
   const refundAmount = Number(depositPayment?.refund_amount ?? 0);
   const feeDeducted = Number(depositPayment?.gateway_fee_deducted || 0);
   const refundPending = depositPayment?.refund_status === "pending";
   const noRefund = refundPercent === 0 && refundAmount === 0;
+  // Same rows on screen and in the PDF. Nothing here restates the refund tiers: those live on the /refund page.
   const refundDetail = () => (
     <>
-      <Row k="Refund under the cancellation policy" v={`${money2(refundAmount + feeDeducted)} (${refundPercent}%)`} />
+      <Row k="Deposit paid" v={money2(depositPaid)} />
+      <Row k="Refund percentage applied" v={`${refundPercent}%`} />
+      <Row k="Refund under the cancellation policy" v={money2(refundAmount + feeDeducted)} />
       {feeDeducted > 0 && <Row k="Payment gateway fee deducted" v={`−${money2(feeDeducted)}`} />}
       <Row k="Refund amount" v={money2(refundAmount)} />
       {refundPending && (
-        <p className="text-sm text-stone-600 py-1.5">Your refund is being processed. It can take a few hours longer than usual.</p>
+        <p className="text-sm text-stone-600 py-1.5">
+          {depositPayment?.provider === "cashfree"
+            ? "Your refund has been approved and is being processed."
+            : "Your refund is being processed. It can take a few hours longer than usual."}
+        </p>
       )}
+      <p className="text-sm text-stone-600 py-1.5" data-testid="refund-timeline">{REFUND_TIMELINE}</p>
     </>
+  );
+  const noRefundDetail = () => (
+    <>
+      <Row k="Deposit paid" v={money2(depositPaid)} />
+      <p className="text-sm text-stone-600 py-1.5" data-testid="no-refund-reason">
+        No refund applies to this cancellation:{" "}
+        {b.booking_type === "late"
+          ? "a late booking's deposit is not refundable."
+          : "it was cancelled too close to the event for a refund under our policy."}
+      </p>
+    </>
+  );
+  const policyPointer = (
+    <p className="text-xs text-stone-500 mt-4" data-testid="refund-policy-pointer">
+      For our full cancellation and refund policy, see{" "}
+      <a href="https://www.mypaxo.in/refund" target="_blank" rel="noopener noreferrer" className="underline">www.mypaxo.in/refund</a>.
+    </p>
   );
   const cancelledOn = b.cancelled_at
     ? new Date(b.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
@@ -1979,11 +2005,8 @@ function RefundReceiptBody({ booking, onFinalize }) {
         <Row k="Venue" v={b.venues?.name} />
         <Row k="Event date" v={fmtDate(b.event_date)} />
         <Row k="Cancelled on" v={cancelledOn} />
-        {noRefund ? (
-          <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
-        ) : (
-          refundDetail()
-        )}
+        {noRefund ? noRefundDetail() : refundDetail()}
+        {policyPointer}
 
         {pdfError && <p className="text-xs text-red-600 mt-3">{pdfError}</p>}
         <div className="flex flex-wrap gap-2 mt-5">
@@ -2008,17 +2031,13 @@ function RefundReceiptBody({ booking, onFinalize }) {
         <Row k="Cancelled on" v={cancelledOn} />
 
         <div className="h-3" />
-        <Row k="Deposit paid" v={inr(depositPaid)} />
-        {noRefund ? (
-          <p className="text-sm text-stone-600 py-1.5">No refund applies to this cancellation.</p>
-        ) : (
-          refundDetail()
-        )}
+        {noRefund ? noRefundDetail() : refundDetail()}
 
         <div className="h-3" />
         <Row k="Name" v={b.contact_name} />
         <Row k="Mobile" v={b.contact_mobile} />
         <Row k="Email" v={b.contact_email} />
+        {policyPointer}
       </div>
     </div>
   );
@@ -2504,7 +2523,7 @@ export default function App() {
         "/rest/v1/bookings?select=*," +
           "venues(name,city,area,venue_type,menu_categories(id,kind,menu_items(id,name,is_available)))," +
           "venue_packages(name,price_per_head,includes_alcohol,gst_mode,includes_dj,dj_notes,discount_percent,menu_quota_rules(category_kind,quota_count),package_item_pool(menu_item_id))," +
-          "payments(payment_type,status,amount,paid_at,razorpay_payment_id,cashfree_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
+          "payments(payment_type,status,provider,amount,paid_at,razorpay_payment_id,cashfree_payment_id,refund_percent,refund_amount,refund_status,gateway_fee_deducted)," +
           "booking_feedback(id,rating,comment,status)," +
           "booking_menu_selections(menu_item_id)," +
           "booking_addon_requests(id,addon_name,addon_description,status,price,customer_responded_at)" +
