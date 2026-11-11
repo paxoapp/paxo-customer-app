@@ -3008,8 +3008,32 @@ export default function App() {
   // sign-in or profile does.
   const partyApi = useMemo(() => ({ session, sb, callFn, profile }), [session, profile]);
 
+  // Party Pool visibility switch (platform_settings.party_pool_visibility: off / testers / all). The database decides
+  // (party_pool_access); this screen starts CLOSED, fails closed, and shows no party entry point until the answer is yes.
+  // Keyed on the user id (not the session object) so a token refresh does not flip it off and on.
+  const [partyAllowed, setPartyAllowed] = useState(false);
+  const partyUserId = session?.userId || null;
+  const partyTokenRef = useRef(null);
+  partyTokenRef.current = session?.token || null;
   useEffect(() => {
-    if (screen === "parties" || screen === "party") loadParties();
+    let alive = true;
+    setPartyAllowed(false);
+    sb("/rest/v1/rpc/party_pool_access", { method: "POST", body: {}, token: partyTokenRef.current || undefined })
+      .then((ok) => alive && setPartyAllowed(ok === true))
+      .catch(() => alive && setPartyAllowed(false));
+    return () => { alive = false; };
+  }, [partyUserId]);
+  useEffect(() => {
+    if (partyAllowed) return;
+    setParties([]);
+    setSelectedPartyId(null);
+    setScreen((s) => (s === "parties" || s === "party" ? "browse" : s));
+  }, [partyAllowed]);
+  useEffect(() => {
+    if (partyAllowed && (screen === "parties" || screen === "party")) loadParties();
+  }, [partyAllowed, screen, loadParties]);
+
+  useEffect(() => {
     if (screen === "browse") loadVenues();
     if (screen === "request") loadBookingTypes();
     if (screen === "myBookings" && session) loadMyBookings(session.token);
@@ -3940,12 +3964,14 @@ export default function App() {
                 >
                   Venues
                 </button>
-                <button
-                  className={`transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
-                  onClick={() => setScreen("parties")}
-                >
-                  Parties
-                </button>
+                {partyAllowed && (
+                  <button
+                    className={`transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
+                    onClick={() => setScreen("parties")}
+                  >
+                    Parties
+                  </button>
+                )}
                 <button
                   className={`transition-colors ${screen === "myBookings" ? "text-ink" : "text-haze hover:text-ink"}`}
                   onClick={() => setScreen("myBookings")}
@@ -4001,12 +4027,14 @@ export default function App() {
               >
                 Venues
               </button>
-              <button
-                className={`hidden sm:inline text-sm transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
-                onClick={() => setScreen("parties")}
-              >
-                Parties
-              </button>
+              {partyAllowed && (
+                <button
+                  className={`hidden sm:inline text-sm transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
+                  onClick={() => setScreen("parties")}
+                >
+                  Parties
+                </button>
+              )}
               <a
                 href="https://partner.mypaxo.in"
                 className="text-xs text-haze/60 hover:text-haze transition-colors"
@@ -4025,7 +4053,7 @@ export default function App() {
       </header>
 
       <main key={screen} className="max-w-4xl mx-auto px-5 py-8">
-        {screen === "parties" && (
+        {screen === "parties" && partyAllowed && (
           <PartiesScreen
             parties={parties}
             loading={partiesLoading}
@@ -4039,7 +4067,7 @@ export default function App() {
           />
         )}
 
-        {screen === "party" && (
+        {screen === "party" && partyAllowed && (
           <PartyDetailScreen
             party={parties.find((p) => p.id === selectedPartyId) || null}
             loading={partiesLoading}
@@ -4057,19 +4085,21 @@ export default function App() {
             </h1>
             <p className="text-haze text-sm mb-5">Restaurants, cafés, bars, lounges and clubs — ready for your celebration.</p>
 
-            <button
-              type="button"
-              onClick={() => setScreen("parties")}
-              className="w-full flex items-center gap-3 text-left rounded-2xl bg-surface border border-white/10 hover:border-amber/50 transition-colors shadow-card px-4 py-3 mb-5"
-              data-testid="parties-entry"
-            >
-              <PartyPopper size={22} className="text-amber shrink-0" />
-              <span className="flex-1">
-                <span className="block text-sm font-semibold text-ink">Parties</span>
-                <span className="block text-xs text-haze">Themed group nights at top venues. Grab a seat.</span>
-              </span>
-              <span className="text-haze">→</span>
-            </button>
+            {partyAllowed && (
+              <button
+                type="button"
+                onClick={() => setScreen("parties")}
+                className="w-full flex items-center gap-3 text-left rounded-2xl bg-surface border border-white/10 hover:border-amber/50 transition-colors shadow-card px-4 py-3 mb-5"
+                data-testid="parties-entry"
+              >
+                <PartyPopper size={22} className="text-amber shrink-0" />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-ink">Parties</span>
+                  <span className="block text-xs text-haze">Themed group nights at top venues. Grab a seat.</span>
+                </span>
+                <span className="text-haze">→</span>
+              </button>
+            )}
 
             {venues.length > 0 && (
               <div
@@ -4939,7 +4969,7 @@ export default function App() {
             <h1 className="font-display text-3xl font-bold mb-1">My requests</h1>
             <p className="text-haze text-sm mb-4">Track the status of every booking you've requested.</p>
 
-            {session && (
+            {session && partyAllowed && (
               <PartyBookingsSection
                 api={partyApi}
                 onOpenParty={(id) => {
@@ -5903,7 +5933,7 @@ export default function App() {
         >
           {[
             { key: "browse", label: "Venues", Icon: MapPin },
-            { key: "parties", label: "Parties", Icon: PartyPopper },
+            ...(partyAllowed ? [{ key: "parties", label: "Parties", Icon: PartyPopper }] : []),
             { key: "myBookings", label: "Bookings", Icon: CalendarCheck },
             { key: "profile", label: "Profile", Icon: User },
           ].map(({ key, label, Icon }) => {
