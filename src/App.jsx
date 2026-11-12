@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { MapPin, CalendarCheck, User, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { MapPin, CalendarCheck, User, PartyPopper, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
 import {
   packageTaxView,
   computeBookingTax,
@@ -17,6 +17,7 @@ import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PAR
 import { LEGAL_PAGES, REFUND_TIMELINE } from "./legalCopy.js";
 import { LegalPage, LegalLinks } from "./legalPages.jsx";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
+import { PartiesScreen, PartyDetailScreen, PartyBookingsSection, confirmPartyCashfree } from "./parties";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
 // the caller via `linkClass` so each surface keeps its own theme.
@@ -2313,6 +2314,11 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
+  // Party Pool: the safe public list from party_public() (paid-seat counts only)
+  const [parties, setParties] = useState([]);
+  const [partiesLoading, setPartiesLoading] = useState(false);
+  const [partiesError, setPartiesError] = useState("");
+  const [selectedPartyId, setSelectedPartyId] = useState(null);
   // Every screen renders in normal document flow (window/document is the
   // scroll owner, no inner scrollable container) — without this, a screen
   // change keeps whatever scroll offset the previous screen was at (e.g. the
@@ -2984,6 +2990,49 @@ export default function App() {
     window.history.replaceState(null, "", "/");
   }, [venues, pendingDeepLink]);
 
+  const loadParties = useCallback(async () => {
+    setPartiesLoading(true);
+    setPartiesError("");
+    try {
+      const rows = await sb("/rest/v1/rpc/party_public", { method: "POST", body: {} });
+      setParties(rows || []);
+    } catch (e) {
+      setPartiesError("Could not load parties. Please try again.");
+    } finally {
+      setPartiesLoading(false);
+    }
+  }, []);
+
+  // One api object for the party screens. It used to be a fresh {...} on every App render (the hero carousel and other
+  // timers re-render App), and the party screens re-fetched and redrew whenever it changed. Now it changes only when the
+  // sign-in or profile does.
+  const partyApi = useMemo(() => ({ session, sb, callFn, profile }), [session, profile]);
+
+  // Party Pool visibility switch (platform_settings.party_pool_visibility: off / testers / all). The database decides
+  // (party_pool_access); this screen starts CLOSED, fails closed, and shows no party entry point until the answer is yes.
+  // Keyed on the user id (not the session object) so a token refresh does not flip it off and on.
+  const [partyAllowed, setPartyAllowed] = useState(false);
+  const partyUserId = session?.userId || null;
+  const partyTokenRef = useRef(null);
+  partyTokenRef.current = session?.token || null;
+  useEffect(() => {
+    let alive = true;
+    setPartyAllowed(false);
+    sb("/rest/v1/rpc/party_pool_access", { method: "POST", body: {}, token: partyTokenRef.current || undefined })
+      .then((ok) => alive && setPartyAllowed(ok === true))
+      .catch(() => alive && setPartyAllowed(false));
+    return () => { alive = false; };
+  }, [partyUserId]);
+  useEffect(() => {
+    if (partyAllowed) return;
+    setParties([]);
+    setSelectedPartyId(null);
+    setScreen((s) => (s === "parties" || s === "party" ? "browse" : s));
+  }, [partyAllowed]);
+  useEffect(() => {
+    if (partyAllowed && (screen === "parties" || screen === "party")) loadParties();
+  }, [partyAllowed, screen, loadParties]);
+
   useEffect(() => {
     if (screen === "browse") loadVenues();
     if (screen === "request") loadBookingTypes();
@@ -3009,6 +3058,21 @@ export default function App() {
     setScreen("myBookings");
     (async () => {
       try { await callFn("verify-cashfree-payment", session.token, { order_id: orderId }); } catch (_e) { /* the list below shows the truth */ }
+      await loadMyBookings(session.token);
+    })();
+  }, [session, loadMyBookings]);
+
+  // Back from a Cashfree redirect for PARTY seats (UPI app / 3-D Secure): ?cf_party_order=<order id>.
+  const cfPartyReturnDone = useRef(false);
+  useEffect(() => {
+    if (!session || cfPartyReturnDone.current) return;
+    const orderId = new URLSearchParams(window.location.search).get("cf_party_order");
+    if (!orderId) return;
+    cfPartyReturnDone.current = true;
+    window.history.replaceState(null, "", window.location.pathname);
+    setScreen("myBookings");
+    (async () => {
+      try { await confirmPartyCashfree({ session, callFn }, orderId); } catch (_e) { /* the list below shows the truth */ }
       await loadMyBookings(session.token);
     })();
   }, [session, loadMyBookings]);
@@ -3900,6 +3964,14 @@ export default function App() {
                 >
                   Venues
                 </button>
+                {partyAllowed && (
+                  <button
+                    className={`transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
+                    onClick={() => setScreen("parties")}
+                  >
+                    Parties
+                  </button>
+                )}
                 <button
                   className={`transition-colors ${screen === "myBookings" ? "text-ink" : "text-haze hover:text-ink"}`}
                   onClick={() => setScreen("myBookings")}
@@ -3949,6 +4021,20 @@ export default function App() {
             </nav>
           ) : (
             <div className="flex items-center gap-4">
+              <button
+                className={`hidden sm:inline text-sm transition-colors ${screen === "browse" ? "text-ink" : "text-haze hover:text-ink"}`}
+                onClick={() => setScreen("browse")}
+              >
+                Venues
+              </button>
+              {partyAllowed && (
+                <button
+                  className={`hidden sm:inline text-sm transition-colors ${screen === "parties" || screen === "party" ? "text-ink" : "text-haze hover:text-ink"}`}
+                  onClick={() => setScreen("parties")}
+                >
+                  Parties
+                </button>
+              )}
               <a
                 href="https://partner.mypaxo.in"
                 className="text-xs text-haze/60 hover:text-haze transition-colors"
@@ -3967,12 +4053,53 @@ export default function App() {
       </header>
 
       <main key={screen} className="max-w-4xl mx-auto px-5 py-8">
+        {screen === "parties" && partyAllowed && (
+          <PartiesScreen
+            parties={parties}
+            loading={partiesLoading}
+            error={partiesError}
+            onRetry={loadParties}
+            onOpen={(p) => {
+              setSelectedPartyId(p.id);
+              setScreen("party");
+              window.scrollTo(0, 0);
+            }}
+          />
+        )}
+
+        {screen === "party" && partyAllowed && (
+          <PartyDetailScreen
+            party={parties.find((p) => p.id === selectedPartyId) || null}
+            loading={partiesLoading}
+            onBack={() => setScreen("parties")}
+            api={partyApi}
+            onNeedLogin={() => setScreen("auth")}
+            onChanged={loadParties}
+          />
+        )}
+
         {screen === "browse" && (
           <div>
             <h1 className="font-display text-3xl font-bold mb-1">
               Book <span className="text-amber">venues</span> without a wait
             </h1>
             <p className="text-haze text-sm mb-5">Restaurants, cafés, bars, lounges and clubs — ready for your celebration.</p>
+
+            {partyAllowed && (
+              <button
+                type="button"
+                onClick={() => setScreen("parties")}
+                className="w-full flex items-center gap-3 text-left rounded-2xl bg-surface border border-white/10 hover:border-amber/50 transition-colors shadow-card px-4 py-3 mb-5"
+                data-testid="parties-entry"
+              >
+                <PartyPopper size={22} className="text-amber shrink-0" />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-ink">Parties</span>
+                  <span className="block text-xs text-haze">Themed group nights at top venues. Grab a seat.</span>
+                </span>
+                <span className="text-haze">→</span>
+              </button>
+            )}
 
             {venues.length > 0 && (
               <div
@@ -4841,6 +4968,17 @@ export default function App() {
           <div>
             <h1 className="font-display text-3xl font-bold mb-1">My requests</h1>
             <p className="text-haze text-sm mb-4">Track the status of every booking you've requested.</p>
+
+            {session && partyAllowed && (
+              <PartyBookingsSection
+                api={partyApi}
+                onOpenParty={(id) => {
+                  setSelectedPartyId(id);
+                  setScreen("party");
+                  window.scrollTo(0, 0);
+                }}
+              />
+            )}
 
             <div className="flex flex-wrap gap-2 mb-6">
               {BOOKINGS_TABS.map((t) => (
@@ -5795,6 +5933,7 @@ export default function App() {
         >
           {[
             { key: "browse", label: "Venues", Icon: MapPin },
+            ...(partyAllowed ? [{ key: "parties", label: "Parties", Icon: PartyPopper }] : []),
             { key: "myBookings", label: "Bookings", Icon: CalendarCheck },
             { key: "profile", label: "Profile", Icon: User },
           ].map(({ key, label, Icon }) => {
