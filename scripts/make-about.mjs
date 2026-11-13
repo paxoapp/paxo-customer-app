@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "../src/aboutCopy.js";
 import { LEGAL_PAGES, LEGAL_UPDATED, LEGAL_LINKS } from "../src/legalCopy.js";
+import { LANDING_LINKS } from "../src/seoLinks.js";
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const shell = readFileSync("dist/index.html", "utf8");
@@ -30,6 +31,9 @@ function legalBody(p) {
 const footerLinks =
   `<p style="margin-top:32px;font-size:13px">` +
   [["/about", "About"], ...LEGAL_LINKS.map(([k, l]) => [LEGAL_PAGES[k].path, l])].map(([h, l]) => `<a href="${h}" style="${link};margin-right:14px">${esc(l)}</a>`).join("") +
+  `</p>` +
+  `<p style="font-size:13px;line-height:2">` +
+  [["/venues/", "All venues"], ...LANDING_LINKS].map(([h, l]) => `<a href="${h}" style="${link};margin-right:14px">${esc(l)}</a>`).join("") +
   `</p>`;
 
 function write(path, title, desc, inner) {

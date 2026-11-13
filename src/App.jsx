@@ -16,6 +16,7 @@ import {
 import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "./aboutCopy";
 import { LEGAL_PAGES, REFUND_TIMELINE } from "./legalCopy.js";
 import { LegalPage, LegalLinks } from "./legalPages.jsx";
+import { LANDING_LINKS } from "./seoLinks.js";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
 import { PartiesScreen, PartyDetailScreen, PartyBookingsSection, confirmPartyCashfree } from "./parties";
 
@@ -5853,6 +5854,15 @@ export default function App() {
           <SocialLinks linkClass="text-haze/40 hover:text-amber" />
           <WhatsAppFooterLink />
         </div>
+        {/* Static SEO pages (scripts/make-venue-pages.mjs) — plain links, full page loads */}
+        <nav aria-label="Popular searches" className="max-w-4xl mx-auto px-5 pb-10 -mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          <a href="/venues/" className="text-xs text-haze/50 hover:text-amber transition-colors">All venues</a>
+          {LANDING_LINKS.map(([href, label]) => (
+            <a key={href} href={href} className="text-xs text-haze/50 hover:text-amber transition-colors">
+              {label}
+            </a>
+          ))}
+        </nav>
 
       </footer>
 
