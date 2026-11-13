@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/make-about.mjs",
+    "build": "node scripts/make-venue-pages.mjs && vite build && node scripts/make-about.mjs",
+    "venue-pages": "node scripts/make-venue-pages.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
