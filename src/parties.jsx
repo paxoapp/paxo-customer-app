@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PartyMenuSection, PartyInvoicesSection } from "./partyMenu";
 import { PartyGallery } from "./partyGallery";
+import { PartyNextBox, PartyReceiptModal, useMyReceipts } from "./partyReceipt";
 
 const inr = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 const inr2 = (n) => Number(n || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -273,7 +274,7 @@ function BalanceBox({ mine, busy, onPay, error }) {
   );
 }
 
-function MyBookingSummary({ mine }) {
+function MyBookingSummary({ mine, party, receipts, onViewReceipt }) {
   if (!mine) return null;
   if (mine.status === "forfeited") {
     return (
@@ -286,7 +287,13 @@ function MyBookingSummary({ mine }) {
   const refundDue = Number(mine.refund_due || 0);
   const refunded = Number(mine.refunded || 0);
   return (
+    <>
     <div className="mt-4 rounded-xl bg-white/5 border border-white/10 p-4 text-sm" data-testid="party-mine">
+      {mine.seats_paid > 0 && mine.status === "active" && refundDue === 0 && refunded === 0 && (
+        <p className="text-emerald-400 font-semibold mb-2" data-testid="party-youre-in">
+          {mine.seats_paid > 1 ? "You're in. Your seats are reserved." : "You're in. Your seat is reserved."}
+        </p>
+      )}
       {mine.seats_paid > 0 && (
         <p className="text-ink font-semibold">
           Your seats: {mine.seats_paid} ({mine.male_paid} male · {mine.female_paid} female)
@@ -319,7 +326,14 @@ function MyBookingSummary({ mine }) {
       {mine.seats_paid > 0 && refundDue === 0 && refunded === 0 && mine.status === "active" && (
         <p className="text-xs text-haze mt-2">There is no cancel option. The 30% deposit is non-refundable.</p>
       )}
+      {Array.isArray(receipts) && receipts.length > 0 && (
+        <button type="button" onClick={onViewReceipt} className="mt-3 rounded-full border border-amber/60 text-amber font-semibold px-4 py-1.5 text-sm" data-testid="party-view-receipt">
+          View receipt
+        </button>
+      )}
     </div>
+    <PartyNextBox party={party} mine={mine} />
+    </>
   );
 }
 
@@ -655,6 +669,8 @@ export function PartiesScreen({ parties, loading, error, onOpen, onRetry }) {
 // api = { session, sb, callFn } passed from the app (this file never imports the app)
 export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, onChanged }) {
   const [mine, reloadMine] = useMyBooking(api, party?.id);
+  const receipts = useMyReceipts(api, party?.id, !!mine?.booking_id, `${mine?.seats_paid || 0}:${mine?.paid_amount || 0}:${mine?.refunded || 0}`);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [balBusy, setBalBusy] = useState(false);
   const [balError, setBalError] = useState("");
 
@@ -736,7 +752,8 @@ export function PartyDetailScreen({ party, loading, onBack, api, onNeedLogin, on
             )}
           </div>
 
-          <MyBookingSummary mine={mine} />
+          <MyBookingSummary mine={mine} party={party} receipts={receipts} onViewReceipt={() => setShowReceipt(true)} />
+          {showReceipt && <PartyReceiptModal receipts={receipts} onClose={() => setShowReceipt(false)} />}
           {!blocked && <BalanceBox mine={mine} busy={balBusy} onPay={payBalance} error={balError} />}
 
           {party.joining_open && !blocked ? (

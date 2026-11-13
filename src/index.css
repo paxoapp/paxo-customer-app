@@ -116,3 +116,26 @@
     display: none !important;
   }
 }
+
+/* Party Pool deposit receipt: the receipt layer is rendered outside the app shell (#root). When it is open, only it prints. */
+@media print {
+  body.party-receipt-open #root {
+    display: none !important;
+  }
+  .party-receipt-overlay {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  .party-receipt-overlay .party-receipt-card {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  .party-receipt-overlay .receipt-print {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
