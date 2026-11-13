@@ -356,6 +356,7 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
   // re-render) can never re-run them: the provider is read once and the quote is asked for only when it can change.
   const apiRef = useRef(api);
   apiRef.current = api;
+  const userId = api?.session?.userId || null;
   useEffect(() => {
     let alive = true;
     getPartyProvider(apiRef.current).then((p) => alive && setProv((old) => (old.provider === p.provider && old.mode === p.mode ? old : p)));
@@ -367,11 +368,11 @@ function JoinBox({ party, mine, api, onNeedLogin, onChanged }) {
   useEffect(() => {
     let alive = true;
     setQuote(null);
-    apiRef.current.sb("/rest/v1/rpc/party_quote", { method: "POST", body: { p_party_id: party.id, p_seats: people.length } })
+    apiRef.current.sb("/rest/v1/rpc/party_quote", { method: "POST", token: apiRef.current.session?.token, body: { p_party_id: party.id, p_seats: people.length } })
       .then((q) => alive && setQuote(q || null))
       .catch(() => alive && setQuote(null));
     return () => { alive = false; };
-  }, [party.id, people.length, party.status]);
+  }, [party.id, people.length, party.status, userId]);
 
   function setCount(n) {
     const next = Math.min(Math.max(n, 1), Math.max(cap, 1));

@@ -2990,11 +2990,14 @@ export default function App() {
     window.history.replaceState(null, "", "/");
   }, [venues, pendingDeepLink]);
 
+  // the signed-in user's token, read at call time (party_public needs auth.uid() in 'testers' mode)
+  const partyTokenRef = useRef(null);
+  partyTokenRef.current = session?.token || null;
   const loadParties = useCallback(async () => {
     setPartiesLoading(true);
     setPartiesError("");
     try {
-      const rows = await sb("/rest/v1/rpc/party_public", { method: "POST", body: {} });
+      const rows = await sb("/rest/v1/rpc/party_public", { method: "POST", body: {}, token: partyTokenRef.current || undefined });
       setParties(rows || []);
     } catch (e) {
       setPartiesError("Could not load parties. Please try again.");
@@ -3013,8 +3016,6 @@ export default function App() {
   // Keyed on the user id (not the session object) so a token refresh does not flip it off and on.
   const [partyAllowed, setPartyAllowed] = useState(false);
   const partyUserId = session?.userId || null;
-  const partyTokenRef = useRef(null);
-  partyTokenRef.current = session?.token || null;
   useEffect(() => {
     let alive = true;
     setPartyAllowed(false);
@@ -3031,7 +3032,7 @@ export default function App() {
   }, [partyAllowed]);
   useEffect(() => {
     if (partyAllowed && (screen === "parties" || screen === "party")) loadParties();
-  }, [partyAllowed, screen, loadParties]);
+  }, [partyAllowed, screen, loadParties, partyUserId]);
 
   useEffect(() => {
     if (screen === "browse") loadVenues();
