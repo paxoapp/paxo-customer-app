@@ -1,12 +1,17 @@
 {
   "redirects": [
     {
-      "source": "/unlimited-food-and-drinks-packages-gurugram/:rest*",
+      "source": "/unlimited-food-and-drinks-packages-gurugram",
       "destination": "/unlimited-food-and-drinks-packages-gurgaon/",
       "statusCode": 301
     },
     {
-      "source": "/unlimited-food-and-drinks-packages-gurugram",
+      "source": "/unlimited-food-and-drinks-packages-gurugram/",
+      "destination": "/unlimited-food-and-drinks-packages-gurgaon/",
+      "statusCode": 301
+    },
+    {
+      "source": "/unlimited-food-and-drinks-packages-gurugram/:rest+",
       "destination": "/unlimited-food-and-drinks-packages-gurgaon/",
       "statusCode": 301
     }
