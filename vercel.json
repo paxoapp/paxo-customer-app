@@ -2,6 +2,6 @@
   "rewrites": [
     { "source": "/venues", "destination": "/venues/index.html" },
     { "source": "/venues/:slug", "destination": "/venues/:slug/index.html" },
-    { "source": "/((?!venues/|sitemap\.xml|robots\.txt).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
