@@ -87,9 +87,27 @@ async function sb(path, { method = "GET", body, token, prefer } = {}) {
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
     const message = data?.message || data?.msg || data?.error_description || "Something went wrong";
-    throw new Error(message);
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
   }
   return data;
+}
+
+// Retry a read that failed for a temporary reason: network error, timeout (408), rate limit (429) or a server error
+// (5xx — e.g. Postgres "canceling statement due to statement timeout" during a brief database slowdown).
+// Client errors (400/401/403/404) are not retried. Only for idempotent GETs.
+async function withRetry(fn, delaysMs = [1000, 2500]) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const s = e?.status;
+      const temporary = !s || s === 408 || s === 429 || s >= 500;
+      if (!temporary || attempt >= delaysMs.length) throw e;
+      await new Promise((r) => setTimeout(r, delaysMs[attempt]));
+    }
+  }
 }
 
 const AVATARS_BUCKET = "avatars";
@@ -2499,8 +2517,12 @@ export default function App() {
     setVenuesLoading(true);
     setVenuesError("");
     try {
-      const data = await sb(
-        "/rest/v1/venues?select=*,venue_images(id,image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&is_live=eq.true&venue_images.order=sort_order.asc&order=created_at.desc"
+      // Retried: during a brief database slowdown this (the heaviest anon query) can hit the 3 s anon statement
+      // timeout and come back as a 500, while a retry a second later succeeds.
+      const data = await withRetry(() =>
+        sb(
+          "/rest/v1/venues?select=*,venue_images(id,image_url),venue_packages(*,menu_quota_rules(*),package_item_pool(menu_item_id)),menu_categories(id,kind,name,menu_items(id,name,is_available)),venue_addons(id,name,description,is_active),booking_feedback(rating)&booking_feedback.status=eq.submitted&status=eq.approved&is_live=eq.true&venue_images.order=sort_order.asc&order=created_at.desc"
+        )
       );
       setVenues(data);
     } catch (e) {
@@ -2508,7 +2530,11 @@ export default function App() {
       // Distinguish "the fetch failed" from "there are genuinely no venues" --
       // without this, a network/RLS/outage error rendered the exact same
       // "No venues in {city} yet." a customer would see for a real empty city.
-      setVenuesError(e.message || "Couldn't load venues. Please try again.");
+      // Temporary failures (network / 5xx) get a plain message instead of the raw database error text.
+      const temporary = !e?.status || e.status >= 500 || e.status === 408 || e.status === 429;
+      setVenuesError(
+        temporary ? "Couldn't load venues right now. Please check your connection and try again." : e.message || "Couldn't load venues. Please try again."
+      );
     } finally {
       setVenuesLoading(false);
     }
