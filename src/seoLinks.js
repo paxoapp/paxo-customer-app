@@ -2,7 +2,7 @@
 // Shared by the generator, the static About/legal pages (scripts/make-about.mjs) and the app footer.
 export const LANDING_LINKS = [
   ["/unlimited-food-and-drinks-packages-delhi/", "Party places in Delhi"],
-  ["/unlimited-food-and-drinks-packages-gurugram/", "Party places in Gurgaon"],
+  ["/unlimited-food-and-drinks-packages-gurgaon/", "Party places in Gurgaon"],
   ["/unlimited-food-and-drinks-packages-noida/", "Party places in Noida"],
   ["/unlimited-drinks-packages-delhi-ncr/", "Unlimited drinks packages"],
   ["/premium-liquor-packages-delhi-ncr/", "Premium liquor packages"],

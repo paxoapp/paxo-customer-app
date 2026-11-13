@@ -474,7 +474,7 @@ const LANDINGS = [
     ],
   },
   {
-    path: "/unlimited-food-and-drinks-packages-gurugram/",
+    path: "/unlimited-food-and-drinks-packages-gurgaon/",
     h1: "Party Places in Gurgaon (Gurugram) with Unlimited Food & Drinks",
     title: "Party Places in Gurgaon (Gurugram) with Unlimited Food & Drinks Packages – Prices per Person | PAXO",
     desc: (c) => `Party places in Gurgaon (Gurugram) with unlimited food & drinks, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person.`,
