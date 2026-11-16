@@ -3,8 +3,8 @@
 // opened or refreshed directly.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ABOUT_TITLE, ABOUT_PAGE_TITLE, ABOUT_DESCRIPTION, ABOUT_LEAD, ABOUT_PARAGRAPHS } from "../src/aboutCopy.js";
-import { LEGAL_PAGES, LEGAL_UPDATED, LEGAL_LINKS } from "../src/legalCopy.js";
-import { LANDING_LINKS } from "../src/seoLinks.js";
+import { LEGAL_PAGES, LEGAL_UPDATED } from "../src/legalCopy.js";
+import { staticFooterHtml } from "../src/siteFooter.js";
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const shell = readFileSync("dist/index.html", "utf8");
@@ -28,13 +28,8 @@ function legalBody(p) {
     })
     .join("");
 }
-const footerLinks =
-  `<p style="margin-top:32px;font-size:13px">` +
-  [["/about", "About"], ...LEGAL_LINKS.map(([k, l]) => [LEGAL_PAGES[k].path, l])].map(([h, l]) => `<a href="${h}" style="${link};margin-right:14px">${esc(l)}</a>`).join("") +
-  `</p>` +
-  `<p style="font-size:13px;line-height:2">` +
-  [["/venues/", "All venues"], ...LANDING_LINKS].map(([h, l]) => `<a href="${h}" style="${link};margin-right:14px">${esc(l)}</a>`).join("") +
-  `</p>`;
+// Same footer as the app (src/siteFooter.js).
+const footer = staticFooterHtml({ waHref: "https://wa.me/919625261665?text=" + encodeURIComponent("Hi PAXO, I have a question.") });
 
 function write(path, title, desc, inner) {
   let html = shell;
@@ -55,7 +50,7 @@ function write(path, title, desc, inner) {
     `<div style="min-height:100vh;background:#0b0708;color:#f5efe9;font-family:Inter,system-ui,sans-serif;padding:32px 20px">` +
     `<div style="max-width:680px;margin:0 auto"><p style="font-weight:700;font-size:24px;margin:0 0 24px"><a href="/" style="color:inherit;text-decoration:none">PAXO</a></p>` +
     inner +
-    `<p><a href="/" style="${link}">Back to PAXO</a></p>${footerLinks}</div></div>`;
+    `<p><a href="/" style="${link}">Back to PAXO</a></p></div></div>${footer}`;
   must(/<div id="root"><\/div>/, `<div id="root">${body}</div>`);
   const dir = `dist${path}`;
   mkdirSync(dir, { recursive: true });
