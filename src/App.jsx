@@ -214,7 +214,7 @@ function PartnerResponseCountdown({ deadline, remainingSeconds }) {
   if (!deadline && remainingSeconds != null) {
     return (
       <p className="text-xs mt-1 text-amber font-medium">
-        🎉 Your request is locked in! The venue will pick it up the moment they're back online — we'll notify
+        Your request is locked in! The venue will pick it up the moment they're back online — we'll notify
         you the second they respond.
       </p>
     );
@@ -4181,6 +4181,17 @@ export default function App() {
               />
             </div>
 
+            {venues.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuizOpen(true)}
+                className="sm:hidden mb-4 inline-flex items-center gap-2 rounded-full border border-amber/50 text-amber text-sm font-semibold pl-3.5 pr-4 py-2"
+              >
+                <Sparkles size={16} strokeWidth={2.5} />
+                Find my venue
+              </button>
+            )}
+
             {selectedCity && COMING_SOON_CITIES.includes(selectedCity) ? (
               <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
                 <p className="font-display text-2xl font-semibold text-ink mb-2">
@@ -4266,7 +4277,10 @@ export default function App() {
                             onClick={(e) => e.stopPropagation()}
                             className="text-[11px] font-medium text-amber hover:underline shrink-0"
                           >
-                            📍 Directions
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="inline-block w-3 h-3 mr-1 align-[-1px]">
+                              <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />
+                            </svg>
+                            Directions
                           </a>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -4341,7 +4355,7 @@ export default function App() {
             </button>
             {viaFriendInvite && (
               <p className="text-sm text-amber bg-amber/10 border border-amber/30 rounded-xl px-4 py-2.5 mb-4">
-                👋 A friend thought you'd like {selectedVenue.name}.
+                A friend thought you'd like {selectedVenue.name}.
               </p>
             )}
             {selectedVenue.on_hold && (
@@ -4531,7 +4545,7 @@ export default function App() {
                     <p
                       className={`text-xs mt-2 ${p.includes_dj ? "text-indigo-300" : "text-haze/60"}`}
                     >
-                      {p.includes_dj ? "🎧 In-house DJ included" : "DJ not included with this package"}
+                      {p.includes_dj ? "In-house DJ included" : "DJ not included with this package"}
                     </p>
                     {p.includes_dj && p.dj_notes?.trim() && (
                       <p className="text-xs mt-0.5 text-indigo-300/80" data-testid="dj-notes">
@@ -4921,7 +4935,7 @@ export default function App() {
           <div className="max-w-lg">
             <div className="bg-surface border border-white/10 rounded-2xl p-6 text-center shadow-card">
               <h2 className="font-display text-2xl font-bold text-ink mb-2">
-                {submitted.partner_response_deadline ? "You're in! 🎉" : "Request locked in! 🎉"}
+                {submitted.partner_response_deadline ? "You're in!" : "Request locked in!"}
               </h2>
               <p className="text-haze text-sm mb-4">
                 {submitted.partner_response_deadline ? (
@@ -5902,7 +5916,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setQuizOpen(true)}
-          className="fixed z-30 right-5 bottom-24 sm:bottom-6 bg-amber text-[#170D0B] rounded-full pl-4 pr-5 py-3 text-sm font-semibold shadow-hero flex items-center gap-2"
+          className="hidden sm:flex fixed z-30 right-5 bottom-24 sm:bottom-6 bg-amber text-[#170D0B] rounded-full pl-4 pr-5 py-3 text-sm font-semibold shadow-hero items-center gap-2"
         >
           <Sparkles size={16} strokeWidth={2.5} />
           Find my venue

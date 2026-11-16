@@ -61,14 +61,12 @@ export function WhatsAppIcon({ className = "w-6 h-6" }) {
   );
 }
 
-// Floating button, bottom-right on every page. It sits ABOVE the existing "Find my venue" button and the mobile
-// bottom tab bar (which carries the safe-area padding), so it never covers them or a sticky bar.
+// Floating button, bottom-right on every page. Below the sm breakpoint it is the only floating button ("Find my venue" is
+// hidden there) and sits above the mobile bottom tab bar when signed in. From sm up it sits ABOVE "Find my venue".
 export function WhatsAppFloat({ message, pageType, aboveFind, hasTabBar }) {
-  const pos = aboveFind
-    ? "bottom-[calc(9.5rem+env(safe-area-inset-bottom))] sm:bottom-20"
-    : hasTabBar
-    ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))] sm:bottom-6"
-    : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:bottom-6";
+  const pos = `${
+    hasTabBar ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]" : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"
+  } ${aboveFind ? "sm:bottom-20" : "sm:bottom-6"}`;
   return (
     <a
       href={whatsappLink(message)}
