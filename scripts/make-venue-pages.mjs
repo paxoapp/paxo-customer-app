@@ -6,6 +6,7 @@
 // Vite copies public/ into dist/ as-is. If Supabase can't be reached, the last generated files are kept and the build goes on.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { LANDING_LINKS } from "../src/seoLinks.js";
+import { staticFooterHtml } from "../src/siteFooter.js";
 
 const SITE = "https://www.mypaxo.in";
 const WHATSAPP_NUMBER = "919625261665";
@@ -156,9 +157,6 @@ table.pk td.pr{white-space:nowrap;color:var(--gold2);font-weight:600}
 table.pk td.pr s{color:var(--muted);font-weight:400;font-size:12px;display:block}
 .faq h3{font-size:16px;margin:18px 0 4px}
 .faq p{margin:0;color:var(--muted)}
-footer .pop a{margin-right:10px}
-footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
-footer a{margin-right:14px}
 @media (max-width:520px){h1{font-size:26px}dl.facts{grid-template-columns:1fr}dl.facts dt{margin-top:6px}}
 `.trim();
 
@@ -195,12 +193,13 @@ ${[].concat(jsonld || []).map((j) => `<script type="application/ld+json">${JSON.
 <header class="top"><a class="brand" href="/">PAXO</a><nav><a href="/venues/">All venues</a><a href="/">Open app</a></nav></header>
 `;
 
-const footer = `<footer>
-<p>PAXO lets groups book unlimited food &amp; drinks party packages at restaurants, bars and clubs in Delhi NCR.</p>
-<p class="pop"><strong>Popular searches:</strong> ${LANDING_LINKS.map(([h, l]) => `<a href="${h}">${esc(l)}</a>`).join("")}</p>
-<p><a href="/">PAXO app</a><a href="/venues/">All venues</a><a href="/about">About</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/refund">Refunds</a><a href="/contact">Contact</a></p>
-</footer>
-</div>
+// Same footer as the app (src/siteFooter.js). The wrapper div opened in head() is closed first so the footer can span the full width.
+const footer = `</div>
+${staticFooterHtml({
+  waHref: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi PAXO, I have a question.")}`,
+  blurb: "PAXO lets groups book unlimited food &amp; drinks party packages at restaurants, bars and clubs in Delhi NCR.",
+  extraLinks: [{ group: "Company", href: "/", label: "PAXO app" }],
+})}
 </body>
 </html>
 `;
