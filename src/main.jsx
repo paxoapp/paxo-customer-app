@@ -3,11 +3,11 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
-// TEMPORARY -- remove this whole component and its <TestingNoticeBanner />
-// usage below once testing wraps up. Deliberately kept in this one small
-// file (rather than inside App.jsx) so it shows on every screen regardless
-// of which of App's internal early-return states is active, and so removing
-// it later is a two-line edit in one place.
+// Early-access banner: one slim line ("PAXO is in early access."), dismissible with a ×, and the dismissal is
+// remembered in localStorage under BANNER_KEY (all storage access is try/catch; if storage is blocked the banner
+// simply shows again). Kept in this small file (rather than inside App.jsx) so it shows on every screen regardless
+// of which of App's internal early-return states is active. Remove the component and its <TestingNoticeBanner />
+// usage below when it is no longer wanted.
 // Bump the version in BANNER_KEY to bring the banner back for everyone who has closed it.
 const BANNER_KEY = 'paxo_banner_v1'
 
@@ -37,7 +37,7 @@ function TestingNoticeBanner() {
         type="button"
         onClick={close}
         aria-label="Dismiss"
-        className="text-amber/70 hover:text-amber text-base leading-none shrink-0 px-1"
+        className="text-amber/70 hover:text-amber text-base leading-none shrink-0 inline-flex items-center justify-center w-8 h-8 -my-1.5 -mx-2"
       >
         ×
       </button>

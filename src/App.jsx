@@ -4181,6 +4181,17 @@ export default function App() {
               />
             </div>
 
+            {venues.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuizOpen(true)}
+                className="sm:hidden mb-4 inline-flex items-center gap-2 rounded-full border border-amber/50 text-amber text-sm font-semibold pl-3.5 pr-4 py-2"
+              >
+                <Sparkles size={16} strokeWidth={2.5} />
+                Find my venue
+              </button>
+            )}
+
             {selectedCity && COMING_SOON_CITIES.includes(selectedCity) ? (
               <div className="rounded-2xl border border-white/10 bg-surface p-8 text-center">
                 <p className="font-display text-2xl font-semibold text-ink mb-2">
@@ -5905,7 +5916,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setQuizOpen(true)}
-          className="hidden sm:flex fixed z-30 right-5 bottom-24 sm:bottom-6 bg-amber text-[#170D0B] rounded-full pl-4 pr-5 py-3 text-sm font-semibold shadow-hero flex items-center gap-2"
+          className="hidden sm:flex fixed z-30 right-5 bottom-24 sm:bottom-6 bg-amber text-[#170D0B] rounded-full pl-4 pr-5 py-3 text-sm font-semibold shadow-hero items-center gap-2"
         >
           <Sparkles size={16} strokeWidth={2.5} />
           Find my venue
