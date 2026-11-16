@@ -7,7 +7,8 @@ import { LEGAL_PAGES, LEGAL_UPDATED, LEGAL_LINKS } from "../src/legalCopy.js";
 import { LANDING_LINKS } from "../src/seoLinks.js";
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const shell = readFileSync("dist/index.html", "utf8");
+// The home page's crawlable block + guard script (index.html, <!--home-seo:start/end-->) belong to "/" only: strip them so these pages are unchanged.
+const shell = readFileSync("dist/index.html", "utf8").replace(/[ \t]*<!--home-seo:start-->[\s\S]*?<!--home-seo:end-->\r?\n?/g, "");
 
 const link = "color:#f5a524";
 const P = "line-height:1.6;color:#c9bdb4";
