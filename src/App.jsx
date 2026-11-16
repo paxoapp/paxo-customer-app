@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { MapPin, CalendarCheck, User, PartyPopper, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
+import { MapPin, CalendarCheck, User, Ticket, Sparkles, IndianRupee, Wine, CheckCircle2, ScrollText, Check } from "lucide-react";
 import {
   packageTaxView,
   computeBookingTax,
@@ -5949,7 +5949,7 @@ export default function App() {
         >
           {[
             { key: "browse", label: "Venues", Icon: MapPin },
-            ...(partyAllowed ? [{ key: "parties", label: "Parties", Icon: PartyPopper }] : []),
+            ...(partyAllowed ? [{ key: "parties", label: "Parties", Icon: Ticket }] : []),
             { key: "myBookings", label: "Bookings", Icon: CalendarCheck },
             { key: "profile", label: "Profile", Icon: User },
           ].map(({ key, label, Icon }) => {
