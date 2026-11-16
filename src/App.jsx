@@ -4113,22 +4113,6 @@ export default function App() {
             </h1>
             <p className="text-haze text-sm mb-5">Restaurants, cafés, bars, lounges and clubs — ready for your celebration.</p>
 
-            {partyAllowed && (
-              <button
-                type="button"
-                onClick={() => setScreen("parties")}
-                className="w-full flex items-center gap-3 text-left rounded-2xl bg-surface border border-white/10 hover:border-amber/50 transition-colors shadow-card px-4 py-3 mb-5"
-                data-testid="parties-entry"
-              >
-                <PartyPopper size={22} className="text-amber shrink-0" />
-                <span className="flex-1">
-                  <span className="block text-sm font-semibold text-ink">Parties</span>
-                  <span className="block text-xs text-haze">Themed group nights at top venues. Grab a seat.</span>
-                </span>
-                <span className="text-haze">→</span>
-              </button>
-            )}
-
             {venues.length > 0 && (
               <div
                 className="relative rounded-3xl overflow-hidden h-60 mb-7 cursor-pointer shadow-hero bg-gradient-to-br from-surface to-[#2A1512]"
