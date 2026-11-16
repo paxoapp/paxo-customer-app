@@ -2,11 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--home-seo:start-->
+    <script>
+      /* Crawlable home block lives in #root for non-JS crawlers. Every app route serves this same file, so remove it the moment it is parsed on any path other than "/". */
+      if (location.pathname !== "/") {
+        new MutationObserver(function (m, o) {
+          var e = document.getElementById("home-seo");
+          if (e) { e.parentNode.removeChild(e); o.disconnect(); }
+        }).observe(document.documentElement, { childList: true, subtree: true });
+      }
+    </script>
+    <!--home-seo:end-->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Paxo — Book venues without the wait</title>
+    <title>PAXO — Unlimited Food &amp; Drinks Party Packages in Delhi NCR</title>
     <meta
       name="description"
-      content="PAXO lets groups book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi NCR."
+      content="Book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi, Gurugram and Noida. Compare packages, see price per person and send one booking request."
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://www.mypaxo.in/" />
@@ -15,10 +26,10 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Paxo" />
     <meta property="og:url" content="https://www.mypaxo.in/" />
-    <meta property="og:title" content="Paxo — Book venues without the wait" />
+    <meta property="og:title" content="PAXO — Unlimited Food &amp; Drinks Party Packages in Delhi NCR" />
     <meta
       property="og:description"
-      content="PAXO lets groups book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi NCR."
+      content="Book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi, Gurugram and Noida. Compare packages, see price per person and send one booking request."
     />
     <meta property="og:image" content="https://www.mypaxo.in/og-image.png" />
     <meta property="og:image:width" content="1200" />
@@ -27,10 +38,10 @@
 
     <!-- Twitter card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Paxo — Book venues without the wait" />
+    <meta name="twitter:title" content="PAXO — Unlimited Food &amp; Drinks Party Packages in Delhi NCR" />
     <meta
       name="twitter:description"
-      content="PAXO lets groups book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi NCR."
+      content="Book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi, Gurugram and Noida. Compare packages, see price per person and send one booking request."
     />
     <meta name="twitter:image" content="https://www.mypaxo.in/og-image.png" />
 
@@ -76,7 +87,7 @@
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><!--home-seo:start--><div id="home-seo" style="min-height:100vh;background:#0b0708;color:#f5efe9;font-family:Inter,system-ui,sans-serif;padding:32px 20px"><div style="max-width:680px;margin:0 auto"><p style="font-weight:700;font-size:24px;margin:0 0 24px">PAXO</p><h1 style="font-size:32px;margin:0 0 12px">Unlimited food and drinks party packages in Delhi NCR</h1><p style="line-height:1.6;color:#c9bdb4">Book unlimited food and drinks party packages at restaurants, bars and clubs in Delhi, Gurugram and Noida. Compare packages, see price per person and send one booking request.</p><p style="font-size:13px;line-height:2"><a href="/venues/" style="color:#f5a524;margin-right:14px">All venues</a><a href="/unlimited-food-and-drinks-packages-delhi/" style="color:#f5a524;margin-right:14px">Party places in Delhi</a><a href="/unlimited-food-and-drinks-packages-gurgaon/" style="color:#f5a524;margin-right:14px">Party places in Gurgaon</a><a href="/unlimited-food-and-drinks-packages-noida/" style="color:#f5a524;margin-right:14px">Party places in Noida</a><a href="/unlimited-drinks-packages-delhi-ncr/" style="color:#f5a524;margin-right:14px">Unlimited drinks packages</a><a href="/premium-liquor-packages-delhi-ncr/" style="color:#f5a524;margin-right:14px">Premium liquor packages</a><a href="/non-alcoholic-party-packages-delhi-ncr/" style="color:#f5a524;margin-right:14px">Non-alcoholic party packages</a><a href="/birthday-party-packages-delhi-ncr/" style="color:#f5a524;margin-right:14px">Birthday party places</a><a href="/office-party-packages-delhi-ncr/" style="color:#f5a524;margin-right:14px">Corporate party venues</a></p></div></div><!--home-seo:end--></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
