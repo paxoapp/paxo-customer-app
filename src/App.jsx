@@ -18,6 +18,7 @@ import { LEGAL_PAGES, REFUND_TIMELINE } from "./legalCopy.js";
 import { LegalPage, LegalLinks } from "./legalPages.jsx";
 import { SOCIAL_LINKS, FOOTER_GROUPS } from "./siteFooter.js";
 import { whatsappContext, WhatsAppFloat, WhatsAppRow, WhatsAppFooterLink, NegotiateButton } from "./whatsapp";
+import { normalizeIndianMobile, MOBILE_ERROR } from "./phone.js";
 import { PartiesScreen, PartyDetailScreen, PartyBookingsSection, confirmPartyCashfree } from "./parties";
 
 // "Find us elsewhere" — understated icon links, not a CTA. Colour is set by
@@ -2460,6 +2461,7 @@ export default function App() {
   // The booking case, deposit and refundability for the chosen date and time come from the database (India time).
   const [termsPreview, setTermsPreview] = useState(null);
   const [lateAckCreate, setLateAckCreate] = useState(false); // tick box on the request form (late bookings)
+  const [payMobile, setPayMobile] = useState({}); // corrected mobile typed at payment time (Cashfree), by booking id
   const [payAckChecked, setPayAckChecked] = useState({}); // tick box before paying a late deposit, by booking id
   const [editQuotes, setEditQuotes] = useState({}); // booking id -> { can_edit } from the database
   const [cancelQuotes, setCancelQuotes] = useState({}); // booking id -> the exact refund quote from the database
@@ -2577,10 +2579,14 @@ export default function App() {
   }
 
   async function startCashfreePayment(booking, paymentType, prov) {
+    // Cashfree needs a valid mobile: the saved one if it is valid, otherwise the corrected one typed in the pay block.
+    const mobile = normalizeIndianMobile(booking.contact_mobile) || normalizeIndianMobile(payMobile[booking.id]);
+    if (!mobile) throw new Error(MOBILE_ERROR);
     const order = await callFn("create-cashfree-order", session.token, {
       booking_id: booking.id,
       payment_type: paymentType,
       acknowledged_non_refundable: payAckChecked[booking.id] === true,
+      contact_mobile: mobile,
     });
     const Cashfree = await loadCashfreeSdk();
     const cashfree = Cashfree({ mode: order.mode === "production" ? "production" : "sandbox" });
@@ -3099,14 +3105,22 @@ export default function App() {
     e.preventDefault();
     setProfileError("");
     setProfileSaved(false);
+    // A blank phone is allowed; a typed one must be a valid Indian mobile and is saved as its 10 digits.
+    const phoneRaw = profileForm.phone.trim();
+    const phoneNorm = phoneRaw ? normalizeIndianMobile(phoneRaw) : "";
+    if (phoneRaw && !phoneNorm) {
+      setProfileError(MOBILE_ERROR);
+      return;
+    }
     setProfileLoading(true);
     try {
       await sb(`/rest/v1/profiles?id=eq.${session.userId}`, {
         method: "PATCH",
         token: session.token,
         prefer: "return=minimal",
-        body: { full_name: profileForm.full_name, phone: profileForm.phone },
+        body: { full_name: profileForm.full_name, phone: phoneNorm },
       });
+      setProfileForm((f) => ({ ...f, phone: phoneNorm }));
       setProfileSaved(true);
     } catch (e) {
       setProfileError(e.message);
@@ -3461,8 +3475,9 @@ export default function App() {
       setSubmitError("Enter your full name.");
       return;
     }
-    if (!form.contact_mobile.trim()) {
-      setSubmitError("Enter your mobile number.");
+    const mobile = normalizeIndianMobile(form.contact_mobile);
+    if (!mobile) {
+      setSubmitError(MOBILE_ERROR);
       return;
     }
     if (!form.contact_email.trim()) {
@@ -3540,7 +3555,7 @@ export default function App() {
           male_count: maleNum || null,
           female_count: femaleNum || null,
           contact_name: form.customer_name.trim(),
-          contact_mobile: form.contact_mobile.trim(),
+          contact_mobile: mobile,
           contact_email: form.contact_email.trim(),
           special_request: form.special_request.trim() || null,
         },
@@ -4648,6 +4663,9 @@ export default function App() {
                     value={form.contact_mobile}
                     onChange={(e) => setForm({ ...form, contact_mobile: e.target.value })}
                   />
+                  {form.contact_mobile.trim() && !normalizeIndianMobile(form.contact_mobile) && (
+                    <span className="text-rose-400 text-xs block mt-1" data-testid="request-mobile-error">{MOBILE_ERROR}</span>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium block mb-1">Email address</label>
@@ -5339,9 +5357,33 @@ export default function App() {
                                       <PayNote />
                                     )}
                                     {payProvider.provider === "cashfree" && payProvider.mode === "sandbox" && <TestModeNote />}
+                                    {payProvider.provider === "cashfree" && !normalizeIndianMobile(b.contact_mobile) && (
+                                      <div className="mt-2">
+                                        <label className="text-sm font-medium block mb-1">Mobile number for payment</label>
+                                        <input
+                                          type="tel"
+                                          inputMode="tel"
+                                          placeholder="10-digit mobile number"
+                                          className="bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm w-full max-w-xs text-ink placeholder-haze/50 focus:outline-none focus:border-amber/60"
+                                          value={payMobile[b.id] || ""}
+                                          onChange={(e) => setPayMobile((m) => ({ ...m, [b.id]: e.target.value }))}
+                                          data-testid="pay-mobile"
+                                        />
+                                        <p className="text-xs text-haze/80 mt-1">The mobile number saved on this request isn't valid. Enter one to continue.</p>
+                                        {payMobile[b.id]?.trim() && !normalizeIndianMobile(payMobile[b.id]) && (
+                                          <span className="text-rose-400 text-xs block mt-1" data-testid="pay-mobile-error">{MOBILE_ERROR}</span>
+                                        )}
+                                      </div>
+                                    )}
                                     <button
                                       type="button"
-                                      disabled={payingBookingId === b.id || (policyKind(b.booking_type) === "late" && payAckChecked[b.id] !== true)}
+                                      disabled={
+                                        payingBookingId === b.id ||
+                                        (policyKind(b.booking_type) === "late" && payAckChecked[b.id] !== true) ||
+                                        (payProvider.provider === "cashfree" &&
+                                          !normalizeIndianMobile(b.contact_mobile) &&
+                                          !normalizeIndianMobile(payMobile[b.id]))
+                                      }
                                       onClick={() => startPayment(b, "deposit")}
                                       className="mt-2 bg-amber text-[#170D0B] text-sm font-semibold px-4 py-2 rounded-xl disabled:opacity-50 hover:brightness-110 transition"
                                     >
@@ -5643,6 +5685,9 @@ export default function App() {
                   value={profileForm.phone}
                   onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                 />
+                {profileForm.phone.trim() && !normalizeIndianMobile(profileForm.phone) && (
+                  <span className="text-rose-400 text-xs block mt-1" data-testid="profile-phone-error">{MOBILE_ERROR}</span>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium block mb-1">Email</label>
