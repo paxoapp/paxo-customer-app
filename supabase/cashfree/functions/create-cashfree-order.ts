@@ -25,17 +25,24 @@ function returnOrigin(req: Request): string {
   return ALLOWED_ORIGIN.test(o) ? o : "https://www.mypaxo.in";
 }
 
-function tenDigits(raw: unknown): string | null {
-  const d = String(raw ?? "").replace(/\D/g, "");
-  const n = d.length > 10 ? d.slice(-10) : d;
-  return /^[6-9]\d{9}$/.test(n) ? n : null;
+// Indian mobile rule. The SAME rule as src/phone.js in the app: strip spaces, dashes, brackets and a leading "+"; what is left
+// must be digits only and exactly 10 digits, or "0" + 10, or "91" + 10; the final 10 digits must start with 6-9.
+// Returns the 10 digits or null. Nothing is ever cut off.
+function normalizeIndianMobile(raw: unknown): string | null {
+  const s = String(raw ?? "").trim().replace(/[\s\-()]/g, "").replace(/^\+/, "");
+  if (!/^\d+$/.test(s)) return null;
+  let n: string | null = null;
+  if (s.length === 10) n = s;
+  else if (s.length === 11 && s.startsWith("0")) n = s.slice(1);
+  else if (s.length === 12 && s.startsWith("91")) n = s.slice(2);
+  return n && /^[6-9]\d{9}$/.test(n) ? n : null;
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
-    const { booking_id, payment_type, acknowledged_non_refundable } = await req.json();
+    const { booking_id, payment_type, acknowledged_non_refundable, contact_mobile } = await req.json();
     const type = payment_type ?? "deposit";
     if (!booking_id) return jsonRes({ error: "booking_id is required" }, 400);
     if (type !== "deposit") return jsonRes({ error: "Only the deposit can be paid online. The balance is paid at the venue." }, 400);
@@ -104,8 +111,22 @@ Deno.serve(async (req: Request) => {
     }
     for (const old of open ?? []) await serviceClient.from("payments").update({ status: "failed" }).eq("id", old.id);
 
-    const phone = tenDigits(booking.contact_mobile);
+    // The mobile: a corrected one from the browser if it sent one (it must be valid), otherwise the one saved on the booking.
+    const givenPhone = contact_mobile === undefined || contact_mobile === null || contact_mobile === "" ? null : normalizeIndianMobile(contact_mobile);
+    if (contact_mobile && !givenPhone) return jsonRes({ error: "Please enter a valid 10-digit mobile number to continue." }, 400);
+    const savedPhone = normalizeIndianMobile(booking.contact_mobile);
+    const phone = givenPhone ?? savedPhone;
     if (!phone) return jsonRes({ error: "Please add a valid 10-digit mobile number to this booking before paying." }, 400);
+    // Save the corrected number on the booking (this is the only column touched). The booking was read with the caller's own client
+    // above, so it is theirs; it is "accepted" and its payment window is open (both checked above). The customer cannot edit this
+    // column themselves (enforce_booking_edit_rules), so the write uses the service-role client, and only before the order is made.
+    if (givenPhone && givenPhone !== savedPhone) {
+      const { error: saveError } = await serviceClient.from("bookings").update({ contact_mobile: givenPhone }).eq("id", booking_id).eq("status", "accepted");
+      if (saveError) {
+        console.error("saving contact_mobile failed:", saveError.message);
+        return jsonRes({ error: "We couldn't save your mobile number. Please try again." }, 500);
+      }
+    }
 
     const orderId = "PX" + crypto.randomUUID().replaceAll("-", "");
     // Cashfree wants the expiry at least ~15 minutes ahead; follow the payment deadline but stay inside [16 min, 60 min].
