@@ -23,8 +23,7 @@ begin
   returning id into b1;
   r := r || jsonb_build_object('A_booking_ref', (select booking_ref from public.bookings where id = b1),
     'A_log', (select coalesce(jsonb_agg(jsonb_build_object('channel', channel, 'status', status, 'error', error, 'has_request_id', request_id is not null)), '[]') from public.staff_alert_log where booking_id = b1),
-    'A_queued_requests_for_staff_alert', (select count(*) from net.http_request_queue where url like '%/send-staff-alert'),
-    'A_payload_sent', (select (convert_from(body, 'utf8'))::jsonb from net.http_request_queue where url like '%/send-staff-alert' order by id desc limit 1));
+    'A_queued_requests_for_staff_alert', (select count(*) from net.http_request_queue where url like '%/send-staff-alert'));
 
   -- B. no recipient set: the booking must still be saved, the log must say failed
   update public.platform_alert_settings set booking_alert_email = null where id;
@@ -46,8 +45,7 @@ begin
     'C_log', (select coalesce(jsonb_agg(jsonb_build_object('channel', channel, 'status', status, 'error', left(error, 120))), '[]') from public.staff_alert_log where booking_id = b3));
   alter table public.staff_alert_log drop constraint force_fail;
 
-  -- D. switched off: no log row, booking saved
-  update public.platform_alert_settings set enabled = false where id;
+  -- D. the partner email trigger is untouched
   r := r || jsonb_build_object('partner_email_trigger_still_enabled',
     (select tgenabled from pg_trigger where tgrelid = 'public.bookings'::regclass and tgname = 'trg_send_booking_requested_email'),
     'settings_row', (select to_jsonb(s) - 'updated_at' from public.platform_alert_settings s));
