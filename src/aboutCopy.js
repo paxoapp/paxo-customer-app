@@ -2,7 +2,7 @@
 export const ABOUT_TITLE = "About PAXO";
 export const ABOUT_PAGE_TITLE = "About PAXO — Plan celebrations effortlessly";
 export const ABOUT_DESCRIPTION =
-  "PAXO makes planning great celebrations effortless. Discover trusted venues, choose a food and drink package for your group, send a booking request and get live updates.";
+  "PAXO makes planning celebrations effortless. Discover trusted venues, pick a food and drink package for your group and send one booking request.";
 export const ABOUT_LEAD = "PAXO makes planning great celebrations effortless.";
 export const ABOUT_PARAGRAPHS = [
   "Discover trusted restaurants, cafés, bars, lounges, clubs, and more. Explore unlimited food and drink packages, choose the experience that fits your group, send a booking request, and receive live updates—all in one place.",

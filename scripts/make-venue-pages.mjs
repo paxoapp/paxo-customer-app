@@ -271,9 +271,9 @@ function venuePage(v, slug) {
   const from = effectivePrice(pkgs[0]);
   const photos = (v.venue_images || []).map((i) => i.image_url).filter(Boolean).slice(0, 3);
   const place = [v.area, v.city].filter(Boolean).join(", ");
-  const title = `${v.name}, ${place} | Unlimited Food & Drinks Packages | PAXO`;
+  const title = `${v.name}, ${place} – Unlimited Food & Drinks`;
   const hasAlcohol = pkgs.some((p) => p.includes_alcohol);
-  const desc = `${v.name} in ${place}: ${pkgs.length} unlimited ${hasAlcohol ? "food & drinks" : "food"} party package${pkgs.length === 1 ? "" : "s"} from ${inr(from)} per person. See menus, liquor brands and prices, and book on PAXO or WhatsApp ${WHATSAPP_LABEL}.`;
+  const desc = `${v.name} in ${place}: ${pkgs.length} unlimited ${hasAlcohol ? "food & drinks" : "food"} package${pkgs.length === 1 ? "" : "s"} from ${inr(from)} per person, with menus and liquor brands. Book on PAXO.`;
   const appLink = v.venue_view_code ? `${SITE}/v/${v.venue_view_code}` : `${SITE}/`;
 
   const jsonld = {
@@ -354,9 +354,9 @@ ${pkgs.map((p) => packageHtml(v, p)).join("\n")}
 
 function indexPage(entries) {
   const path = "/venues/";
-  const title = "Party Venues in Delhi, Gurugram & Noida | Unlimited Food & Drinks Packages | PAXO";
+  const title = "Party Venues in Delhi NCR – Unlimited Food & Drinks | PAXO";
   const desc =
-    "All PAXO party venues in Delhi NCR: restaurants, bars and lounges in Delhi, Gurugram and Noida with unlimited food & drinks packages per person. Compare prices and book on WhatsApp.";
+    "All PAXO party venues in Delhi, Gurugram and Noida: restaurants, bars and lounges with unlimited food & drinks packages. Compare prices per person.";
   const cities = [...new Set([...CITY_ORDER, ...entries.map((e) => e.v.city)])].filter((c) => entries.some((e) => e.v.city === c));
   const jsonld = {
     "@context": "https://schema.org",
@@ -460,7 +460,7 @@ const LANDINGS = [
   {
     path: "/unlimited-food-and-drinks-packages-delhi/",
     h1: "Party Places in Delhi with Unlimited Food & Drinks",
-    title: "Party Places in Delhi with Unlimited Food & Drinks Packages – Prices per Person | PAXO",
+    title: "Unlimited Food & Drinks Packages in Delhi – Prices | PAXO",
     desc: (c) => `Party places in Delhi with unlimited food & drinks, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person. Book on WhatsApp.`,
     match: (v) => v.city === "Delhi",
     topic: "an unlimited food and drinks package in Delhi",
@@ -475,7 +475,7 @@ const LANDINGS = [
   {
     path: "/unlimited-food-and-drinks-packages-gurgaon/",
     h1: "Party Places in Gurgaon (Gurugram) with Unlimited Food & Drinks",
-    title: "Party Places in Gurgaon (Gurugram) with Unlimited Food & Drinks Packages – Prices per Person | PAXO",
+    title: "Unlimited Food & Drinks Packages in Gurgaon | PAXO",
     desc: (c) => `Party places in Gurgaon (Gurugram) with unlimited food & drinks, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person.`,
     match: (v) => v.city === "Gurugram" || v.city === "Gurgaon",
     topic: "an unlimited food and drinks package in Gurugram",
@@ -490,7 +490,7 @@ const LANDINGS = [
   {
     path: "/unlimited-food-and-drinks-packages-noida/",
     h1: "Party Places in Noida with Unlimited Food & Drinks",
-    title: "Party Places in Noida with Unlimited Food & Drinks Packages – Prices per Person | PAXO",
+    title: "Unlimited Food & Drinks Packages in Noida – Prices | PAXO",
     desc: (c) => `Party places in Noida with unlimited food & drinks, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person. Book on WhatsApp.`,
     match: (v) => v.city === "Noida",
     topic: "an unlimited food and drinks package in Noida",
@@ -505,7 +505,7 @@ const LANDINGS = [
   {
     path: "/unlimited-drinks-packages-delhi-ncr/",
     h1: "Unlimited Drinks Packages in Delhi NCR",
-    title: "Unlimited Drinks Packages in Delhi NCR – Unlimited Alcohol Party Packages | PAXO",
+    title: "Unlimited Drinks Packages in Delhi NCR – Prices | PAXO",
     desc: (c) => `Unlimited alcohol party packages in Delhi NCR, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person, sorted by price.`,
     matchPkg: (p) => p.includes_alcohol,
     topic: "an unlimited drinks package",
@@ -520,8 +520,8 @@ const LANDINGS = [
   {
     path: "/premium-liquor-packages-delhi-ncr/",
     h1: "Premium Liquor Packages in Delhi NCR",
-    title: "Premium Liquor Party Packages in Delhi NCR | Single Malts & Imported Spirits | PAXO",
-    desc: (c) => `Premium liquor packages with single malts & imported spirits, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} in Delhi NCR from ${c.from} per person.`,
+    title: "Premium Liquor Party Packages in Delhi NCR | PAXO",
+    desc: (c) => `Premium liquor party packages with single malts and imported spirits: ${c.pkgText} at ${c.venuesText} in Delhi NCR from ${c.from} per person. Compare and book.`,
     matchPkg: isPremium,
     topic: "a premium liquor package",
     wa: "premium liquor packages in Delhi NCR",
@@ -535,7 +535,7 @@ const LANDINGS = [
   {
     path: "/non-alcoholic-party-packages-delhi-ncr/",
     h1: "Non-Alcoholic Party Packages in Delhi NCR",
-    title: "Non-Alcoholic Party Packages in Delhi NCR | Food & Mocktails per Person | PAXO",
+    title: "Non-Alcoholic Party Packages in Delhi NCR | PAXO",
     desc: (c) => `Non-alcoholic party packages (food, mocktails & soft drinks) with prices & photos: ${c.pkgText} at ${c.venuesText} in Delhi NCR from ${c.from} per person.`,
     matchPkg: (p) => !p.includes_alcohol,
     topic: "a non-alcoholic party package",
@@ -550,7 +550,7 @@ const LANDINGS = [
   {
     path: "/birthday-party-packages-delhi-ncr/",
     h1: "Birthday Party Places in Delhi NCR",
-    title: "Birthday Party Places in Delhi NCR – Packages with Prices | PAXO",
+    title: "Birthday Party Packages in Delhi NCR – Prices | PAXO",
     desc: (c) => `Birthday party places in Delhi NCR with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person. DJ at most venues. Book on WhatsApp.`,
     matchPkg: () => true,
     topic: "a birthday party package",
@@ -565,7 +565,7 @@ const LANDINGS = [
   {
     path: "/office-party-packages-delhi-ncr/",
     h1: "Corporate Party Venues in Delhi NCR",
-    title: "Corporate Party Venues in Delhi NCR – Office Party Packages with Prices | PAXO",
+    title: "Office Party Venues in Delhi NCR – Packages | PAXO",
     desc: (c) => `Corporate party venues for office parties & team outings in Delhi NCR, with prices, photos & liquor brands: ${c.pkgText} at ${c.venuesText} from ${c.from} per person.`,
     matchPkg: () => true,
     sortByCity: true,
