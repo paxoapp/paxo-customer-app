@@ -38,6 +38,12 @@ function normalizeIndianMobile(raw: unknown): string | null {
   return n && /^[6-9]\d{9}$/.test(n) ? n : null;
 }
 
+// Only the customer who made the booking may start its payment. RLS also lets venue partners and admins READ a booking, so the
+// function checks the signed-in user itself. (Pure function so it can be tested: scripts/test-mobile.mjs.)
+function callerOwnsBooking(userId: string | null | undefined, bookingCustomerId: string | null | undefined): boolean {
+  return !!userId && !!bookingCustomerId && userId === bookingCustomerId;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -64,6 +70,10 @@ Deno.serve(async (req: Request) => {
       .eq("id", booking_id)
       .single();
     if (bookingError || !booking) return jsonRes({ error: "Booking not found or not yours" }, 404);
+    // Ownership: the caller must be this booking's customer (partners and admins can read the row but must not start a payment on it).
+    // Same 404 as above. This runs before any write and before any Cashfree call.
+    const { data: userData } = await callerClient.auth.getUser(authHeader.replace(/^Bearer\s+/i, ""));
+    if (!callerOwnsBooking(userData?.user?.id, booking.customer_id)) return jsonRes({ error: "Booking not found or not yours" }, 404);
 
     if (booking.status !== "accepted") return jsonRes({ error: NOT_PAYABLE[booking.status] ?? "This booking can't be paid right now." }, 400);
     if (!booking.payment_deadline || new Date(booking.payment_deadline).getTime() <= Date.now()) {

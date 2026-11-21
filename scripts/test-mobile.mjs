@@ -41,4 +41,33 @@ for (const [name, input, want] of cases) {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name.padEnd(44)} ${JSON.stringify(input)} -> ${JSON.stringify(a)} (function: ${JSON.stringify(b)})${ok ? "" : `  expected ${JSON.stringify(want)}`}`);
 }
 console.log(`\n${cases.length - failed}/${cases.length} passed (each case runs against the app rule and the function rule)`);
-process.exit(failed ? 1 : 0);
+
+// ---- Ownership check: only the booking's own customer may start its payment (partners/admins can read the row but not pay). ----
+const om = ts.match(/function callerOwnsBooking\([^)]*\): boolean \{[\s\S]*?\n\}/);
+if (!om) throw new Error("callerOwnsBooking not found in create-cashfree-order.ts");
+const owns = new Function(om[0].replace(/\([^)]*\): boolean/, "(userId, bookingCustomerId)") + "; return callerOwnsBooking;")();
+const CUSTOMER = "11111111-1111-1111-1111-111111111111";
+const PARTNER = "22222222-2222-2222-2222-222222222222";
+const ownCases = [
+  ["booking's own customer is accepted", CUSTOMER, CUSTOMER, true],
+  ["a different user (partner/admin) is rejected", PARTNER, CUSTOMER, false],
+  ["no signed-in user is rejected", null, CUSTOMER, false],
+  ["undefined user is rejected", undefined, CUSTOMER, false],
+  ["booking without a customer id is rejected", CUSTOMER, null, false],
+];
+let ownFailed = 0;
+for (const [name, uid, cid, want] of ownCases) {
+  const got = owns(uid, cid);
+  const ok = got === want;
+  if (!ok) ownFailed++;
+  console.log(`${ok ? "PASS" : "FAIL"}  ownership: ${name.padEnd(46)} -> ${got}`);
+}
+// The check must come before any write and before any Cashfree call in the function.
+const at = (re) => ts.search(re);
+const checkAt = at(/callerOwnsBooking\(userData/);
+const firstWrite = Math.min(...[at(/\.update\(/), at(/\.insert\(/), at(/cfFetch\(env, "\/orders"/), at(/rpc\("coupon_prepare_payment"/)].filter((i) => i >= 0));
+const orderOk = checkAt > 0 && checkAt < firstWrite;
+if (!orderOk) ownFailed++;
+console.log(`${orderOk ? "PASS" : "FAIL"}  ownership check sits before the first write / Cashfree order / coupon call in the function`);
+console.log(`${ownCases.length + 1 - ownFailed}/${ownCases.length + 1} ownership checks passed`);
+process.exit(failed || ownFailed ? 1 : 0);
